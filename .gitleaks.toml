@@ -1,0 +1,21 @@
+# gitleaks configuration for dashboard
+# Extends the default gitleaks ruleset. Add repo-specific rules here as the app
+# grows to handle new secret types. See https://github.com/gitleaks/gitleaks.
+
+title = "dashboard gitleaks config"
+
+[extend]
+# Inherit every rule from the bundled default ruleset.
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for documented placeholders and test fixtures"
+# Any *.example file (covers .env.example and .env.<name>.example) holds
+# documented placeholder values; fixture dirs hold synthetic secrets used by
+# tests. None of these are real leaks.
+paths = [
+  '''.*\.example$''',
+  '''(^|/)fixtures?/''',
+  '''(^|/)__fixtures__/''',
+  '''(^|/)test-fixtures?/''',
+]

@@ -1,0 +1,58 @@
+{
+  "name": "dashboard",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "TMPDIR=/tmp dotenvx run -f .env -- nuxt dev",
+    "dev:test": "TMPDIR=/tmp nuxt dev",
+    "build": "dotenvx run -f .env.production -- nuxt build",
+    "build:dev": "dotenvx run -f .env.dev -- nuxt build",
+    "preview": "dotenvx run -f .env.production -- nuxt preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:ci": "vitest run",
+    "lint": "prettier --check . && eslint . && fallow audit",
+    "lint:ci": "prettier --check . && eslint . && fallow audit --base origin/${BASE_BRANCH:-main}",
+    "lint:fix": "prettier --write . && eslint . --fix && fallow fix --yes",
+    "prepare": "husky",
+    "e2e": "dotenvx run -f .env.e2e -- playwright test",
+    "e2e:headed": "dotenvx run -f .env.e2e -- playwright test --headed",
+    "e2e:ui": "dotenvx run -f .env.e2e -- playwright test --ui",
+    "e2e:debug": "dotenvx run -f .env.e2e -- playwright test --debug",
+    "e2e:report": "playwright show-report e2e/report"
+  },
+  "dependencies": {
+    "@pinia/nuxt": "^0.11.3",
+    "geist": "^1.7.2",
+    "nuxt": "^4.4.8",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.39",
+    "vue-router": "^5.1.0"
+  },
+  "devDependencies": {
+    "@dotenvx/dotenvx": "^1.75.1",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/vite": "^4.3.2",
+    "@typescript-eslint/parser": "^8.62.1",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitest/ui": "^4.1.9",
+    "@vue/test-utils": "^2.4.11",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.9.2",
+    "fallow": "^2.96.0",
+    "globals": "^17.7.0",
+    "happy-dom": "^20.10.6",
+    "husky": "^9.1.7",
+    "prettier": "^3.9.4",
+    "prettier-plugin-tailwindcss": "^0.8.0",
+    "tailwindcss": "^4.3.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8",
+    "vue-eslint-parser": "^10.4.1"
+  }
+}
