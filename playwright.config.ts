@@ -16,7 +16,7 @@ if (
 }
 
 const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL ?? "";
-const UNAUTHENTICATED_SPECS = [/home\.spec\.ts/, /auth-unauth\.spec\.ts/];
+const UNAUTHENTICATED_SPECS = [/auth-unauth\.spec\.ts/];
 
 export default defineConfig({
   testDir: "./e2e",

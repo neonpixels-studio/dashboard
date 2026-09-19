@@ -22,8 +22,8 @@ setup("authenticate", async ({ page }) => {
 
   // Hit a protected page to confirm the session is fully established and let
   // any client-side redirects settle before capturing state.
-  await page.goto("/dashboard");
-  await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+  await page.goto("/");
+  await page.waitForURL((url) => url.pathname === "/", { timeout: 30_000 });
   await page.waitForLoadState("networkidle");
 
   mkdirSync("e2e/.auth", { recursive: true });

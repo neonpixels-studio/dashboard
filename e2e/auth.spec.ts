@@ -1,17 +1,17 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Auth guards (authenticated)", () => {
-  test("/dashboard is reachable with a session", async ({ page }) => {
-    await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+  test("/ (the dashboard) is reachable with a session", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
     await expect(
       page.getByRole("heading", { name: "Dashboard" }),
     ).toBeVisible();
   });
 
-  test("/login redirects a signed-in user to /dashboard", async ({ page }) => {
+  test("/login redirects a signed-in user to /", async ({ page }) => {
     await page.goto("/login");
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
   });
 
   // The only check that covers the whole chain against real infrastructure:

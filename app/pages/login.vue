@@ -3,7 +3,7 @@
     <div class="auth-panel">
       <span class="mono auth-brand">dashboard</span>
       <p class="lead auth-lead">Sign in to open your workspace.</p>
-      <SignIn fallback-redirect-url="/dashboard" />
+      <SignIn fallback-redirect-url="/" />
     </div>
   </div>
 </template>

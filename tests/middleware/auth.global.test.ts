@@ -20,19 +20,14 @@ describe("auth.global middleware", () => {
     mockNavigateTo.mockClear();
   });
 
-  it("lets an unauthenticated visitor stay on / (public)", () => {
+  it("redirects an unauthenticated visitor off / (the dashboard)", () => {
     authMiddleware(route("/"), route("/"));
-    expect(mockNavigateTo).not.toHaveBeenCalled();
+    expect(mockNavigateTo).toHaveBeenCalledWith("/login");
   });
 
   it("lets an unauthenticated visitor stay on /login", () => {
     authMiddleware(route("/login"), route("/"));
     expect(mockNavigateTo).not.toHaveBeenCalled();
-  });
-
-  it("redirects an unauthenticated visitor off a protected route", () => {
-    authMiddleware(route("/dashboard"), route("/"));
-    expect(mockNavigateTo).toHaveBeenCalledWith("/login");
   });
 
   it("treats a trailing slash as the same route", () => {
@@ -43,18 +38,12 @@ describe("auth.global middleware", () => {
   it("redirects a signed-in user away from /login", () => {
     mockIsSignedIn.value = true;
     authMiddleware(route("/login"), route("/"));
-    expect(mockNavigateTo).toHaveBeenCalledWith("/dashboard");
+    expect(mockNavigateTo).toHaveBeenCalledWith("/");
   });
 
-  it("leaves a signed-in user on / (public landing stays reachable)", () => {
+  it("leaves a signed-in user on / (the dashboard)", () => {
     mockIsSignedIn.value = true;
     authMiddleware(route("/"), route("/"));
-    expect(mockNavigateTo).not.toHaveBeenCalled();
-  });
-
-  it("leaves a signed-in user on a protected route", () => {
-    mockIsSignedIn.value = true;
-    authMiddleware(route("/dashboard"), route("/"));
     expect(mockNavigateTo).not.toHaveBeenCalled();
   });
 });
