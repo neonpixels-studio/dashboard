@@ -41,6 +41,7 @@
     </button>
 
     <UserButton
+      sign-out-redirect-url="/login"
       :appearance="{
         elements: { avatarBox: { width: '32px', height: '32px' } },
       }"
