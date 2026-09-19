@@ -6,7 +6,6 @@
     "@clerk/testing",
     "@pinia/nuxt",
     "@vue/test-utils",
-    "geist",
     "pinia",
     "vue"
   ]

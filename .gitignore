@@ -16,3 +16,4 @@ e2e/.auth/
 .env.keys
 .env.local
 .env.*.local
+/designs

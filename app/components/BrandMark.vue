@@ -1,0 +1,12 @@
+<template>
+  <svg :width="size" :height="size" viewBox="0 0 18 18" aria-hidden="true">
+    <rect x="0" y="9" width="7" height="7" rx="1.5" fill="#B4F03C" />
+    <rect x="9" y="11" width="5" height="5" rx="1.2" fill="#22D3EE" />
+    <rect x="4" y="2" width="5" height="5" rx="1.2" fill="#FF3EA5" />
+    <rect x="12" y="4" width="4" height="4" rx="1" fill="#FFB020" />
+  </svg>
+</template>
+
+<script setup lang="ts">
+withDefaults(defineProps<{ size?: number }>(), { size: 18 });
+</script>

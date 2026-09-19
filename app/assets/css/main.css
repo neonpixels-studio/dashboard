@@ -1,141 +1,61 @@
 @import "tailwindcss";
 
-/* Geist Sans */
-@font-face {
-  font-family: "Geist";
-  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Regular.woff2")
-    format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Geist";
-  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Medium.woff2")
-    format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Geist";
-  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-SemiBold.woff2")
-    format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Geist";
-  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Bold.woff2")
-    format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* Geist Mono */
-@font-face {
-  font-family: "Geist Mono";
-  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Regular.woff2")
-    format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Geist Mono";
-  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Medium.woff2")
-    format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Geist Mono";
-  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-SemiBold.woff2")
-    format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
 /* ============================================================
-   dashboard — design system
-   warm paper, near-black ink, violet accent.
-   Tokens map 1:1 to Tailwind @theme vars for handoff.
+   Neon Pixels Control — design system
+   Dark only. Tokens come from designs/06-design-tokens.html:
+   near-black surfaces, JetBrains Mono body, Archivo display,
+   one accent hex per property (see app/config/apps.ts).
    ============================================================ */
 
 :root {
-  /* --- accent (themeable at runtime via JS, default violet) --- */
-  --accent: #a855f7;
+  /* --- accent (lime CTA; property accents come from apps.ts) --- */
+  --accent: #b4f03c;
   --accent-600: color-mix(in oklab, var(--accent) 88%, #000);
   --accent-700: color-mix(in oklab, var(--accent) 74%, #000);
-  --accent-tint: color-mix(in oklab, var(--accent) 10%, transparent);
-  --accent-tint-2: color-mix(in oklab, var(--accent) 16%, transparent);
-  --on-accent: #ffffff;
+  --accent-tint: color-mix(in oklab, var(--accent) 12%, transparent);
+  --accent-tint-2: color-mix(in oklab, var(--accent) 18%, transparent);
+  --on-accent: #08080a;
 
-  /* --- neutrals: light (warm paper) --- */
-  --bg: #f4f3ef;
-  --bg-2: #edeae3;
-  --surface: #fbfbf9;
-  --surface-2: #ffffff;
-  --ink: #1a1813;
-  --ink-2: #56524a;
-  --ink-3: #8b867b;
-  --line: #e5e2da;
-  --line-2: #d6d2c8;
+  /* --- surfaces & ink --- */
+  --bg: #08080a; /* surface.page */
+  --bg-2: #0b0b0f; /* header bands */
+  --surface: #101014; /* surface.card */
+  --surface-2: #17171d; /* surface.inset */
+  --ink: #f2f2f5; /* text.primary */
+  --ink-2: #9a9aa8; /* text.secondary */
+  --ink-3: #82828f; /* text.muted */
+  --line: #23232b; /* border.default */
+  --line-2: #2e2e38; /* controls */
+  --line-3: #1c1c23; /* rules */
 
   /* --- status --- */
-  --ok: #16a34a;
-  --ok-tint: color-mix(in oklab, var(--ok) 10%, transparent);
-  --warn: #c2710c;
-  --warn-tint: color-mix(in oklab, var(--warn) 12%, transparent);
-  --err: #dc2626;
-  --err-tint: color-mix(in oklab, var(--err) 9%, transparent);
-  --info: #2563eb;
-  --info-tint: color-mix(in oklab, var(--info) 9%, transparent);
+  --ok: #3fb950;
+  --ok-tint: color-mix(in oklab, var(--ok) 15%, transparent);
+  --warn: #d6a419;
+  --warn-tint: color-mix(in oklab, var(--warn) 15%, transparent);
+  --err: #ff6b6b;
+  --err-tint: color-mix(in oklab, var(--err) 15%, transparent);
+  --info: #22d3ee;
+  --info-tint: color-mix(in oklab, var(--info) 15%, transparent);
 
-  /* --- type --- */
-  --sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "Geist Mono", ui-monospace, "SF Mono", "Menlo", monospace;
+  /* --- type (self-hosted via @fontsource-variable, see nuxt.config.ts) --- */
+  --sans:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular,
+    monospace;
+  --mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular,
+    monospace;
+  --display: "Archivo Variable", "Archivo", system-ui, sans-serif;
 
-  /* --- radius --- */
+  /* --- radius (10px card · 7px control · 4px chip) --- */
   --r-xs: 3px;
-  --r-sm: 5px;
-  --r: 8px;
-  --r-lg: 12px;
+  --r-sm: 4px;
+  --r: 7px;
+  --r-lg: 10px;
   --r-xl: 16px;
 
   /* --- shadow (border-led, shadows subtle) --- */
-  --sh-1: 0 1px 2px rgba(20, 18, 12, 0.04);
-  --sh-2: 0 1px 0 var(--line), 0 12px 30px -22px rgba(20, 18, 12, 0.5);
-  --sh-pop: 0 18px 50px -20px rgba(20, 18, 12, 0.32);
-}
-
-html.dark {
-  --accent-tint: color-mix(in oklab, var(--accent) 16%, transparent);
-  --accent-tint-2: color-mix(in oklab, var(--accent) 24%, transparent);
-
-  --bg: #121211;
-  --bg-2: #191816;
-  --surface: #1a1916;
-  --surface-2: #211f1b;
-  --ink: #f2f0ea;
-  --ink-2: #a6a199;
-  --ink-3: #736f67;
-  --line: #2a2823;
-  --line-2: #3a3730;
-
-  --ok: #34d058;
-  --ok-tint: color-mix(in oklab, var(--ok) 15%, transparent);
-  --warn: #e0a64a;
-  --warn-tint: color-mix(in oklab, var(--warn) 16%, transparent);
-  --err: #f5594e;
-  --err-tint: color-mix(in oklab, var(--err) 15%, transparent);
-  --info: #5b9bff;
-  --info-tint: color-mix(in oklab, var(--info) 15%, transparent);
-
+  --sh-1: none;
   --sh-2: 0 1px 0 var(--line), 0 18px 40px -26px rgba(0, 0, 0, 0.8);
   --sh-pop: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
 }
@@ -280,12 +200,9 @@ h4 {
   white-space: nowrap;
 }
 .chip.accent {
-  color: var(--accent-700);
+  color: var(--accent);
   border-color: color-mix(in oklab, var(--accent) 38%, var(--line-2));
   background: var(--accent-tint);
-}
-html.dark .chip.accent {
-  color: var(--accent);
 }
 .chip-row {
   display: flex;
@@ -396,9 +313,6 @@ html.dark .chip.accent {
   white-space: nowrap;
 }
 .field-label .num {
-  color: var(--accent-700);
-}
-html.dark .field-label .num {
   color: var(--accent);
 }
 .field-label .req {
@@ -644,12 +558,9 @@ html.dark .field-label .num {
   background: var(--info-tint);
 }
 .badge.accent {
-  color: var(--accent-700);
+  color: var(--accent);
   border-color: color-mix(in oklab, var(--accent) 38%, var(--line));
   background: var(--accent-tint);
-}
-html.dark .badge.accent {
-  color: var(--accent);
 }
 
 /* ---------- key caps ---------- */
@@ -715,4 +626,54 @@ html.dark .badge.accent {
   height: 1px;
   background: var(--line);
   border: 0;
+}
+
+/* ---------- console primitives ---------- */
+.page-shell {
+  min-height: 100vh;
+  max-width: 1440px;
+  margin: 0 auto;
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+}
+.display-num {
+  font-family: var(--display);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--ink-2);
+}
+.micro-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+.delta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.delta.ok {
+  color: var(--ok);
+}
+.swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+.level-chip {
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
