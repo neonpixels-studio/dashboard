@@ -3,7 +3,7 @@
 /* Geist Sans */
 @font-face {
   font-family: "Geist";
-  src: url("../../node_modules/geist/dist/fonts/geist-sans/Geist-Regular.woff2")
+  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Regular.woff2")
     format("woff2");
   font-weight: 400;
   font-style: normal;
@@ -11,7 +11,7 @@
 }
 @font-face {
   font-family: "Geist";
-  src: url("../../node_modules/geist/dist/fonts/geist-sans/Geist-Medium.woff2")
+  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Medium.woff2")
     format("woff2");
   font-weight: 500;
   font-style: normal;
@@ -19,7 +19,7 @@
 }
 @font-face {
   font-family: "Geist";
-  src: url("../../node_modules/geist/dist/fonts/geist-sans/Geist-SemiBold.woff2")
+  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-SemiBold.woff2")
     format("woff2");
   font-weight: 600;
   font-style: normal;
@@ -27,7 +27,7 @@
 }
 @font-face {
   font-family: "Geist";
-  src: url("../../node_modules/geist/dist/fonts/geist-sans/Geist-Bold.woff2")
+  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Bold.woff2")
     format("woff2");
   font-weight: 700;
   font-style: normal;
@@ -37,7 +37,7 @@
 /* Geist Mono */
 @font-face {
   font-family: "Geist Mono";
-  src: url("../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Regular.woff2")
+  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Regular.woff2")
     format("woff2");
   font-weight: 400;
   font-style: normal;
@@ -45,7 +45,7 @@
 }
 @font-face {
   font-family: "Geist Mono";
-  src: url("../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Medium.woff2")
+  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Medium.woff2")
     format("woff2");
   font-weight: 500;
   font-style: normal;
@@ -53,7 +53,7 @@
 }
 @font-face {
   font-family: "Geist Mono";
-  src: url("../../node_modules/geist/dist/fonts/geist-mono/GeistMono-SemiBold.woff2")
+  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-SemiBold.woff2")
     format("woff2");
   font-weight: 600;
   font-style: normal;
