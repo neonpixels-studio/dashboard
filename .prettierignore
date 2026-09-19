@@ -1,0 +1,2 @@
+# dotenvx-managed env files (encrypted values; never reformat)
+.env*
