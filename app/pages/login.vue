@@ -67,20 +67,37 @@ useHead({ title: "Sign in · Neon Pixels Control" });
 
 const propertyPills = APPS.filter((app) => !app.isStudioSite);
 
+// Ink matches --ink from the design system so the Clerk card reads as one piece
+// with the rest of the page.
+const INK = "#F2F2F5";
+
+// This Clerk version doesn't reliably theme the header, labels, divider and
+// footer text through appearance.variables (they derive from colorNeutral,
+// which isn't honored here — that's why those render dark). Setting the color on
+// each element directly is version-proof.
 const clerkAppearance = {
   variables: {
     colorPrimary: "#B4F03C",
-    // Clerk derives its muted grays (footer, dividers, header text) from
-    // colorNeutral, so it must be light on this dark theme.
-    colorNeutral: "#F2F2F5",
     colorBackground: "#101014",
     colorInputBackground: "#101014",
-    colorText: "#F2F2F5",
+    colorText: INK,
     colorTextSecondary: "#9A9AA8",
-    colorInputText: "#F2F2F5",
+    colorInputText: INK,
     colorDanger: "#FF6B6B",
     borderRadius: "8px",
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+  },
+  elements: {
+    headerTitle: { color: INK },
+    headerSubtitle: { color: INK },
+    formHeaderTitle: { color: INK },
+    formHeaderSubtitle: { color: INK },
+    formFieldLabel: { color: INK },
+    formFieldInputShowPasswordButton: { color: INK },
+    identityPreviewText: { color: INK },
+    dividerText: { color: INK },
+    footerActionText: { color: INK },
+    footer: { color: INK },
   },
 };
 </script>
@@ -223,5 +240,24 @@ const clerkAppearance = {
 }
 .auth-footer a:hover {
   color: var(--ink);
+}
+</style>
+
+<!--
+  Clerk renders its widget into the page (no shadow DOM), but its own injected
+  styles win over the appearance API for a few elements in this version, so we
+  target the stable .cl-* classes here. !important is needed because Clerk's
+  runtime styles land after these. This block is intentionally global (unscoped)
+  since scoped attributes never reach Clerk's markup.
+-->
+<style>
+/* --on-accent: dark ink on the lime CTA; white-on-lime is too low-contrast. */
+.cl-formButtonPrimary {
+  color: #08080a !important;
+}
+/* --ink: the verification-code boxes share the card background, so without an
+   explicit border they read as borderless. */
+.cl-otpCodeFieldInput {
+  border: 1px solid #f2f2f5 !important;
 }
 </style>
