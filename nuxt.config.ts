@@ -17,7 +17,15 @@ export default defineNuxtConfig({
     databaseUrl: process.env.E2E_DATABASE_URL || process.env.DATABASE_URL || "",
     disableSignups: process.env.NUXT_DISABLE_SIGNUPS || "",
   },
-  css: ["~/assets/css/main.css"],
+  // Self-hosted variable fonts, loaded before main.css so the @font-face rules
+  // are registered before the type tokens that reference them. Each package
+  // ships per-script woff2 files behind unicode-range, so an English page only
+  // fetches the two latin files.
+  css: [
+    "@fontsource-variable/archivo",
+    "@fontsource-variable/jetbrains-mono",
+    "~/assets/css/main.css",
+  ],
   devtools: { enabled: true },
   nitro: {
     preset: "netlify",
@@ -27,7 +35,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: "Dashboard",
+      title: "Neon Pixels Control",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
