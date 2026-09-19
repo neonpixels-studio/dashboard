@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 
@@ -11,7 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: "happy-dom",
-    exclude: ["node_modules", "e2e"],
+    exclude: [...configDefaults.exclude, "e2e", ".netlify", ".nuxt", ".output"],
     setupFiles: ["./tests/setup.ts"],
   },
 });
