@@ -1,7 +1,9 @@
 {
   "$schema": "https://fallow.tools/schema.json",
-  "entry": ["app/stores/**"],
+  "entry": ["app/stores/**", "server/db/index.ts"],
   "ignoreDependencies": [
+    "@clerk/nuxt",
+    "@clerk/testing",
     "@pinia/nuxt",
     "@vue/test-utils",
     "geist",
