@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import TrafficPanel from "../../app/components/TrafficPanel.vue";
 import SparkLine from "../../app/components/SparkLine.vue";
-import AxisRow from "../../app/components/AxisRow.vue";
 import StatList from "../../app/components/StatList.vue";
 import { findAppBySlug } from "../../app/config/apps";
+import { DETAIL_COMPONENTS } from "./support/detailComponents";
 
 const app = findAppBySlug("basin")!;
 
@@ -36,7 +36,7 @@ function mountPanel() {
       path: "M0 14 C5 16.2",
       lists,
     },
-    global: { components: { SparkLine, AxisRow, StatList } },
+    global: { components: DETAIL_COMPONENTS },
   });
 }
 

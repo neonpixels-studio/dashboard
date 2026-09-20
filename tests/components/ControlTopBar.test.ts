@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import ControlTopBar from "../../app/components/ControlTopBar.vue";
+import BrandMark from "../../app/components/BrandMark.vue";
 
-// ControlTopBar relies on Nuxt's <NuxtLink> and @clerk/nuxt's <UserButton>,
-// both auto-imported at runtime — stub them the same way PropertyCard.test.ts
-// stubs NuxtLink, since neither is registered outside a running Nuxt app.
+// ControlTopBar relies on Nuxt's <NuxtLink>, its own auto-imported
+// <BrandMark>, and @clerk/nuxt's <UserButton> — none registered outside a
+// running Nuxt app. Register BrandMark for real (it's a component under
+// test elsewhere in this suite) and stub the two Nuxt/Clerk-provided ones,
+// the same way PropertyCard.test.ts stubs NuxtLink.
 function mountBar(props: Record<string, unknown> = {}) {
   return mount(ControlTopBar, {
     props,
     global: {
+      components: { BrandMark },
       stubs: {
         NuxtLink: { props: ["to"], template: "<a :href='to'><slot /></a>" },
         UserButton: { template: "<div class='user-button-stub' />" },

@@ -3,14 +3,11 @@ import { mount } from "@vue/test-utils";
 import AppDetailWriting from "../../app/components/AppDetailWriting.vue";
 import SectionLabel from "../../app/components/SectionLabel.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
-import AppIcon from "../../app/components/AppIcon.vue";
 import SyndicationPostMatrix from "../../app/components/SyndicationPostMatrix.vue";
 import TrafficPanel from "../../app/components/TrafficPanel.vue";
-import SparkLine from "../../app/components/SparkLine.vue";
-import AxisRow from "../../app/components/AxisRow.vue";
-import StatList from "../../app/components/StatList.vue";
 import SourcesFooter from "../../app/components/SourcesFooter.vue";
 import { findAppBySlug } from "../../app/config/apps";
+import { DETAIL_COMPONENTS } from "./support/detailComponents";
 
 const app = findAppBySlug("danholloran")!;
 
@@ -20,19 +17,7 @@ const app = findAppBySlug("danholloran")!;
 function mountDetail() {
   return mount(AppDetailWriting, {
     props: { app },
-    global: {
-      components: {
-        SectionLabel,
-        MetricTile,
-        AppIcon,
-        SyndicationPostMatrix,
-        TrafficPanel,
-        SparkLine,
-        AxisRow,
-        StatList,
-        SourcesFooter,
-      },
-    },
+    global: { components: DETAIL_COMPONENTS },
   });
 }
 

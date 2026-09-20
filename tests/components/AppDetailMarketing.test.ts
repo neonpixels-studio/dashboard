@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import AppDetailMarketing from "../../app/components/AppDetailMarketing.vue";
-import MetricTile from "../../app/components/MetricTile.vue";
-import AppIcon from "../../app/components/AppIcon.vue";
-import SparkLine from "../../app/components/SparkLine.vue";
-import AxisRow from "../../app/components/AxisRow.vue";
 import BarMeter from "../../app/components/BarMeter.vue";
+import MetricTile from "../../app/components/MetricTile.vue";
+import SparkLine from "../../app/components/SparkLine.vue";
 import StatList from "../../app/components/StatList.vue";
 import { findAppBySlug } from "../../app/config/apps";
+import { DETAIL_COMPONENTS } from "./support/detailComponents";
 
 // AppDetailMarketing is a fixed-data template (issue #28 scope note: content
 // isn't prop-driven yet), so these tests exercise the one real prop it takes
@@ -16,16 +15,7 @@ import { findAppBySlug } from "../../app/config/apps";
 function mountDetail(slug: string) {
   return mount(AppDetailMarketing, {
     props: { app: findAppBySlug(slug)! },
-    global: {
-      components: {
-        MetricTile,
-        AppIcon,
-        SparkLine,
-        AxisRow,
-        BarMeter,
-        StatList,
-      },
-    },
+    global: { components: DETAIL_COMPONENTS },
   });
 }
 
@@ -49,10 +39,16 @@ describe("AppDetailMarketing", () => {
     expect(wrapper.findComponent(SparkLine).props("color")).toBe("var(--ink)");
   });
 
-  it("renders an outbound-click bar per resolvable app slug", () => {
+  it("renders an outbound-click bar per resolvable app slug, labeled and colored from that app's own config", () => {
     const wrapper = mountDetail("grimicorn");
-    // OUTBOUND_CLICKS lists 4 slugs, all of which resolve via findAppBySlug.
-    expect(wrapper.findAllComponents(BarMeter)).toHaveLength(4);
+    const bars = wrapper.findAllComponents(BarMeter);
+    expect(bars.map((bar) => bar.props("label"))).toEqual([
+      "grimicorn.dev",
+      "wanderist.io",
+      "basin.fm",
+      "markpost.io",
+    ]);
+    expect(bars[0].props("color")).toBe(findAppBySlug("grimicorn")!.accent);
   });
 
   it("renders the traffic-source and device stat lists", () => {

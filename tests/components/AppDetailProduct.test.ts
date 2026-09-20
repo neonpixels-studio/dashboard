@@ -3,14 +3,12 @@ import { mount } from "@vue/test-utils";
 import AppDetailProduct from "../../app/components/AppDetailProduct.vue";
 import SectionLabel from "../../app/components/SectionLabel.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
-import AppIcon from "../../app/components/AppIcon.vue";
 import SparkLine from "../../app/components/SparkLine.vue";
-import AxisRow from "../../app/components/AxisRow.vue";
 import BarMeter from "../../app/components/BarMeter.vue";
-import StatList from "../../app/components/StatList.vue";
 import TrafficPanel from "../../app/components/TrafficPanel.vue";
 import SourcesFooter from "../../app/components/SourcesFooter.vue";
 import { findAppBySlug } from "../../app/config/apps";
+import { DETAIL_COMPONENTS } from "./support/detailComponents";
 
 const app = findAppBySlug("basin")!;
 
@@ -21,24 +19,12 @@ const app = findAppBySlug("basin")!;
 function mountDetail() {
   return mount(AppDetailProduct, {
     props: { app },
-    global: {
-      components: {
-        SectionLabel,
-        MetricTile,
-        AppIcon,
-        SparkLine,
-        AxisRow,
-        BarMeter,
-        StatList,
-        TrafficPanel,
-        SourcesFooter,
-      },
-    },
+    global: { components: DETAIL_COMPONENTS },
   });
 }
 
 describe("AppDetailProduct", () => {
-  it("renders the money & health and users & auth section labels", () => {
+  it("renders the money & health, users & auth, and traffic section labels in order", () => {
     const wrapper = mountDetail();
     const labels = wrapper
       .findAllComponents(SectionLabel)
@@ -56,11 +42,11 @@ describe("AppDetailProduct", () => {
   it("colors the MRR chart and plan bars in the app's accent", () => {
     const wrapper = mountDetail();
     expect(wrapper.findComponent(SparkLine).props("color")).toBe(app.accent);
-    expect(
-      wrapper
-        .findAllComponents(BarMeter)
-        .every((bar) => bar.props("color") === app.accent),
-    ).toBe(true);
+    const bars = wrapper.findAllComponents(BarMeter);
+    // Plan bars (3) + sign-in method bars (3) — pin the count so this can't
+    // pass vacuously if either BarMeter list stops rendering.
+    expect(bars).toHaveLength(6);
+    expect(bars.every((bar) => bar.props("color") === app.accent)).toBe(true);
   });
 
   it("renders the transaction and issue rows", () => {

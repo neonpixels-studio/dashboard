@@ -25,7 +25,8 @@ describe("MetricTile", () => {
     expect(wrapper.find(".sub").text()).toBe("$387 last month");
   });
 
-  it("defaults deltaTone to ok, so no muted class is applied", () => {
+  it("defaults deltaTone to ok", () => {
+    expect(mountTile().find(".delta").classes()).toContain("ok");
     expect(mountTile().find(".delta").classes()).not.toContain("muted");
   });
 
