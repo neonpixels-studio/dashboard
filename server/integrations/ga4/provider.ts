@@ -10,18 +10,23 @@ import type {
 } from "../types";
 import { createGa4ReportRunner } from "./ga4Client";
 import {
-  sumSessions,
+  sumReportSessions,
   toChannelBreakdown,
   toDailySessionPoints,
 } from "./mapping";
 import type { RunGa4Report } from "./types";
 
 const GA4_VENDOR = "ga4";
-// GA4's own relative-date syntax, resolved server-side — "29daysAgo" through
-// "today" inclusive is a 30-day window, matching the issue's "sessions for
-// the reporting window (30d)" scope.
+// GA4's own relative-date syntax, resolved server-side. The 30d total and
+// channel split use a live rolling window through "today", matching the
+// issue's "sessions for the reporting window (30d)" scope. The daily series
+// uses a separate, complete-days-only window ("30daysAgo".."yesterday") so
+// the sparkline's most recent point is never a partial, still-accumulating
+// day that would shrink every time this runs later in the same day.
 const REPORT_START_DATE = "29daysAgo";
 const REPORT_END_DATE = "today";
+const DAILY_SERIES_START_DATE = "30daysAgo";
+const DAILY_SERIES_END_DATE = "yesterday";
 const DATE_DIMENSION_NAME = "date";
 const CHANNEL_DIMENSION_NAME = "sessionDefaultChannelGrouping";
 const NO_SESSIONS = 0;
@@ -43,7 +48,12 @@ function resolvePropertyId(config: IntegrationConfig): string | null {
     return externalId;
   }
   const envVarName = `NUXT_GA4_PROPERTY_ID_${config.slug.toUpperCase()}`;
-  return process.env[envVarName] ?? null;
+  // Trimmed the same way as externalId above — .env.example ships every
+  // NUXT_GA4_PROPERTY_ID_* var present-but-empty by default, and an untrimmed
+  // whitespace value would be truthy and reach GA4 as "properties/   "
+  // instead of hitting the unconfigured-app branch.
+  const fromEnv = process.env[envVarName]?.trim();
+  return fromEnv || null;
 }
 
 /**
@@ -72,8 +82,8 @@ export async function fetchGa4Metrics(
     runGa4Report({
       propertyId,
       dimension: DATE_DIMENSION_NAME,
-      startDate: REPORT_START_DATE,
-      endDate: REPORT_END_DATE,
+      startDate: DAILY_SERIES_START_DATE,
+      endDate: DAILY_SERIES_END_DATE,
     }),
     runGa4Report({
       propertyId,
@@ -84,9 +94,23 @@ export async function fetchGa4Metrics(
   ]);
 
   const dailySessionPoints = toDailySessionPoints(dailyRows);
-  const totalSessions = sumSessions(dailySessionPoints);
+  // Derived from channelRows, not summed from the daily series — see
+  // sumReportSessions's comment for why the date-dimensioned report can
+  // double-count a midnight-spanning session and shouldn't be the source of
+  // the stored total (or of toChannelBreakdown's denominator below).
+  const totalSessions = sumReportSessions(channelRows);
   const capturedAt = new Date();
 
+  // Backfills up to 30 PERIOD_DAILY rows every sync (not just today's), so a
+  // sparkline has data immediately rather than depending on 30+ days of
+  // polls to accumulate one point at a time. Each row's `capturedAt` is that
+  // calendar day (not the sync time), which means a re-sync re-reports the
+  // same days with the same `capturedAt` — this provider returns them as
+  // plain data (per the IntegrationProvider contract, no DB writes happen
+  // here); whichever orchestrator eventually persists ProviderResult must
+  // upsert metric_snapshot on (slug, vendor, metric, period, capturedAt)
+  // rather than blind-inserting, or repeated syncs will duplicate every day
+  // in this backfill.
   const metrics: ProviderResult["metrics"] = [
     {
       vendor: GA4_VENDOR,

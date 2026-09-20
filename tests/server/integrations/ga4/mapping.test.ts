@@ -6,6 +6,7 @@ import {
   CHANNEL_BUCKET_REFERRAL,
   parseGa4Date,
   parseGa4MetricValue,
+  sumReportSessions,
   sumSessions,
   toChannelBreakdown,
   toChannelBucket,
@@ -22,6 +23,13 @@ describe("parseGa4Date", () => {
 
   it("throws on a value that isn't YYYYMMDD", () => {
     expect(() => parseGa4Date("2026-09-19")).toThrow(/YYYYMMDD/);
+  });
+
+  it("throws on an out-of-range month/day instead of silently rolling over", () => {
+    // Date.UTC alone would roll "20261301" into 2027-01-01 and "20260931"
+    // into 2026-10-01 — both must be rejected, not silently re-dated.
+    expect(() => parseGa4Date("20261301")).toThrow(/not a real calendar date/);
+    expect(() => parseGa4Date("20260931")).toThrow(/not a real calendar date/);
   });
 });
 
@@ -63,6 +71,21 @@ describe("sumSessions", () => {
 
   it("returns 0 for an empty list", () => {
     expect(sumSessions([])).toBe(0);
+  });
+});
+
+describe("sumReportSessions", () => {
+  it("sums the sessions metric across a report's rows regardless of dimension", () => {
+    const rows: Ga4ReportRow[] = [
+      { dimensionValue: "Organic Search", metricValue: "600" },
+      { dimensionValue: "Direct", metricValue: "300" },
+    ];
+
+    expect(sumReportSessions(rows)).toBe(900);
+  });
+
+  it("returns 0 for an empty report", () => {
+    expect(sumReportSessions([])).toBe(0);
   });
 });
 
@@ -124,5 +147,16 @@ describe("toChannelBreakdown", () => {
     const breakdown = toChannelBreakdown(rows, 3);
 
     expect(breakdown).toEqual([{ channel: CHANNEL_BUCKET_DIRECT, pct: 33.33 }]);
+  });
+
+  it("throws instead of dividing by zero when totalSessions is not positive", () => {
+    const rows: Ga4ReportRow[] = [
+      { dimensionValue: "Direct", metricValue: "0" },
+    ];
+
+    expect(() => toChannelBreakdown(rows, 0)).toThrow(/positive totalSessions/);
+    expect(() => toChannelBreakdown(rows, -5)).toThrow(
+      /positive totalSessions/,
+    );
   });
 });

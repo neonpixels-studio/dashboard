@@ -137,11 +137,24 @@ describe("fetchGa4Metrics", () => {
 
   it("falls back to the shared NUXT_GA4_PROPERTY_ID_<SLUG> env var when integration_config.external_id is unset", async () => {
     vi.stubEnv("NUXT_GA4_PROPERTY_ID_BASIN", "123456");
-    const dailyRows = await loadFixture<Ga4ReportRow[]>(
-      "ga4",
-      "daily-sessions-30d",
+    const runGa4Report = vi.fn(async () => []);
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "ga4",
+      externalId: null,
+      secret: "unused",
+    });
+
+    await fetchGa4Metrics(config, runGa4Report);
+
+    expect(runGa4Report).toHaveBeenCalledWith(
+      expect.objectContaining({ propertyId: "123456" }),
     );
-    const runGa4Report = buildRunGa4Report(dailyRows, []);
+  });
+
+  it("trims and ignores a whitespace-only env var, same as an unset one", async () => {
+    vi.stubEnv("NUXT_GA4_PROPERTY_ID_BASIN", "   ");
+    const runGa4Report = vi.fn();
     const config = createTestIntegrationConfig({
       slug: "basin",
       vendor: "ga4",
@@ -151,10 +164,8 @@ describe("fetchGa4Metrics", () => {
 
     const result = await fetchGa4Metrics(config, runGa4Report);
 
-    // Reaching (and calling) GA4 at all proves the env var was picked up as
-    // the property-id source — the unconfigured branch never calls it.
-    expect(runGa4Report).toHaveBeenCalled();
-    expect(result.metrics).not.toEqual([]);
+    expect(result.metrics).toEqual([]);
+    expect(runGa4Report).not.toHaveBeenCalled();
   });
 
   it("prefers integration_config.external_id over the env var when both are set", async () => {
@@ -251,11 +262,14 @@ describe("fetchGa4Metrics", () => {
     expect(result.trafficBreakdown).toEqual([]);
   });
 
-  it("fetches daily sessions and the channel split in parallel, not sequentially", async () => {
-    const callOrder: string[] = [];
-    const runGa4Report: RunGa4Report = vi.fn(async ({ dimension }) => {
-      callOrder.push(dimension);
-      return [];
+  it("starts the daily and channel-split requests together (Promise.all), not one after the other", async () => {
+    const startedDimensions: string[] = [];
+    const pendingResolvers: Record<string, (rows: Ga4ReportRow[]) => void> = {};
+    const runGa4Report: RunGa4Report = vi.fn(({ dimension }) => {
+      startedDimensions.push(dimension);
+      return new Promise((resolve) => {
+        pendingResolvers[dimension] = resolve;
+      });
     });
     const config = createTestIntegrationConfig({
       slug: "basin",
@@ -264,11 +278,19 @@ describe("fetchGa4Metrics", () => {
       secret: "unused",
     });
 
-    await fetchGa4Metrics(config, runGa4Report);
+    const resultPromise = fetchGa4Metrics(config, runGa4Report);
+    // Flush the microtask queue without resolving either request. A
+    // sequential `await` implementation would only have started the first
+    // request by this point; Promise.all starts both before awaiting either.
+    await Promise.resolve();
+    await Promise.resolve();
 
-    expect(callOrder).toEqual(
-      expect.arrayContaining(["date", "sessionDefaultChannelGrouping"]),
+    expect(startedDimensions.sort()).toEqual(
+      ["date", "sessionDefaultChannelGrouping"].sort(),
     );
-    expect(runGa4Report).toHaveBeenCalledTimes(2);
+
+    pendingResolvers.date([]);
+    pendingResolvers.sessionDefaultChannelGrouping([]);
+    await resultPromise;
   });
 });

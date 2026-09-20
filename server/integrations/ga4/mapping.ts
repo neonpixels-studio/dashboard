@@ -14,11 +14,22 @@ export interface Ga4ChannelBreakdown {
   pct: number;
 }
 
+function toYyyymmdd(date: Date): string {
+  const year = String(date.getUTCFullYear()).padStart(4, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
+}
+
 /**
  * Parses a GA4 `date` dimension value (always `YYYYMMDD`, e.g. "20260919")
  * into a UTC midnight Date. Fails loud on anything else rather than silently
  * mis-dating a sparkline point — a format change here would otherwise be
- * indistinguishable from a legitimate date far in the past/future.
+ * indistinguishable from a legitimate date far in the past/future. The regex
+ * alone only checks shape, not range (e.g. "20261301" or "20260931" would
+ * otherwise silently roll over into the following month via `Date.UTC`), so
+ * the parsed date is round-tripped back through the same format and compared
+ * against the input.
  */
 export function parseGa4Date(dateDimensionValue: string): Date {
   const match = YYYYMMDD_PATTERN.exec(dateDimensionValue);
@@ -28,7 +39,15 @@ export function parseGa4Date(dateDimensionValue: string): Date {
     );
   }
   const [, year, month, day] = match;
-  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const parsed = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  );
+  if (toYyyymmdd(parsed) !== dateDimensionValue) {
+    throw new Error(
+      `GA4 date dimension value "${dateDimensionValue}" is not a real calendar date.`,
+    );
+  }
+  return parsed;
 }
 
 /**
@@ -66,6 +85,24 @@ export function toDailySessionPoints(
 
 export function sumSessions(points: { sessions: number }[]): number {
   return points.reduce((sum, point) => sum + point.sessions, 0);
+}
+
+/**
+ * Sums the `sessions` metric straight across a report's rows, regardless of
+ * dimension. Used for the report-level total rather than
+ * `sumSessions(toDailySessionPoints(...))`: GA4's `date` dimension can
+ * double-count a session that spans midnight (once on each of the two
+ * calendar days it touches), while `sessionDefaultChannelGrouping` is
+ * session-scoped and doesn't have that failure mode — so the 30d total this
+ * provider reports is derived from the channel-split report, not the daily
+ * one, and the two therefore always share the same denominator (see
+ * provider.ts's fetchGa4Metrics).
+ */
+export function sumReportSessions(rows: Ga4ReportRow[]): number {
+  return rows.reduce(
+    (sum, row) => sum + parseGa4MetricValue(row.metricValue),
+    0,
+  );
 }
 
 // GA4's own `sessionDefaultChannelGrouping` values, collapsed into the
@@ -109,12 +146,21 @@ function roundToPct(value: number): number {
  * must be the metric's own total, not just the sessions of channels that
  * happen to appear in this report) — callers should skip calling this
  * entirely when totalSessions is 0, since a percentage split of zero
- * sessions is undefined, not "every channel at 0%".
+ * sessions is undefined, not "every channel at 0%". Throws rather than
+ * dividing by zero if a caller does anyway: an Infinity/NaN pct would fail
+ * the traffic_breakdown_pct_range DB check at insert time instead of here,
+ * at the actual mistake.
  */
 export function toChannelBreakdown(
   rows: Ga4ReportRow[],
   totalSessions: number,
 ): Ga4ChannelBreakdown[] {
+  if (totalSessions <= 0) {
+    throw new Error(
+      `toChannelBreakdown requires a positive totalSessions, got ${totalSessions}.`,
+    );
+  }
+
   const sessionsByBucket = new Map<string, number>();
   for (const row of rows) {
     const bucket = toChannelBucket(row.dimensionValue);
