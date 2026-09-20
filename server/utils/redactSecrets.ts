@@ -45,18 +45,21 @@ const UNTERMINATED_PRIVATE_KEY_PATTERN =
 const AUTHORIZATION_HEADER_PATTERN =
   /(["']?authorization["']?\s*[:=]\s*["']?(?:bearer|basic|token|apikey)?\s*)[^"'\s,}]+/gi;
 
-// Same plain-vs-JSON reasoning as the authorization pattern above, for the
-// `x-api-key` header some vendors use instead of `Authorization`.
-const API_KEY_HEADER_PATTERN =
-  /(["']?x-api-key["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi;
+// Same plain-vs-JSON reasoning as the authorization pattern above, for any
+// other credential-shaped header some vendors use instead of
+// `Authorization` — `x-api-key`, `X-Auth-Token`, `Private-Token`, etc.
+const CREDENTIAL_HEADER_PATTERN =
+  /(["']?[\w-]*(?:api[_-]?key|token|auth)["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi;
 
 // Any other credential-shaped field name in a JSON-serialized body/params
 // object some SDKs stringify into their error message, e.g.
 // '{"params":{"api_key":"abc123"}}' or '{"client_secret":"abc123"}' — the
 // query-param pattern below only fires after a literal `?`/`&`, so an
-// object never reaches it.
+// object never reaches it. Same credential-word list as the query-param
+// pattern, so both cover the same names (e.g. a bare `key`, as Google APIs
+// including GA4 use for their API key param).
 const CREDENTIAL_JSON_FIELD_PATTERN =
-  /(["'][\w.-]*(?:api[_-]?key|token|secret|password|passwd|auth)["']\s*:\s*["'])[^"']+/gi;
+  /(["'][\w.-]*(?:key|token|secret|password|passwd|sig|auth)["']\s*:\s*["'])[^"']+/gi;
 
 // `[\w.-]*` before the credential word covers a prefixed param name
 // (`client_secret`, `refresh_token`, `private_token`) as well as the bare
@@ -74,7 +77,7 @@ const REDACTION_STEPS: { pattern: RegExp; replacement: string }[] = [
   { pattern: SERVICE_ACCOUNT_PRIVATE_KEY_PATTERN, replacement: REDACTED },
   { pattern: UNTERMINATED_PRIVATE_KEY_PATTERN, replacement: REDACTED },
   { pattern: AUTHORIZATION_HEADER_PATTERN, replacement: `$1${REDACTED}` },
-  { pattern: API_KEY_HEADER_PATTERN, replacement: `$1${REDACTED}` },
+  { pattern: CREDENTIAL_HEADER_PATTERN, replacement: `$1${REDACTED}` },
   { pattern: CREDENTIAL_JSON_FIELD_PATTERN, replacement: `$1${REDACTED}` },
   { pattern: CREDENTIAL_QUERY_PARAM_PATTERN, replacement: `$1${REDACTED}` },
 ];

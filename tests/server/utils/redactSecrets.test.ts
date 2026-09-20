@@ -69,6 +69,15 @@ describe("redactSecrets", () => {
     expect(redacted).toContain('"x-api-key":"[REDACTED]"');
   });
 
+  it("redacts a plain-text credential header other than Authorization/x-api-key", () => {
+    // e.g. X-Auth-Token, Private-Token — any header name ending in
+    // api-key/token/auth, not just the two most common ones.
+    const message = "403 Forbidden — X-Auth-Token: leaked-header-value";
+    expect(redactSecrets(message)).toBe(
+      "403 Forbidden — X-Auth-Token: [REDACTED]",
+    );
+  });
+
   it("redacts credential query params echoed back in a request URL", () => {
     const message =
       "GET https://api.example.com/v1/report?property=123&api_key=leaked-query-value failed with 401";
@@ -96,6 +105,13 @@ describe("redactSecrets", () => {
     expect(redacted).toContain('"client_secret":"[REDACTED]"');
   });
 
+  it("redacts a bare `key` JSON field (Google APIs, including GA4, use this for their API key param)", () => {
+    const message = 'Request failed {"params":{"key":"leaked-value"}}';
+    expect(redactSecrets(message)).toBe(
+      'Request failed {"params":{"key":"[REDACTED]"}}',
+    );
+  });
+
   it("redacts every secret-shaped occurrence when a message carries more than one", () => {
     const message =
       "sync failed: key sk_live_first and again sk_live_second " +
@@ -108,18 +124,20 @@ describe("redactSecrets", () => {
   });
 
   describe("GA4 service account PEM private keys", () => {
-    it("redacts a complete PEM block", () => {
+    it("redacts a complete PEM block and preserves text after it", () => {
       // Matches the stub shape used by tests/server/integrations/ga4/
       // provider.test.ts — a literal "..." body, which can never appear in
       // a real key, so it can't be mistaken for one by a reader or a
-      // secret scanner.
+      // secret scanner. Asserting the exact output (not just
+      // `not.toContain`) also pins down that the *paired* pattern is what
+      // matched here — text after the END marker survives — rather than
+      // the unterminated fallback, which would swallow it too.
       const privateKey =
         "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n";
-      const message = `Failed to authenticate GA4 client with credentials: ${privateKey}`;
-      const redacted = redactSecrets(message);
-
-      expect(redacted).not.toContain(privateKey);
-      expect(redacted).toContain("[REDACTED]");
+      const message = `Failed to authenticate GA4 client with credentials: ${privateKey}(retry 2 of 3)`;
+      expect(redactSecrets(message)).toBe(
+        "Failed to authenticate GA4 client with credentials: [REDACTED]\n(retry 2 of 3)",
+      );
     });
 
     it("redacts a PEM block truncated before its END marker", () => {
@@ -129,10 +147,9 @@ describe("redactSecrets", () => {
       // survive verbatim.
       const truncatedPrivateKey = "-----BEGIN PRIVATE KEY-----\nMIIEv...";
       const message = `Failed to authenticate GA4 client with credentials: ${truncatedPrivateKey}`;
-      const redacted = redactSecrets(message);
-
-      expect(redacted).not.toContain("MIIEv");
-      expect(redacted).toContain("[REDACTED]");
+      expect(redactSecrets(message)).toBe(
+        "Failed to authenticate GA4 client with credentials: [REDACTED]",
+      );
     });
   });
 
