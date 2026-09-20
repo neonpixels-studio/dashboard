@@ -30,3 +30,23 @@ jobs:
           BASE_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
       - run: npm run typecheck
       - run: npm run test:ci
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      # Pinned to the same version developers run locally in .husky/pre-commit,
+      # so a scan can't pass one place and fail the other. Installed from the
+      # release tarball rather than gitleaks-action to avoid its org license
+      # requirement.
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+      # Scans the checked-out tree (gitignored local files like .env.keys are
+      # absent on a fresh clone), catching any secret committed to the branch —
+      # including one pushed past the local pre-commit hook with --no-verify.
+      - name: Scan for secrets
+        run: gitleaks dir . --redact --config .gitleaks.toml
