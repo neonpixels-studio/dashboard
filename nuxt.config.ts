@@ -16,6 +16,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     databaseUrl: process.env.E2E_DATABASE_URL || process.env.DATABASE_URL || "",
     disableSignups: process.env.NUXT_DISABLE_SIGNUPS || "",
+    // Base64 AES-256-GCM key for server/utils/integrationSecrets.ts. Encrypts
+    // per-app integration overrides before they're stored in the (future)
+    // integration_config table; see .env.example for how to generate one.
+    integrationEncryptionKey: process.env.NUXT_INTEGRATION_ENCRYPTION_KEY || "",
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package
