@@ -1,5 +1,5 @@
 {
-  "id": "4a67c786-86cf-4366-b738-d78b67144014",
+  "id": "b4796d46-454a-45ef-b2a5-e875c595719b",
   "prevId": "c7cd0f96-081e-4377-a1b9-6ae7c16de70d",
   "version": "7",
   "dialect": "postgresql",
@@ -94,7 +94,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "integration_config_single_secret": {
+          "name": "integration_config_single_secret",
+          "value": "num_nonnulls(\"integration_config\".\"secret_ref\", \"integration_config\".\"encrypted_secret\") <= 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.metric_snapshot": {
@@ -146,43 +151,25 @@
         }
       },
       "indexes": {
-        "metric_snapshot_slug_idx": {
-          "name": "metric_snapshot_slug_idx",
+        "metric_snapshot_slug_metric_captured_at_idx": {
+          "name": "metric_snapshot_slug_metric_captured_at_idx",
           "columns": [
             {
               "expression": "slug",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "metric_snapshot_metric_idx": {
-          "name": "metric_snapshot_metric_idx",
-          "columns": [
+            },
             {
               "expression": "metric",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "metric_snapshot_captured_at_idx": {
-          "name": "metric_snapshot_captured_at_idx",
-          "columns": [
+            },
             {
               "expression": "captured_at",
               "isExpression": false,
-              "asc": true,
+              "asc": false,
               "nulls": "last"
             }
           ],
@@ -380,28 +367,19 @@
         }
       },
       "indexes": {
-        "traffic_breakdown_slug_idx": {
-          "name": "traffic_breakdown_slug_idx",
+        "traffic_breakdown_slug_captured_at_idx": {
+          "name": "traffic_breakdown_slug_captured_at_idx",
           "columns": [
             {
               "expression": "slug",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "traffic_breakdown_captured_at_idx": {
-          "name": "traffic_breakdown_captured_at_idx",
-          "columns": [
+            },
             {
               "expression": "captured_at",
               "isExpression": false,
-              "asc": true,
+              "asc": false,
               "nulls": "last"
             }
           ],

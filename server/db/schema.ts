@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   numeric,
   pgEnum,
@@ -78,6 +80,12 @@ export const integrationConfig = pgTable(
       table.slug,
       table.vendor,
     ),
+    // Enforces the "at most one secret source" rule from the comment above —
+    // a row must not carry both a secret_ref and an encrypted_secret.
+    check(
+      "integration_config_single_secret",
+      sql`num_nonnulls(${table.secretRef}, ${table.encryptedSecret}) <= 1`,
+    ),
   ],
 );
 
@@ -101,9 +109,14 @@ export const metricSnapshot = pgTable(
       .notNull(),
   },
   (table) => [
-    index("metric_snapshot_slug_idx").on(table.slug),
-    index("metric_snapshot_metric_idx").on(table.metric),
-    index("metric_snapshot_captured_at_idx").on(table.capturedAt),
+    // Tiles and sparklines both read "latest N rows for (slug, metric)
+    // ordered by captured_at" — one composite index serves that directly and
+    // still covers slug-only lookups via its leftmost prefix.
+    index("metric_snapshot_slug_metric_captured_at_idx").on(
+      table.slug,
+      table.metric,
+      table.capturedAt.desc(),
+    ),
   ],
 );
 
@@ -121,8 +134,12 @@ export const trafficBreakdown = pgTable(
       .notNull(),
   },
   (table) => [
-    index("traffic_breakdown_slug_idx").on(table.slug),
-    index("traffic_breakdown_captured_at_idx").on(table.capturedAt),
+    // Same reasoning as metric_snapshot: reads want the latest breakdown for
+    // one slug, so the composite serves that plus slug-only prefix lookups.
+    index("traffic_breakdown_slug_captured_at_idx").on(
+      table.slug,
+      table.capturedAt.desc(),
+    ),
   ],
 );
 

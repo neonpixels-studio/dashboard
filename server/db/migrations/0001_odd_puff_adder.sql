@@ -9,7 +9,8 @@ CREATE TABLE "integration_config" (
 	"secret_ref" text,
 	"encrypted_secret" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "integration_config_single_secret" CHECK (num_nonnulls("integration_config"."secret_ref", "integration_config"."encrypted_secret") <= 1)
 );
 --> statement-breakpoint
 CREATE TABLE "metric_snapshot" (
@@ -50,10 +51,7 @@ CREATE TABLE "traffic_breakdown" (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "integration_config_slug_vendor_idx" ON "integration_config" USING btree ("slug","vendor");--> statement-breakpoint
-CREATE INDEX "metric_snapshot_slug_idx" ON "metric_snapshot" USING btree ("slug");--> statement-breakpoint
-CREATE INDEX "metric_snapshot_metric_idx" ON "metric_snapshot" USING btree ("metric");--> statement-breakpoint
-CREATE INDEX "metric_snapshot_captured_at_idx" ON "metric_snapshot" USING btree ("captured_at");--> statement-breakpoint
+CREATE INDEX "metric_snapshot_slug_metric_captured_at_idx" ON "metric_snapshot" USING btree ("slug","metric","captured_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE UNIQUE INDEX "sync_status_slug_vendor_idx" ON "sync_status" USING btree ("slug","vendor");--> statement-breakpoint
 CREATE INDEX "syndication_post_slug_idx" ON "syndication_post" USING btree ("slug");--> statement-breakpoint
-CREATE INDEX "traffic_breakdown_slug_idx" ON "traffic_breakdown" USING btree ("slug");--> statement-breakpoint
-CREATE INDEX "traffic_breakdown_captured_at_idx" ON "traffic_breakdown" USING btree ("captured_at");
+CREATE INDEX "traffic_breakdown_slug_captured_at_idx" ON "traffic_breakdown" USING btree ("slug","captured_at" DESC NULLS LAST);

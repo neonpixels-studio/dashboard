@@ -16,23 +16,35 @@ function requireDatabaseUrl(): string {
   return databaseUrl;
 }
 
+interface SeedResult {
+  attempted: number;
+  inserted: number;
+}
+
 async function seedIntegrationConfig(
   db: ReturnType<typeof drizzle<typeof schema>>,
-): Promise<number> {
+): Promise<SeedResult> {
   const rows = buildIntegrationConfigSeed(APPS);
-  await db
+  if (!rows.length) {
+    return { attempted: 0, inserted: 0 };
+  }
+
+  const insertedRows = await db
     .insert(schema.integrationConfig)
     .values(rows)
     .onConflictDoNothing({
       target: [schema.integrationConfig.slug, schema.integrationConfig.vendor],
-    });
-  return rows.length;
+    })
+    .returning({ id: schema.integrationConfig.id });
+  return { attempted: rows.length, inserted: insertedRows.length };
 }
 
 async function main(): Promise<void> {
   const db = drizzle(neon(requireDatabaseUrl()), { schema });
-  const seededCount = await seedIntegrationConfig(db);
-  console.log(`Seeded ${seededCount} integration_config row(s).`);
+  const { attempted, inserted } = await seedIntegrationConfig(db);
+  console.log(
+    `Seeded ${inserted} of ${attempted} integration_config row(s) (rest already present).`,
+  );
 }
 
 main().catch((error: unknown) => {
