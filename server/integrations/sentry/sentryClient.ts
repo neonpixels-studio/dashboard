@@ -24,8 +24,12 @@ function buildIssueSearchUrl(
   query: string,
   cursor: string | undefined,
 ): URL {
+  // Both slugs are encoded before joining into the path — orgSlug is a
+  // shared env var, but projectSlug comes from integration_config.external_id
+  // (a DB-writable, row-supplied value), so an unencoded "/" or "?" in it
+  // could otherwise redirect the request to a different path/query entirely.
   const url = new URL(
-    `${SENTRY_API_BASE_URL}/projects/${orgSlug}/${projectSlug}/issues/`,
+    `${SENTRY_API_BASE_URL}/projects/${encodeURIComponent(orgSlug)}/${encodeURIComponent(projectSlug)}/issues/`,
   );
   url.searchParams.set("query", query);
   if (cursor) {
@@ -69,29 +73,34 @@ export function createSentryIssueSearcher(
       SENTRY_REQUEST_TIMEOUT_MS,
     );
 
-    let response: Response;
+    // The deadline must cover reading the response body, not just receiving
+    // headers — `response.json()` still streams over the same connection, so
+    // clearing the timeout right after `fetchImpl` resolves would leave a
+    // stalled body read with no deadline at all. Both the request and the
+    // body parse stay inside this one try, and the timer only clears once
+    // both are done.
     try {
-      response = await fetchImpl(url, {
+      const response = await fetchImpl(url, {
         headers: { Authorization: `Bearer ${authToken}` },
         signal: abortController.signal,
       });
+
+      if (!response.ok) {
+        throw new Error(
+          `Sentry issue search for project "${projectSlug}" failed with status ${response.status}.`,
+        );
+      }
+
+      const rawIssues = await parseIssuesResponseBody(response, projectSlug);
+      const nextCursor = parseSentryNextCursor(response.headers.get("link"));
+
+      return {
+        issues: rawIssues.map(toSentryIssue),
+        hasMore: nextCursor !== null,
+        nextCursor,
+      };
     } finally {
       clearTimeout(timeoutId);
     }
-
-    if (!response.ok) {
-      throw new Error(
-        `Sentry issue search for project "${projectSlug}" failed with status ${response.status}.`,
-      );
-    }
-
-    const rawIssues = await parseIssuesResponseBody(response, projectSlug);
-    const nextCursor = parseSentryNextCursor(response.headers.get("link"));
-
-    return {
-      issues: rawIssues.map(toSentryIssue),
-      hasMore: nextCursor !== null,
-      nextCursor,
-    };
   };
 }

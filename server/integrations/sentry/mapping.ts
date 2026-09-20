@@ -64,10 +64,6 @@ export function toSentryIssue(raw: unknown): SentryIssue {
 const FATAL_ISSUE_DANGER_THRESHOLD = 1;
 const NO_ISSUES = 0;
 
-function pluralize(count: number, label: string): string {
-  return `${count} ${label}${count === 1 ? "" : "S"}`;
-}
-
 /**
  * The status-chip mapping the issue calls out as its core testable unit:
  * open-issue and fatal-issue counts -> a chip label/tone pair. Returns
@@ -75,21 +71,31 @@ function pluralize(count: number, label: string): string {
  * chip renders through the exact same app/utils/statusColor.ts ->
  * healthToneColor path as every other status chip in the app.
  *
+ * The label is deliberately NOT pluralized ("2 FATAL", not "2 FATALS") —
+ * "FATAL"/"OPEN" read as the issue-level/category name here, matching the
+ * issue's own example ("markpost.io '1 FATAL'"), not as a countable noun
+ * (contrast server/utils/dashboardShaping.ts's computeAppStatus, whose
+ * "ISSUE"/"ISSUES" genuinely is one).
+ *
  * Any unresolved fatal issue outranks open-issue volume: a single
  * crash-level issue is worse than ten warning-level ones, so fatalIssuesCount
  * is checked first and, once past the danger threshold, drives the label on
  * its own (a "3 FATAL, 12 OPEN" combined label is left for a future issue's
  * UI, not invented here).
+ *
+ * @todo #19 wires this into the read API / PropertyCard.vue's status chip —
+ * not called from anywhere yet. It's exported and unit-tested now so that
+ * wiring is a pure plumbing change, not new logic.
  */
 export function sentryStatusChip(
   openIssuesCount: number,
   fatalIssuesCount: number,
 ): AppStatus {
   if (fatalIssuesCount >= FATAL_ISSUE_DANGER_THRESHOLD) {
-    return { label: pluralize(fatalIssuesCount, "FATAL"), tone: "danger" };
+    return { label: `${fatalIssuesCount} FATAL`, tone: "danger" };
   }
   if (openIssuesCount > NO_ISSUES) {
-    return { label: pluralize(openIssuesCount, "OPEN"), tone: "warn" };
+    return { label: `${openIssuesCount} OPEN`, tone: "warn" };
   }
   return { label: "OK", tone: "ok" };
 }

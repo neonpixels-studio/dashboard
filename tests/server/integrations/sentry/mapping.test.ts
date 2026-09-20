@@ -66,11 +66,11 @@ describe("sentryStatusChip", () => {
     expect(sentryStatusChip(0, 0)).toEqual({ label: "OK", tone: "ok" });
   });
 
-  it("returns a warn tone, labeled with the open count, when there are open issues but no fatals", () => {
-    expect(sentryStatusChip(4, 0)).toEqual({ label: "4 OPENS", tone: "warn" });
+  it("returns a warn tone, labeled with the open count (not pluralized), when there are open issues but no fatals", () => {
+    expect(sentryStatusChip(4, 0)).toEqual({ label: "4 OPEN", tone: "warn" });
   });
 
-  it("pluralizes the open-issue label correctly for exactly one issue", () => {
+  it("uses the same non-pluralized label for exactly one open issue", () => {
     expect(sentryStatusChip(1, 0)).toEqual({ label: "1 OPEN", tone: "warn" });
   });
 
@@ -81,9 +81,9 @@ describe("sentryStatusChip", () => {
     });
   });
 
-  it("pluralizes the fatal label for more than one fatal issue", () => {
+  it("does not pluralize the fatal label for more than one fatal issue, matching the issue's own example label", () => {
     expect(sentryStatusChip(10, 3)).toEqual({
-      label: "3 FATALS",
+      label: "3 FATAL",
       tone: "danger",
     });
   });

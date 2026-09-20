@@ -173,11 +173,14 @@ Reports open-issue and fatal-issue counts for the product-template apps
 (basin, markpost, wanderist) — grimicorn.dev and neonpixels.dev don't use
 Sentry and get no `integration_config` row for it. One shared Sentry org
 across properties, scoped per property by project slug — see
-`server/integrations/sentry/provider.ts`. Fatal count drives the per-app
-status chip's tone via `server/integrations/sentry/mapping.ts`'s
-`sentryStatusChip`: any unresolved fatal-level issue is `danger` ("N
-FATAL"), otherwise any other open issue is `warn` ("N OPEN"), otherwise `ok`
-("OK").
+`server/integrations/sentry/provider.ts`. The per-app status-chip
+label/tone mapping ships as a standalone, unit-tested pure function,
+`server/integrations/sentry/mapping.ts`'s `sentryStatusChip`: any
+unresolved fatal-level issue is `danger` ("N FATAL"), otherwise any other
+open issue is `warn` ("N OPEN"), otherwise `ok` ("OK"). It isn't called
+from the read API yet — wiring it into the property card's status chip
+(alongside curating which metrics render there at all) is
+`app/components/PropertyCard.vue`'s existing `@todo #19`, not this issue.
 
 1. Auth token — <https://sentry.io/settings/account/api/auth-tokens/>, needs
    `project:read` and `org:read` scopes → `NUXT_SENTRY_AUTH_TOKEN`.

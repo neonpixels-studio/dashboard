@@ -9,6 +9,10 @@ import type { SentryIssuePage } from "../../../../server/integrations/sentry/typ
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  // Runs even if an assertion above it throws mid-test — stubbing this in
+  // the test body and only unstubbing at the bottom would otherwise leak the
+  // stub into later tests in this file whenever an earlier assertion fails.
+  vi.unstubAllGlobals();
 });
 
 function buildSearchSentryIssues(
@@ -78,7 +82,6 @@ describe("sentryProvider", () => {
       (metric) => metric.metric === "open_issues",
     );
     expect(openIssuesMetric?.value).toBe(noIssues.issues.length);
-    vi.unstubAllGlobals();
   });
 });
 
