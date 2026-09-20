@@ -204,6 +204,13 @@ Schema changes are schema-first: edit `server/db/schema.ts`, run
 `npm run db:generate`, commit the generated SQL alongside the schema change,
 then `npm run db:migrate`.
 
+`npm run db:push` diffs `server/db/schema.ts` directly against the live
+database — it never reads `server/db/migrations/`, so hand-authored SQL that
+has no `schema.ts` counterpart (e.g. the `updated_at` triggers in
+`0002_add-updated-at-trigger.sql`) is invisible to it. A dev database kept in
+sync with `db:push` alone won't have those triggers; run `npm run db:migrate`
+at least once to pick them up.
+
 ## Structure
 
 ```

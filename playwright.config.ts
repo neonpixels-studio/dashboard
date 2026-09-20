@@ -17,6 +17,11 @@ if (
 
 const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL ?? "";
 const UNAUTHENTICATED_SPECS = [/auth-unauth\.spec\.ts/];
+// Hits the e2e database directly (no browser, no Clerk session) to exercise
+// DB-level behavior — e.g. the updated_at trigger in
+// server/db/migrations/0002_add-updated-at-trigger.sql — that the
+// browser-driven specs can't reach.
+const DB_ONLY_SPECS = [/db-triggers\.spec\.ts/];
 
 export default defineConfig({
   testDir: "./e2e",
@@ -45,14 +50,22 @@ export default defineConfig({
     {
       name: "chromium",
       dependencies: ["setup"],
-      testIgnore: UNAUTHENTICATED_SPECS,
+      testIgnore: [...UNAUTHENTICATED_SPECS, ...DB_ONLY_SPECS],
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/user.json",
       },
     },
+    // No browser, no Clerk dependency — just needs the migrated e2e database
+    // that globalSetup already produces for every project.
+    {
+      name: "db",
+      testMatch: DB_ONLY_SPECS,
+    },
   ],
   webServer: {
+    // `webServer` is config-global — even the browser-free "db" project pays
+    // for this boot, since Playwright has no per-project override for it.
     // dev:test is a raw `nuxt dev` (no dotenvx) — env comes from the dotenvx run
     // that started Playwright, merged with the pins below.
     command: "npm run dev:test -- --port 3002",
