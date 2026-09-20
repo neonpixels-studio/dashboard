@@ -14,8 +14,10 @@ export interface ClerkUserCountResponse {
 }
 
 /**
- * `createdAtAfter` scopes the count to users created at/after this epoch-ms
- * timestamp — the reporting window for the new-users delta. Omitted
+ * `createdAtAfter` scopes the count to users created after this epoch-ms
+ * timestamp (matching the real `UserListParams.createdAtAfter` field this
+ * maps onto — see clerkClient.ts) — the reporting window for the new-users
+ * delta. Omitted
  * entirely (not just `undefined`) for the total-users count: Clerk has no
  * single endpoint that both counts users AND filters by creation date, so
  * clerkClient.ts's real implementation picks which underlying endpoint to

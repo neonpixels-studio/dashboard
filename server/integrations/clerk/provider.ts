@@ -14,15 +14,22 @@ import { assertNonNegativeCount, computeNewUsersWindowStart } from "./mapping";
 import type { GetClerkUserCount } from "./types";
 
 const CLERK_VENDOR = "clerk";
-// How far back the new-users delta looks — same window as GA4's own 30d
-// sessions total (server/integrations/ga4/provider.ts's REPORT_START_DATE),
-// so every "last 30 days" figure on the dashboard means the same thing.
+// How far back the new-users delta looks: a rolling 30×24h window ending at
+// capturedAt. NOT calendar-aligned the same way GA4's 30d sessions total is
+// (server/integrations/ga4/provider.ts's REPORT_START_DATE/REPORT_END_DATE
+// use GA4's own "30daysAgo".."yesterday" relative-date syntax, scoped to the
+// property's reporting timezone and complete calendar days only) — the two
+// "last 30 days" figures are close but not guaranteed to cover the exact
+// same instants.
 const NEW_USERS_WINDOW_DAYS = 30;
-const EMPTY_PROVIDER_RESULT: ProviderResult = {
-  metrics: [],
-  trafficBreakdown: [],
-  syndicationPosts: [],
-};
+
+// A fresh object per call — a single shared module-level constant here
+// would let a caller that mutates its `metrics`/`trafficBreakdown`/
+// `syndicationPosts` arrays (e.g. `result.metrics.push(...)`) leak that
+// mutation into every later unconfigured-app sync's "no rows" result.
+function buildEmptyProviderResult(): ProviderResult {
+  return { metrics: [], trafficBreakdown: [], syndicationPosts: [] };
+}
 
 /**
  * Core fetch logic, decoupled from the real Clerk client so it can be unit
@@ -48,7 +55,7 @@ export async function fetchClerkMetrics(
   getClerkUserCount: GetClerkUserCount,
 ): Promise<ProviderResult> {
   if (!config.secret) {
-    return EMPTY_PROVIDER_RESULT;
+    return buildEmptyProviderResult();
   }
 
   const capturedAt = new Date();
@@ -96,7 +103,7 @@ export const clerkProvider: IntegrationProvider = {
   vendor: CLERK_VENDOR,
   async fetch(config: IntegrationConfig): Promise<ProviderResult> {
     if (!config.secret) {
-      return EMPTY_PROVIDER_RESULT;
+      return buildEmptyProviderResult();
     }
     const getClerkUserCount = createClerkUserCountGetter(config.secret);
     return fetchClerkMetrics(config, getClerkUserCount);

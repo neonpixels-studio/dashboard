@@ -61,6 +61,32 @@ describe("clerkProvider", () => {
     expect(mockGetUserList).not.toHaveBeenCalled();
   });
 
+  it("rejects instead of returning partial metrics when the total-count call fails (e.g. a revoked key)", async () => {
+    mockGetCount.mockRejectedValue(new Error("Clerk 401: invalid secret key"));
+    mockGetUserList.mockResolvedValue({ data: [], totalCount: 37 });
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "clerk",
+      secret: "sk_test_revoked",
+    });
+
+    await expect(clerkProvider.fetch(config)).rejects.toThrow(
+      /invalid secret key/,
+    );
+  });
+
+  it("rejects instead of returning partial metrics when the new-users call fails (e.g. rate limited)", async () => {
+    mockGetCount.mockResolvedValue(842);
+    mockGetUserList.mockRejectedValue(new Error("Clerk 429: rate limited"));
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "clerk",
+      secret: "sk_test_basin",
+    });
+
+    await expect(clerkProvider.fetch(config)).rejects.toThrow(/rate limited/);
+  });
+
   it("end-to-end: builds a real Clerk client from config.secret and returns its computed metrics", async () => {
     mockGetCount.mockResolvedValue(842);
     mockGetUserList.mockResolvedValue({ data: [], totalCount: 37 });
