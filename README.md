@@ -178,9 +178,21 @@ Reports open issue counts per property.
 
 ### Cross-app sync trigger
 
-`NUXT_SYNC_TRIGGER_SECRET` — shared secret a sibling app presents to trigger
-an on-demand dashboard refresh instead of waiting for the next poll. Generate
-with `openssl rand -hex 32`; no external account needed.
+`NUXT_SYNC_TRIGGER_SECRET` — shared secret a sibling app (or
+`netlify/functions/scheduled-sync.ts`, the 15-minute poller) presents on
+`POST /api/sync`'s `Authorization: Bearer` header to trigger a dashboard
+refresh. Generate with `openssl rand -hex 32`; no external account needed.
+
+Setting it in a dotenvx file is **not enough on its own** for
+`scheduled-sync.ts` to see it. That function is a separate bundle built by
+Netlify's own Functions build step (not the Nuxt app), so it never goes
+through the `runtimeConfig`/dotenvx-decrypt path that `server/api/sync.post.ts`
+does — it reads `process.env.NUXT_SYNC_TRIGGER_SECRET` directly at invoke
+time, which only has a value if it's also set as a real environment variable
+in Netlify's own UI (Site configuration → Environment variables, Functions
+scope), matching the value already in `.env.production`. Without that step
+the scheduled function throws on every run (fails loud — see its own
+top-of-file comment) instead of silently syncing nothing.
 
 ### Encrypting per-app secrets
 

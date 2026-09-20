@@ -38,6 +38,13 @@ export default defineNuxtConfig({
     stripeProductIdMarkpost: process.env.NUXT_STRIPE_PRODUCT_ID_MARKPOST || "",
     stripeProductIdWanderist:
       process.env.NUXT_STRIPE_PRODUCT_ID_WANDERIST || "",
+    // Shared secret POST /api/sync (server/api/sync.post.ts) requires on the
+    // Authorization: Bearer header — see server/utils/syncTrigger.ts. Read
+    // via useRuntimeConfig() (not process.env directly) since, unlike
+    // secretRef/stripeProductId* above, this is one static studio-wide value
+    // rather than a row- or app-scoped key name, matching disableSignups'
+    // pattern in server/utils/auth.ts.
+    syncTriggerSecret: process.env.NUXT_SYNC_TRIGGER_SECRET || "",
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package
