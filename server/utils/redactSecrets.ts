@@ -34,36 +34,48 @@ const SERVICE_ACCOUNT_PRIVATE_KEY_PATTERN =
 const UNTERMINATED_PRIVATE_KEY_PATTERN =
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*/g;
 
-// Matches a bearer token whether the header reads as plain text
-// ("Authorization: Bearer abc123") or as a JSON-serialized request/headers
+// Matches an Authorization header's credential regardless of scheme —
+// Bearer, Basic (Stripe's own REST API auth), a bare token, or no scheme
+// word at all — and whether the header reads as plain text
+// ("Authorization: Basic abc123") or as a JSON-serialized request/headers
 // object some SDKs stringify into their error message
-// ('"authorization":"Bearer abc123"'); optional quotes and `=` (alongside
+// ('"authorization":"Basic abc123"'); optional quotes and `=` (alongside
 // `:`) cover both. The value stops at the next quote/comma/brace/whitespace
 // so it doesn't also eat the rest of a JSON blob.
-const AUTHORIZATION_BEARER_HEADER_PATTERN =
-  /(["']?authorization["']?\s*[:=]\s*["']?bearer\s+)[^"'\s,}]+/gi;
+const AUTHORIZATION_HEADER_PATTERN =
+  /(["']?authorization["']?\s*[:=]\s*["']?(?:bearer|basic|token|apikey)?\s*)[^"'\s,}]+/gi;
 
-// Same plain-vs-JSON reasoning as the bearer pattern above, for the
+// Same plain-vs-JSON reasoning as the authorization pattern above, for the
 // `x-api-key` header some vendors use instead of `Authorization`.
 const API_KEY_HEADER_PATTERN =
   /(["']?x-api-key["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi;
 
+// Any other credential-shaped field name in a JSON-serialized body/params
+// object some SDKs stringify into their error message, e.g.
+// '{"params":{"api_key":"abc123"}}' or '{"client_secret":"abc123"}' — the
+// query-param pattern below only fires after a literal `?`/`&`, so an
+// object never reaches it.
+const CREDENTIAL_JSON_FIELD_PATTERN =
+  /(["'][\w.-]*(?:api[_-]?key|token|secret|password|passwd|auth)["']\s*:\s*["'])[^"']+/gi;
+
+// `[\w.-]*` before the credential word covers a prefixed param name
+// (`client_secret`, `refresh_token`, `private_token`) as well as the bare
+// ones (`api_key`, `key`, `token`).
 const CREDENTIAL_QUERY_PARAM_PATTERN =
-  /([?&](?:api_key|apikey|api-key|key|token|access_token|secret)=)[^&\s"'<>]+/gi;
+  /([?&][\w.-]*(?:key|token|secret|password|passwd|sig|auth)=)[^&\s"'<>]+/gi;
 
 // One entry per secret shape, in the order they must run (paired PEM before
-// its unterminated fallback). `replacement` keeps the header's own key name
-// via `$1` where the pattern captured one; the two API-key-shaped patterns
-// wholesale-replace their match since it's all secret material.
+// its unterminated fallback). `replacement` keeps the header/field's own
+// name via `$1` where the pattern captured one; the key-shaped patterns
+// with no capture group wholesale-replace their match since it's all secret
+// material.
 const REDACTION_STEPS: { pattern: RegExp; replacement: string }[] = [
   { pattern: STRIPE_STYLE_API_KEY_PATTERN, replacement: REDACTED },
   { pattern: SERVICE_ACCOUNT_PRIVATE_KEY_PATTERN, replacement: REDACTED },
   { pattern: UNTERMINATED_PRIVATE_KEY_PATTERN, replacement: REDACTED },
-  {
-    pattern: AUTHORIZATION_BEARER_HEADER_PATTERN,
-    replacement: `$1${REDACTED}`,
-  },
+  { pattern: AUTHORIZATION_HEADER_PATTERN, replacement: `$1${REDACTED}` },
   { pattern: API_KEY_HEADER_PATTERN, replacement: `$1${REDACTED}` },
+  { pattern: CREDENTIAL_JSON_FIELD_PATTERN, replacement: `$1${REDACTED}` },
   { pattern: CREDENTIAL_QUERY_PARAM_PATTERN, replacement: `$1${REDACTED}` },
 ];
 
@@ -93,16 +105,21 @@ function redactKnownSecretValue(
  * it.
  *
  * `knownSecret`, when passed, is redacted exactly (see
- * redactKnownSecretValue) in addition to the pattern-based passes below —
+ * redactKnownSecretValue) *before* the pattern-based passes below run —
  * pass the credential this sync attempt actually resolved, when one was
  * resolved, so a shape the pattern list doesn't recognize still gets
- * caught.
+ * caught. Running this first also protects a secret whose value contains a
+ * character one of the shape patterns treats as a delimiter (a hyphen past
+ * `STRIPE_STYLE_API_KEY_PATTERN`'s `[A-Za-z0-9]+`, an `&` past the
+ * query-param pattern): if a shape pattern ran first and only matched a
+ * *prefix* of the literal secret, the remaining suffix would no longer
+ * equal `knownSecret` and would survive un-redacted.
  */
 export function redactSecrets(message: string, knownSecret?: string): string {
-  const patternRedacted = REDACTION_STEPS.reduce(
+  const exactRedacted = redactKnownSecretValue(message, knownSecret);
+  return REDACTION_STEPS.reduce(
     (redactedMessage, { pattern, replacement }) =>
       redactedMessage.replace(pattern, replacement),
-    message,
+    exactRedacted,
   );
-  return redactKnownSecretValue(patternRedacted, knownSecret);
 }

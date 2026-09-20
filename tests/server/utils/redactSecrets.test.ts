@@ -18,6 +18,16 @@ describe("redactSecrets", () => {
     expect(redactSecrets(message)).toBe("Invalid API Key provided: [REDACTED]");
   });
 
+  it("redacts a Basic-auth Authorization header (Stripe's own REST API scheme)", () => {
+    const message =
+      "Request failed: POST https://api.stripe.com/v1/subscriptions " +
+      "with Authorization: Basic base64-encoded-leaked-value";
+    const redacted = redactSecrets(message);
+
+    expect(redacted).not.toContain("base64-encoded-leaked-value");
+    expect(redacted).toContain("Authorization: Basic [REDACTED]");
+  });
+
   it("redacts a bearer token in a plain-text Authorization header", () => {
     // Uses an opaque, non-Stripe-shaped token so this exercises the bearer
     // pattern itself rather than incidentally passing via the Stripe-key
@@ -66,6 +76,24 @@ describe("redactSecrets", () => {
 
     expect(redacted).not.toContain("leaked-query-value");
     expect(redacted).toContain("?property=123&api_key=[REDACTED]");
+  });
+
+  it("redacts a prefixed credential query param (e.g. an OAuth client_secret)", () => {
+    const message =
+      "POST https://vendor.example.com/oauth/token?client_id=abc&client_secret=leaked-query-value failed with 401";
+    const redacted = redactSecrets(message);
+
+    expect(redacted).not.toContain("leaked-query-value");
+    expect(redacted).toContain("client_secret=[REDACTED]");
+  });
+
+  it("redacts a credential field in a JSON-serialized body/params object", () => {
+    const message =
+      'Request failed {"params":{"client_secret":"leaked-value"}}';
+    const redacted = redactSecrets(message);
+
+    expect(redacted).not.toContain("leaked-value");
+    expect(redacted).toContain('"client_secret":"[REDACTED]"');
   });
 
   it("redacts every secret-shaped occurrence when a message carries more than one", () => {
@@ -131,6 +159,18 @@ describe("redactSecrets", () => {
     it("does nothing extra when no knownSecret is passed", () => {
       const message = "Sentry 500: Internal Server Error";
       expect(redactSecrets(message)).toBe(message);
+    });
+
+    it("redacts the full known secret even when a shape pattern would only match a prefix of it", () => {
+      // A Stripe-style key containing a hyphen: STRIPE_STYLE_API_KEY_PATTERN's
+      // [A-Za-z0-9]+ stops at the hyphen, so if the shape pass ran before the
+      // exact-match pass, it would leave "-suffix" behind un-redacted.
+      const knownSecret = "sk_live_abc-suffix";
+      const message = `Stripe request failed with key ${knownSecret}`;
+      const redacted = redactSecrets(message, knownSecret);
+
+      expect(redacted).not.toContain("suffix");
+      expect(redacted).toBe("Stripe request failed with key [REDACTED]");
     });
   });
 });
