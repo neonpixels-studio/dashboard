@@ -38,6 +38,26 @@ export default defineNuxtConfig({
     stripeProductIdMarkpost: process.env.NUXT_STRIPE_PRODUCT_ID_MARKPOST || "",
     stripeProductIdWanderist:
       process.env.NUXT_STRIPE_PRODUCT_ID_WANDERIST || "",
+    // The GA4 provider's shared studio-wide service account credentials
+    // (server/integrations/ga4). Same reasoning as the Stripe entries above:
+    // declared here purely so the Netlify preset forwards these into the
+    // deployed function's process.env — the private key still resolves via
+    // config.ts's resolveSecret (integration_config.secret_ref ->
+    // process.env), and the client email via a plain process.env read in
+    // server/integrations/ga4/provider.ts, neither via useRuntimeConfig().
+    ga4ServiceAccountClientEmail: process.env.NUXT_GA4_SA_CLIENT_EMAIL || "",
+    ga4ServiceAccountPrivateKey: process.env.NUXT_GA4_SA_PRIVATE_KEY || "",
+    // One per property (server/integrations/ga4/provider.ts's
+    // resolvePropertyId) — the deploy-time default; an integration_config
+    // row's external_id overrides it per app, same precedent as Stripe's
+    // product ids.
+    ga4PropertyIdBasin: process.env.NUXT_GA4_PROPERTY_ID_BASIN || "",
+    ga4PropertyIdMarkpost: process.env.NUXT_GA4_PROPERTY_ID_MARKPOST || "",
+    ga4PropertyIdWanderist: process.env.NUXT_GA4_PROPERTY_ID_WANDERIST || "",
+    ga4PropertyIdDanholloran:
+      process.env.NUXT_GA4_PROPERTY_ID_DANHOLLORAN || "",
+    ga4PropertyIdGrimicorn: process.env.NUXT_GA4_PROPERTY_ID_GRIMICORN || "",
+    ga4PropertyIdNeonpixels: process.env.NUXT_GA4_PROPERTY_ID_NEONPIXELS || "",
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package
