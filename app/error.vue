@@ -6,8 +6,8 @@
           error {{ statusCode }}
         </div>
         <div class="err__code">{{ statusCode }}</div>
-        <h1>{{ heading }}</h1>
-        <p>{{ message }}</p>
+        <h1>{{ content.heading }}</h1>
+        <p>{{ content.message }}</p>
         <div class="err__cta">
           <button class="btn btn-accent btn-lg" @click="handleError">
             back to home
@@ -20,52 +20,77 @@
 
 <script setup lang="ts">
 import type { NuxtError } from "#app";
+import { SIGNUPS_DISABLED_ERROR_CODE } from "../shared/constants/errors";
 
-// Keep in sync with the statuses the server actually throws (see
-// server/utils/auth.ts) so this page can give each one a real message
-// instead of the generic fallback.
+interface ErrorContent {
+  heading: string;
+  message: string;
+}
+
+// Keep in sync with the statuses/codes the server actually throws (see
+// server/utils/auth.ts and server/api/apps/[slug].get.ts) so this page can
+// give each one a real message instead of the generic fallback.
 const NOT_FOUND_STATUS_CODE = 404;
 const SIGNUPS_DISABLED_STATUS_CODE = 403;
+const UNAUTHORIZED_STATUS_CODE = 401;
+// Falls back to a server-error status (rather than 404) for a missing or
+// statusless error, since presenting an unknown failure as "page not found"
+// would hide a real bug behind the wrong message.
+const UNKNOWN_ERROR_STATUS_CODE = 500;
 
-const NOT_FOUND_HEADING = "This page isn't here.";
-const NOT_FOUND_MESSAGE =
-  "The page you're looking for doesn't exist or has moved. Let's get you back on track.";
+const NOT_FOUND_CONTENT: ErrorContent = {
+  heading: "This page isn't here.",
+  message:
+    "The page you're looking for doesn't exist or has moved. Let's get you back on track.",
+};
 
-const SIGNUPS_DISABLED_HEADING = "Sign-ups are closed.";
-const SIGNUPS_DISABLED_MESSAGE =
-  "This dashboard isn't accepting new accounts right now. If you think you should have access, reach out to whoever invited you.";
+const SIGNUPS_DISABLED_CONTENT: ErrorContent = {
+  heading: "Sign-ups are closed.",
+  message:
+    "This dashboard isn't accepting new accounts right now. If you think you should have access, reach out to whoever invited you.",
+};
 
 const GENERIC_HEADING = "Something went wrong.";
-const GENERIC_MESSAGE =
+const GENERIC_FALLBACK_MESSAGE =
   "An unexpected error occurred. Let's get you back on track.";
 
 const props = defineProps<{ error: NuxtError | null }>();
 
 const statusCode = computed(
-  () => props.error?.statusCode ?? NOT_FOUND_STATUS_CODE,
+  () => props.error?.statusCode ?? UNKNOWN_ERROR_STATUS_CODE,
 );
 
-const heading = computed(() => {
-  if (statusCode.value === NOT_FOUND_STATUS_CODE) {
-    return NOT_FOUND_HEADING;
+// statusCode alone isn't a reliable discriminator — a future 403 from
+// somewhere else in the app shouldn't be told "sign-ups are closed" — so this
+// also checks the stable error code the server attaches for this specific
+// case (see shared/constants/errors.ts).
+const isSignupsDisabled = computed(() => {
+  if (statusCode.value !== SIGNUPS_DISABLED_STATUS_CODE) {
+    return false;
   }
-  if (statusCode.value === SIGNUPS_DISABLED_STATUS_CODE) {
-    return SIGNUPS_DISABLED_HEADING;
-  }
-  return GENERIC_HEADING;
+  const data = props.error?.data as { code?: string } | undefined;
+  return data?.code === SIGNUPS_DISABLED_ERROR_CODE;
 });
 
-// error.statusMessage is safe to surface here: every non-404/403 status this
-// app throws comes from our own createError() calls (e.g. 401 Unauthorized),
-// never a raw exception message, so there's no internals to leak.
-const message = computed(() => {
+// error.statusMessage is only surfaced for statuses this app itself throws
+// via createError() — an allowlist, not a denylist, so a message from an
+// unrecognized source (a raw Nitro 500, an external fetch error, etc.) never
+// reaches the user verbatim.
+const content = computed<ErrorContent>(() => {
   if (statusCode.value === NOT_FOUND_STATUS_CODE) {
-    return NOT_FOUND_MESSAGE;
+    return NOT_FOUND_CONTENT;
   }
-  if (statusCode.value === SIGNUPS_DISABLED_STATUS_CODE) {
-    return SIGNUPS_DISABLED_MESSAGE;
+  if (isSignupsDisabled.value) {
+    return SIGNUPS_DISABLED_CONTENT;
   }
-  return props.error?.statusMessage || GENERIC_MESSAGE;
+  if (statusCode.value === UNAUTHORIZED_STATUS_CODE) {
+    const statusMessage = props.error?.statusMessage?.trim();
+    return {
+      heading: GENERIC_HEADING,
+      message: statusMessage || GENERIC_FALLBACK_MESSAGE,
+    };
+  }
+  return { heading: GENERIC_HEADING, message: GENERIC_FALLBACK_MESSAGE };
 });
 
 function handleError() {

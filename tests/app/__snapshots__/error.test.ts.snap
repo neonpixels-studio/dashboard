@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`error.vue > falls back to the error's statusMessage for other non-404 errors 1`] = `
+exports[`error.vue > falls back to the error's statusMessage for a 401 1`] = `
 <div
   class="err-wrap"
   data-v-fa4da55a=""
