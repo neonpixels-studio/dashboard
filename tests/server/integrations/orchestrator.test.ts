@@ -173,10 +173,13 @@ describe("runSync", () => {
     } satisfies SyncStatusWrite);
   });
 
-  it("redacts secret material from the error before writing sync_status", async () => {
+  it("redacts secret material from the error before writing sync_status or returning the outcome", async () => {
     // Representative of a real vendor error: the raw cause can echo the
     // request it just made, including the API key. Issue #27 requires this
-    // to be stripped before it ever reaches sync_status.error.
+    // to be stripped before it ever reaches sync_status.error — and since
+    // server/api/sync.post.ts returns the outcome array as-is over HTTP,
+    // the returned outcome must be scrubbed the same way, or the same
+    // secret leaks through that response instead.
     const secretBearingCause = new Error(
       "Request to https://api.stripe.com/v1/subscriptions?api_key=sk_live_leaked failed with 401",
     );
@@ -189,7 +192,7 @@ describe("runSync", () => {
       },
     });
 
-    await runSync(deps);
+    const summary = await runSync(deps);
 
     const [writtenStatus] = deps.recordSyncStatus.mock.calls[0] as [
       SyncStatusWrite,
@@ -197,6 +200,51 @@ describe("runSync", () => {
     expect(writtenStatus.error).not.toContain("sk_live_leaked");
     expect(writtenStatus.error).not.toContain("api_key=sk_live");
     expect(writtenStatus.error).toContain("[REDACTED]");
+
+    const [outcome] = summary.outcomes;
+    expect(outcome?.error).not.toContain("sk_live_leaked");
+    expect(outcome?.error).toContain("[REDACTED]");
+  });
+
+  it("redacts the resolved secret's exact value even when it matches no known pattern", async () => {
+    // An opaque token (e.g. a Sentry auth token) matches none of
+    // redactSecrets()'s pattern-based passes — this only gets caught
+    // because syncOneIntegration passes the row's own resolved secret
+    // through as the exact-match fallback.
+    const row = configRow({ slug: "wanderist", vendor: "sentry" });
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      resolveConfig: (): IntegrationConfig => ({
+        slug: row.slug,
+        vendor: row.vendor,
+        externalId: row.externalId,
+        secret: "opaque-sentry-auth-token",
+      }),
+      registry: {
+        get: () =>
+          stubProvider(
+            "sentry",
+            vi
+              .fn()
+              .mockRejectedValue(
+                new Error(
+                  "Sentry request failed: token opaque-sentry-auth-token was rejected",
+                ),
+              ),
+          ),
+      },
+    });
+
+    const summary = await runSync(deps);
+
+    const [writtenStatus] = deps.recordSyncStatus.mock.calls[0] as [
+      SyncStatusWrite,
+    ];
+    expect(writtenStatus.error).not.toContain("opaque-sentry-auth-token");
+    expect(writtenStatus.error).toContain("[REDACTED]");
+    expect(summary.outcomes[0]?.error).not.toContain(
+      "opaque-sentry-auth-token",
+    );
   });
 
   it("records a failure when no provider is registered for the row's vendor", async () => {

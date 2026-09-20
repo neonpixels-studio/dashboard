@@ -79,37 +79,43 @@ async function recordSyncStatusBestEffort(
 //
 // The error is logged to console.error as-is (`cause.message` or
 // `String(cause)`) — that's server-side only, so the unredacted cause is
-// fine there. `sync_status.error` is different: it's a persisted, later-read
-// column, so the same raw message is passed through redactSecrets() (see
-// server/utils/redactSecrets.ts) before it's handed to
-// recordSyncStatusBestEffort, stripping known secret material a raw vendor
-// SDK error can echo back (API keys, tokens, credential query params/
-// headers).
+// fine there. Both `sync_status.error` and the `SyncOutcome` returned below
+// are different: the former is a persisted, later-read column, and the
+// latter is `runSync`'s return value, which server/api/sync.post.ts hands
+// straight back as an HTTP response body — so the same raw message reaches
+// a caller either way. Both are built from one redacted message (via
+// redactSecrets(), see server/utils/redactSecrets.ts), which also takes the
+// config's own resolved secret (when one was resolved) as an exact-match
+// fallback for whatever the pattern list doesn't cover.
 async function syncOneIntegration(
   row: IntegrationConfigRow,
   deps: SyncOrchestratorDeps,
   runAt: Date,
 ): Promise<SyncOutcome> {
   const identity = { slug: row.slug, vendor: row.vendor };
+  let resolvedConfig: IntegrationConfig | undefined;
 
   try {
     const provider = deps.registry.get(row.vendor);
     if (!provider) {
       throw new Error(`No provider registered for vendor "${row.vendor}".`);
     }
-    const config = deps.resolveConfig(row);
-    const result = await provider.fetch(config);
+    resolvedConfig = deps.resolveConfig(row);
+    const result = await provider.fetch(resolvedConfig);
     await deps.persistProviderResult(row, result);
   } catch (cause) {
-    const message = errorMessage(cause);
     console.error(`Sync failed for ${row.slug}:${row.vendor}`, cause);
+    const redactedMessage = redactSecrets(
+      errorMessage(cause),
+      resolvedConfig?.secret ?? undefined,
+    );
     await recordSyncStatusBestEffort(deps, {
       ...identity,
       runAt,
       ok: false,
-      error: redactSecrets(message),
+      error: redactedMessage,
     });
-    return { ...identity, ok: false, error: message };
+    return { ...identity, ok: false, error: redactedMessage };
   }
 
   // The fetch + persist above already succeeded — the data is durable —
