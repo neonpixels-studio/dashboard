@@ -1,0 +1,42 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TrafficPanel > matches its snapshot 1`] = `
+"<div data-v-b28e9303="" class="card traffic-panel">
+  <div data-v-b28e9303="" class="traffic-chart">
+    <div data-v-b28e9303="" class="traffic-head">
+      <ul data-v-b28e9303="" class="headline-stats">
+        <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">SESSIONS</span><span data-v-b28e9303="" class="display-num headline-value">8,612</span></li>
+        <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">USERS</span><span data-v-b28e9303="" class="display-num headline-value">5,431</span></li>
+      </ul><span data-v-b28e9303="" class="grow"></span><span data-v-b28e9303="" class="delta ok">▲ 22% vs prev 30d</span>
+    </div><svg data-v-b28e9303="" width="100%" height="150" viewBox="0 0 860 150" preserveAspectRatio="none" role="img" aria-label="basin.fm daily sessions over the last 30 days">
+      <line x1="0" y1="14" x2="860" y2="14" stroke="var(--line-3)" stroke-width="1"></line>
+      <line x1="0" y1="55" x2="860" y2="55" stroke="var(--line-3)" stroke-width="1"></line>
+      <line x1="0" y1="96" x2="860" y2="96" stroke="var(--line-3)" stroke-width="1"></line>
+      <line x1="0" y1="149" x2="860" y2="149" stroke="var(--line)" stroke-width="1"></line>
+      <path d="M0 14 C5 16.2 L860 150 L0 150 Z" fill="color-mix(in srgb, #FFB020 9%, transparent)"></path>
+      <path d="M0 14 C5 16.2" fill="none" stroke="#FFB020" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    <div data-v-5654670f="" data-v-b28e9303="" class="axis-row"><span data-v-5654670f="">20 AUG</span><span data-v-5654670f="">27 AUG</span><span data-v-5654670f="">03 SEP</span><span data-v-5654670f="">10 SEP</span><span data-v-5654670f="">19 SEP</span></div>
+  </div>
+  <div data-v-b28e9303="" class="traffic-list"><span data-v-b28e9303="" class="metric-label">TOP PAGES</span>
+    <ul data-v-5cd44a83="" data-v-b28e9303="" class="stat-list divided">
+      <li data-v-5cd44a83="" class="stat-row">
+        <!--v-if--><span data-v-5cd44a83="" class="label">/</span><span data-v-5cd44a83="" class="value">3,104</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row">
+        <!--v-if--><span data-v-5cd44a83="" class="label">/feed</span><span data-v-5cd44a83="" class="value">1,882</span>
+        <!--v-if-->
+      </li>
+    </ul>
+  </div>
+  <div data-v-b28e9303="" class="traffic-list"><span data-v-b28e9303="" class="metric-label">TOP REFERRERS</span>
+    <ul data-v-5cd44a83="" data-v-b28e9303="" class="stat-list divided">
+      <li data-v-5cd44a83="" class="stat-row">
+        <!--v-if--><span data-v-5cd44a83="" class="label">Organic search</span><span data-v-5cd44a83="" class="value">41%</span>
+        <!--v-if-->
+      </li>
+    </ul>
+  </div>
+</div>"
+`;

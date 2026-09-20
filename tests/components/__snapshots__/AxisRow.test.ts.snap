@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AxisRow > matches its snapshot with custom labels 1`] = `"<div data-v-5654670f="" class="axis-row"><span data-v-5654670f="">20 AUG</span><span data-v-5654670f="">04 SEP</span><span data-v-5654670f="">19 SEP</span></div>"`;

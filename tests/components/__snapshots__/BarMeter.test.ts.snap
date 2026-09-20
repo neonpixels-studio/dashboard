@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`BarMeter > matches its snapshot 1`] = `
+"<div data-v-f350e699="" class="bar-meter">
+  <div data-v-f350e699="" class="bar-head"><span data-v-f350e699="" class="swatch" style="background: #FFB020;" aria-hidden="true"></span><span data-v-f350e699="" class="label">basin.fm</span><span data-v-f350e699="" class="value">612</span><span data-v-f350e699="" class="pct">41%</span></div>
+  <div data-v-f350e699="" class="track">
+    <div data-v-f350e699="" class="fill" style="width: 41%; background: #FFB020;"></div>
+  </div>
+</div>"
+`;
