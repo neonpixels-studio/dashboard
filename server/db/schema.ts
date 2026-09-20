@@ -110,11 +110,11 @@ export const metricSnapshot = pgTable(
     // `mode: "number"` — otherwise Drizzle returns numeric columns as
     // strings, and every downstream comparison/aggregation over `value`
     // silently does the wrong thing (string concatenation, lexicographic
-    // ordering) instead of throwing. precision/scale keeps every stored
-    // value inside JS's safe-integer range so `mode: "number"` never
-    // rounds silently.
+    // ordering) instead of throwing. precision 15 / scale 4 caps the
+    // unscaled value at 10^11, comfortably under Number.MAX_SAFE_INTEGER
+    // (~9 * 10^15), so `mode: "number"` can't round a stored value.
     value: numeric("value", {
-      precision: 18,
+      precision: 15,
       scale: 4,
       mode: "number",
     }).notNull(),

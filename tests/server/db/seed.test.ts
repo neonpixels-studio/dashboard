@@ -51,11 +51,12 @@ describe("seedIntegrationConfig", () => {
     expect(result).toEqual({ attempted: 2, inserted: 1 });
   });
 
-  it("inserts exactly the given rows, skipping conflicts on (slug, vendor)", async () => {
-    const { db, values, onConflictDoNothing } = createFakeDb(
+  it("inserts exactly the given rows into integration_config, skipping conflicts on (slug, vendor)", async () => {
+    const { db, insert, values, onConflictDoNothing } = createFakeDb(
       SAMPLE_ROWS.length,
     );
     await seedIntegrationConfig(db, SAMPLE_ROWS);
+    expect(insert).toHaveBeenCalledWith(integrationConfig);
     expect(values).toHaveBeenCalledWith(SAMPLE_ROWS);
     expect(onConflictDoNothing).toHaveBeenCalledWith({
       target: [integrationConfig.slug, integrationConfig.vendor],

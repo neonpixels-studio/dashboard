@@ -18,7 +18,7 @@ CREATE TABLE "metric_snapshot" (
 	"slug" text NOT NULL,
 	"vendor" text NOT NULL,
 	"metric" text NOT NULL,
-	"value" numeric(18, 4) NOT NULL,
+	"value" numeric(15, 4) NOT NULL,
 	"period" text NOT NULL,
 	"captured_at" timestamp with time zone DEFAULT now() NOT NULL
 );
