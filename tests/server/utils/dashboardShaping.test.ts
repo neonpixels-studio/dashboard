@@ -152,6 +152,28 @@ describe("latestMetricsBySlug", () => {
       ]),
     );
   });
+
+  it("excludes PERIOD_DAILY rows — a GA4 daily backfill point is a sparkline source, not its own current-value tile", () => {
+    const rows = [
+      sessionsRow({ period: "30d", value: 3320 }),
+      sessionsRow({
+        period: "daily",
+        value: 145,
+        capturedAt: new Date("2026-09-19"),
+      }),
+    ];
+
+    const result = latestMetricsBySlug(rows, "basin");
+
+    expect(result).toEqual([
+      {
+        metric: "sessions",
+        period: "30d",
+        value: 3320,
+        capturedAt: new Date("2026-09-01T00:00:00Z").toISOString(),
+      },
+    ]);
+  });
 });
 
 describe("metricSeriesBySlug", () => {

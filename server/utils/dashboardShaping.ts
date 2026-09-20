@@ -21,7 +21,7 @@ import type {
   SyndicationMatrixRow,
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
-import { METRIC_SESSIONS, PERIOD_30D } from "./dashboardMetrics";
+import { METRIC_SESSIONS, PERIOD_30D, PERIOD_DAILY } from "./dashboardMetrics";
 
 function toIso(date: Date): string {
   return date.toISOString();
@@ -95,13 +95,19 @@ function toMetricSeries(rowsForMetric: MetricSnapshotRow[]): MetricSeries {
 
 // Current value per (metric, period) for one app — the "current stat" tiles.
 // Takes rows from fetchLatestMetricSnapshots (already latest-only; grouping
-// here just fans a flat row list back out per metric/period).
+// here just fans a flat row list back out per metric/period). PERIOD_DAILY
+// is excluded: unlike every other period, a sync backfills many PERIOD_DAILY
+// rows at once (server/integrations/ga4/provider.ts), so
+// fetchLatestMetricSnapshots's "latest row per (slug, metric, period)" would
+// otherwise surface as its own current-value tile (today's single day of
+// sessions, next to the real sessions/30d tile) instead of feeding only the
+// sparkline via metricSeriesBySlug below, which is where it belongs.
 export function latestMetricsBySlug(
   rows: MetricSnapshotRow[],
   slug: string,
 ): CurrentMetric[] {
   const groups = groupBySlugMetricPeriod(
-    rows.filter((row) => row.slug === slug),
+    rows.filter((row) => row.slug === slug && row.period !== PERIOD_DAILY),
   );
   return [...groups.values()].map(toCurrentMetric);
 }

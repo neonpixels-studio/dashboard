@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SourcesFooter > matches its snapshot 1`] = `
+"<div data-v-f8143493="" class="sources-footer"><span data-v-f8143493="" class="label">SOURCES</span>
+  <ul data-v-f8143493="" class="sources">
+    <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> GOOGLE ANALYTICS · 4m</li>
+    <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> CLERK · 4m</li>
+    <li data-v-f8143493="" class="source-chip warn"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> ZYVOP · 2d</li>
+  </ul><span data-v-f8143493="" class="grow"></span>
+  <!--v-if--><span data-v-f8143493="" class="note-tag">STRIPE · CLERK · SENTRY NOT CONNECTED</span>
+</div>"
+`;

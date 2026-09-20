@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SectionLabel > matches its snapshot with meta 1`] = `"<div data-v-823d5be8="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">MONEY &amp; HEALTH</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">STRIPE · SENTRY</span></div>"`;
+
+exports[`SectionLabel > matches its snapshot without meta 1`] = `
+"<div data-v-823d5be8="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">REACH</span><span data-v-823d5be8="" class="grow"></span>
+  <!--v-if-->
+</div>"
+`;

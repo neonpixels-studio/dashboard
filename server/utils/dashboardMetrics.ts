@@ -14,3 +14,8 @@ export const METRIC_OPEN_ISSUES = "open_issues";
 // both.
 export const PERIOD_CURRENT = "current";
 export const PERIOD_30D = "30d";
+// One row per calendar day (as opposed to PERIOD_30D's single rolling-window
+// total) — server/integrations/ga4/provider.ts backfills the last 30 days of
+// this on every sync so a sparkline has data immediately, rather than
+// depending on 60 days of PERIOD_CURRENT-style daily polls to accumulate.
+export const PERIOD_DAILY = "daily";

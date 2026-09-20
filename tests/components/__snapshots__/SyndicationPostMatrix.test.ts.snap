@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SyndicationPostMatrix > matches its snapshot 1`] = `
+"<div data-v-bcce6923="" class="post-matrix"><span data-v-bcce6923="" class="metric-label">RECENT POSTS × PLATFORM</span>
+  <div data-v-bcce6923="" class="matrix-head"><span data-v-bcce6923="" class="col-post">POST</span><span data-v-bcce6923="" class="col-cell">MEDIUM</span><span data-v-bcce6923="" class="col-cell">HASHNODE</span><span data-v-bcce6923="" class="col-cell">DEV.TO</span><span data-v-bcce6923="" class="col-cell">ZYVOP</span><span data-v-bcce6923="" class="col-views">SITE VIEWS</span></div>
+  <ul data-v-bcce6923="" class="matrix-rows">
+    <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post">Shipping a Nuxt site with an agent that never sleeps</span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill failed">✗ FAILED</span></span><span data-v-bcce6923="" class="col-views">3,188</span></li>
+    <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post">Three days in the Missouri Ozarks</span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill off">— DEV ONLY</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill off">— DEV ONLY</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill queued">• QUEUED</span></span><span data-v-bcce6923="" class="col-views">1,904</span></li>
+  </ul>
+</div>"
+`;
