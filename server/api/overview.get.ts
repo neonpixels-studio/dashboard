@@ -32,26 +32,33 @@ import type {
   RollupTotal,
 } from "../../shared/types/dashboard";
 
-// "N new today" for open issues compares just the last two UTC calendar days
-// of the series (rather than the default 30-day window every other rollup
-// delta uses) — the one tile whose copy names a specific day, not a rolling
-// trend.
+// Open issues' "since yesterday" copy compares just the last two UTC
+// calendar days of the series (rather than the default 30-day window every
+// other rollup delta uses) — the one tile whose copy names a specific
+// day-over-day comparison, not a rolling trend.
 const OPEN_ISSUES_DELTA_WINDOW_DAYS = 2;
 
+interface DeltaSeriesOptions {
+  seriesRows: MetricSnapshotRow[];
+  slugs: string[];
+  metric: string;
+  period: string;
+  windowDays?: number;
+}
+
+// An options object rather than five positional args — `metric` and
+// `period` are adjacent same-typed strings, easy to swap by accident at a
+// call site with no compiler error to catch it.
 function withDelta<Total extends RollupTotal>(
   total: Total,
-  seriesRows: MetricSnapshotRow[],
-  slugs: string[],
-  metric: string,
-  period: string,
-  windowDays?: number,
+  options: DeltaSeriesOptions,
 ): Total & Pick<OverviewMetric, "delta"> {
   const series = rollupSeriesAcrossApps(
-    seriesRows,
-    slugs,
-    metric,
-    period,
-    windowDays,
+    options.seriesRows,
+    options.slugs,
+    options.metric,
+    options.period,
+    options.windowDays,
   );
   return { ...total, delta: rollupDelta(series) };
 }
@@ -76,10 +83,7 @@ function buildSessionsRollup(
   return {
     ...withDelta(
       { value, period, capturedAt },
-      seriesRows,
-      slugs,
-      METRIC_SESSIONS,
-      PERIOD_30D,
+      { seriesRows, slugs, metric: METRIC_SESSIONS, period: PERIOD_30D },
     ),
     bySource: trafficChannelSplitAcrossApps(
       breakdownRows,
@@ -133,10 +137,12 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
         METRIC_ACTIVE_SUBSCRIBERS,
         PERIOD_CURRENT,
       ),
-      seriesRows,
-      slugs,
-      METRIC_ACTIVE_SUBSCRIBERS,
-      PERIOD_CURRENT,
+      {
+        seriesRows,
+        slugs,
+        metric: METRIC_ACTIVE_SUBSCRIBERS,
+        period: PERIOD_CURRENT,
+      },
     ),
     sessions30d: buildSessionsRollup(
       metricRows,
@@ -151,11 +157,13 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
         METRIC_OPEN_ISSUES,
         PERIOD_CURRENT,
       ),
-      seriesRows,
-      slugs,
-      METRIC_OPEN_ISSUES,
-      PERIOD_CURRENT,
-      OPEN_ISSUES_DELTA_WINDOW_DAYS,
+      {
+        seriesRows,
+        slugs,
+        metric: METRIC_OPEN_ISSUES,
+        period: PERIOD_CURRENT,
+        windowDays: OPEN_ISSUES_DELTA_WINDOW_DAYS,
+      },
     ),
     lastSyncedAt: latestSyncedAt(syncRows),
   };

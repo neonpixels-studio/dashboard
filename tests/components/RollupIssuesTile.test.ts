@@ -9,7 +9,7 @@ function mountTile(props: Record<string, unknown> = {}) {
   return mount(RollupIssuesTile, {
     props: {
       valueLabel: "11",
-      deltaLabel: "3 new today",
+      deltaLabel: "+3 since yesterday",
       items: [{ label: "basin.fm", value: "6" }],
       emptyMessage: "No issue data synced yet.",
       ...props,
@@ -22,7 +22,7 @@ describe("RollupIssuesTile", () => {
   it("renders the value and delta text (never an arrow — issues aren't a growth metric)", () => {
     const wrapper = mountTile();
     expect(wrapper.find(".rollup-value").text()).toBe("11");
-    expect(wrapper.find(".delta").text()).toBe("3 new today");
+    expect(wrapper.find(".delta").text()).toBe("+3 since yesterday");
   });
 
   it("always applies the muted delta tone, regardless of direction", () => {

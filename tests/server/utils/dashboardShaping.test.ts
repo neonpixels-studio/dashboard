@@ -311,24 +311,49 @@ describe("rollupSeriesAcrossApps", () => {
     expect(rollupSeriesAcrossApps([], ["basin"], "mrr", "current")).toEqual([]);
   });
 
-  it("sums same-day rows across apps into one point per UTC calendar day", () => {
+  it("collapses multiple same-day rows from one app to the latest instead of summing them", () => {
+    // A poller that runs twice in one day writes two rows that are each the
+    // app's FULL current total, not two amounts to add together — summing
+    // both would double the real number.
     const rows = [
       metricRow({
         slug: "basin",
-        value: 100,
+        value: 900,
+        capturedAt: new Date("2026-09-01T08:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        value: 1000,
+        capturedAt: new Date("2026-09-01T20:00:00Z"),
+      }),
+    ];
+    // `now` pinned to the same day as the rows so the series is exactly one
+    // point (no carry-forward days after it to also assert on).
+    const sameDay = new Date("2026-09-01T23:00:00Z");
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, sameDay),
+    ).toEqual([{ capturedAt: "2026-09-01T00:00:00.000Z", value: 1000 }]);
+  });
+
+  it("carries an app's last known value forward on a day it doesn't poll, rather than dropping it from that day's sum", () => {
+    // This is the scenario metricRollupWithSplit's headline total already
+    // handles correctly (sum of each app's latest-ever row); a rollup
+    // series must agree with it, not undercount a day just because one
+    // app's poll hadn't landed yet that specific day.
+    const rows = [
+      metricRow({
+        slug: "basin",
+        value: 900,
         capturedAt: new Date("2026-09-01T08:00:00Z"),
       }),
       metricRow({
         slug: "markpost",
-        value: 50,
-        capturedAt: new Date("2026-09-01T20:00:00Z"),
-      }),
-      metricRow({
-        slug: "basin",
-        value: 120,
-        capturedAt: new Date("2026-09-02T08:00:00Z"),
+        value: 300,
+        capturedAt: new Date("2026-09-03T08:00:00Z"),
       }),
     ];
+    const sameDayAsLastPoll = new Date("2026-09-03T20:00:00Z");
 
     expect(
       rollupSeriesAcrossApps(
@@ -337,44 +362,14 @@ describe("rollupSeriesAcrossApps", () => {
         "mrr",
         "current",
         30,
-        now,
+        sameDayAsLastPoll,
       ),
     ).toEqual([
-      {
-        capturedAt: new Date("2026-09-01T20:00:00Z").toISOString(),
-        value: 150,
-      },
-      {
-        capturedAt: new Date("2026-09-02T08:00:00Z").toISOString(),
-        value: 120,
-      },
-    ]);
-  });
-
-  it("collapses multiple same-day rows from one app to the latest instead of summing them", () => {
-    // A poller that runs twice in one day writes two rows that are each the
-    // app's FULL current total, not two amounts to add together — summing
-    // both would double the real number.
-    const rows = [
-      metricRow({
-        slug: "basin",
-        value: 1000,
-        capturedAt: new Date("2026-09-01T08:00:00Z"),
-      }),
-      metricRow({
-        slug: "basin",
-        value: 1000,
-        capturedAt: new Date("2026-09-01T20:00:00Z"),
-      }),
-    ];
-
-    expect(
-      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, now),
-    ).toEqual([
-      {
-        capturedAt: new Date("2026-09-01T20:00:00Z").toISOString(),
-        value: 1000,
-      },
+      { capturedAt: "2026-09-01T00:00:00.000Z", value: 900 },
+      // markpost hasn't polled yet — basin's known value carries forward
+      // alone, rather than the day being dropped or summing a phantom 0.
+      { capturedAt: "2026-09-02T00:00:00.000Z", value: 900 },
+      { capturedAt: "2026-09-03T00:00:00.000Z", value: 1200 },
     ]);
   });
 
@@ -400,14 +395,15 @@ describe("rollupSeriesAcrossApps", () => {
     expect(
       rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 2, midday),
     ).toEqual([
-      {
-        capturedAt: new Date("2026-09-19T18:00:00Z").toISOString(),
-        value: 10,
-      },
+      { capturedAt: "2026-09-19T00:00:00.000Z", value: 10 },
+      // Carried forward into "today" — the 999 row is excluded from
+      // seeding this entirely (it's from before the window), so there's no
+      // value it could have come from other than the in-window row.
+      { capturedAt: "2026-09-20T00:00:00.000Z", value: 10 },
     ]);
   });
 
-  it("excludes rows outside the comparison window", () => {
+  it("excludes rows outside the comparison window, including as a carry-forward seed", () => {
     const rows = [
       metricRow({ value: 999, capturedAt: new Date("2026-01-01T00:00:00Z") }),
       metricRow({ value: 100, capturedAt: new Date("2026-09-19T00:00:00Z") }),
@@ -416,10 +412,8 @@ describe("rollupSeriesAcrossApps", () => {
     expect(
       rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, now),
     ).toEqual([
-      {
-        capturedAt: new Date("2026-09-19T00:00:00Z").toISOString(),
-        value: 100,
-      },
+      { capturedAt: "2026-09-19T00:00:00.000Z", value: 100 },
+      { capturedAt: "2026-09-20T00:00:00.000Z", value: 100 },
     ]);
   });
 

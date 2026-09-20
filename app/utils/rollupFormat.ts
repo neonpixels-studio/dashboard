@@ -47,14 +47,16 @@ export function formatOrDash(
 
 export type DeltaTone = "ok" | "muted";
 
-// ▲/▼ direction only — "more is better" isn't universal (open issues
-// inverts it), so tone is decided by the caller, not derived from the sign
-// here.
-function deltaArrow(delta: RollupDelta): "▲" | "▼" | "—" {
-  if (delta.value > 0) {
+// ▲/▼ direction from an already-rounded magnitude — never the raw delta.
+// A raw value like 0.3 (pct 0.04%) would otherwise show "▲ 0.0%" (an arrow
+// pointing at a percentage that itself displays as zero); classifying
+// direction from the SAME rounded number that gets displayed keeps the
+// arrow/tone and the printed magnitude from disagreeing.
+function directionArrow(roundedMagnitude: number): "▲" | "▼" | "—" {
+  if (roundedMagnitude > 0) {
     return "▲";
   }
-  if (delta.value < 0) {
+  if (roundedMagnitude < 0) {
     return "▼";
   }
   return "—";
@@ -67,33 +69,55 @@ export function formatPctDelta(delta: RollupDelta | null): string | null {
   if (!delta || delta.pct === null) {
     return null;
   }
-  return `${deltaArrow(delta)} ${Math.abs(delta.pct).toFixed(1)}%`;
+  const roundedPct = Number(delta.pct.toFixed(1));
+  return `${directionArrow(roundedPct)} ${Math.abs(roundedPct).toFixed(1)}%`;
 }
 
 // "▲ 14" for active subscribers — an absolute count, not a percentage.
+// Rounded to the nearest whole count before both display and direction, so
+// a sub-1 fractional delta (shouldn't normally happen for a count metric,
+// but the shaping layer doesn't guarantee it) can't show a nonzero arrow
+// next to a rounded-to-zero number.
 export function formatCountDelta(delta: RollupDelta | null): string | null {
   if (!delta) {
     return null;
   }
-  return `${deltaArrow(delta)} ${formatCount(Math.abs(delta.value))}`;
+  const roundedValue = Math.round(delta.value);
+  return `${directionArrow(roundedValue)} ${formatCount(Math.abs(roundedValue))}`;
 }
 
-// The open issues tile's sub-label names a specific day ("N new today"),
-// not a trend arrow — phrased as a sentence instead of a signed delta.
-export function formatNewToday(delta: RollupDelta | null): string | null {
+// The open issues tile's sub-label compares today's rollup to yesterday's —
+// phrased as "since yesterday" (not "N new") because metric_snapshot only
+// stores a point-in-time total: this is opens minus closes, a net change,
+// not a count of newly-opened issues. A true "N new" count needs the
+// Sentry provider (#16) to report first-seen timestamps per issue.
+// "Yesterday"/"today" are UTC calendar days, so for a US timezone this can
+// flip a few hours before local midnight.
+export function formatIssuesSinceYesterday(
+  delta: RollupDelta | null,
+): string | null {
   if (!delta) {
     return null;
   }
-  if (delta.value <= 0) {
-    return "No new issues today";
+  const roundedValue = Math.round(delta.value);
+  if (roundedValue === 0) {
+    return "No change since yesterday";
   }
-  return `${formatCount(delta.value)} new today`;
+  const sign = roundedValue > 0 ? "+" : "−";
+  return `${sign}${formatCount(Math.abs(roundedValue))} since yesterday`;
 }
 
 // "more is better" tiles (MRR, active subscribers, sessions): growth reads
-// as the positive/ok tone, anything else is neutral.
+// as the positive/ok tone, anything else is neutral. Prefers `pct` (what
+// MRR/sessions actually display) over `value` so the tone agrees with
+// formatPctDelta's rounding — falls back to `value` only when `pct` is
+// null (zero baseline), which is also what formatCountDelta displays.
 export function growthDeltaTone(delta: RollupDelta | null): DeltaTone {
-  return delta && delta.value > 0 ? "ok" : "muted";
+  if (!delta) {
+    return "muted";
+  }
+  const magnitude = delta.pct ?? delta.value;
+  return Number(magnitude.toFixed(1)) > 0 ? "ok" : "muted";
 }
 
 // GA4's channel buckets (server/integrations/ga4/mapping.ts) presented the
@@ -113,4 +137,37 @@ export function channelLabel(channel: string): string {
     CHANNEL_LABELS[channel] ??
     `${channel.charAt(0).toUpperCase()}${channel.slice(1)}`
   );
+}
+
+// Built by hand (not Intl.DateTimeFormat) so the month abbreviation is
+// always exactly 3 letters — ICU's "en-GB" short month format renders
+// "Sept", not "Sep", on some Node/ICU versions, which would silently drift
+// from the "19 SEP 2026" style the rest of this design uses.
+const MONTH_ABBREVIATIONS = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
+
+// "19 SEP 2026" for the "SYNCED Xm ago · 19 SEP 2026" section meta. Returns
+// null for an unparseable timestamp rather than rendering "NaN undefined
+// NaN" — lastSyncedAt is server-sourced, but a bad value should still fail
+// visibly (omitted) rather than corrupt the page.
+export function formatSyncedDate(isoTimestamp: string): string | null {
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = MONTH_ABBREVIATIONS[date.getUTCMonth()];
+  return `${day} ${month} ${date.getUTCFullYear()}`;
 }

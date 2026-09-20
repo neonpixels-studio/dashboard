@@ -210,22 +210,67 @@ function toUtcDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function appDayKey(slug: string, date: Date): string {
-  return `${slug}::${toUtcDayKey(date)}`;
+function groupBySlug(
+  rows: MetricSnapshotRow[],
+): Map<string, MetricSnapshotRow[]> {
+  const bySlug = new Map<string, MetricSnapshotRow[]>();
+  rows.forEach((row) => {
+    const existing = bySlug.get(row.slug) ?? [];
+    existing.push(row);
+    bySlug.set(row.slug, existing);
+  });
+  return bySlug;
 }
 
-// One rollup point per UTC calendar day, summing every app's latest row for
-// that day — the studio-wide counterpart to a single app's
-// metricSeriesBySlug. A day where only some apps polled sums only what's
-// known for that day (never forward-filled or backfilled with a fabricated
-// number), matching the "no data" rule the rest of this module follows: a
-// day with zero rows across every app simply isn't a point in the series.
+// Every UTC calendar day from `start` through `end`, inclusive — the day
+// axis rollupSeriesAcrossApps sums across, one entry per day regardless of
+// whether any row actually landed that day.
+function utcDayKeysThrough(start: Date, end: Date): string[] {
+  const dayKeys: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    dayKeys.push(toUtcDayKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dayKeys;
+}
+
+// One app's most recently known row as of the end of `dayKey` — the
+// "carry forward" rollupSeriesAcrossApps needs so a day an app simply
+// didn't poll still counts that app's last real value instead of silently
+// dropping it from that day's sum (see the function's own doc comment for
+// why dropping it is wrong, not just conservative).
+function latestRowOnOrBefore(
+  rowsForSlug: MetricSnapshotRow[],
+  dayKey: string,
+): MetricSnapshotRow | undefined {
+  const rowsOnOrBefore = rowsForSlug.filter(
+    (row) => toUtcDayKey(row.capturedAt) <= dayKey,
+  );
+  if (!rowsOnOrBefore.length) {
+    return undefined;
+  }
+  return lastOf(rowsOnOrBefore);
+}
+
+// One rollup point per UTC calendar day in the window, summing each app's
+// most recently known value AS OF that day — not just rows that happen to
+// land on that exact day. Without carrying a value forward, a day where
+// only some apps happened to poll would understate the true total and read
+// as a real swing rather than the polling-cadence noise it actually is;
+// with it, the series' last point always agrees with
+// metricRollupWithSplit's headline total (both are "sum of each app's
+// latest known value"), which is what a delta/sparkline is implicitly
+// compared against. A day before ANY app in `slugs` has ever reported this
+// metric/period isn't a point at all — still never a fabricated zero.
 //
-// Collapses to one row per (app, day) before summing: a "current"/"30d" row
-// is already that app's full total as of its own capturedAt, not an
-// increment, so a poller that runs more than once a day must contribute
-// its latest value for that day exactly once — summing every row it wrote
-// that day would double (or triple) count the same total.
+// Rows before the window start are excluded entirely, including as a seed
+// for carrying forward into the window's first day — an app that hasn't
+// reported in over `windowDays` simply isn't counted until it reports
+// again inside the window. This can undercount the window's early days
+// relative to the (unbounded) headline total for a genuinely stale app;
+// accepted here rather than widening the query, since normal polling
+// cadence (daily or more) makes it a rare edge case.
 export function rollupSeriesAcrossApps(
   rows: MetricSnapshotRow[],
   slugs: string[],
@@ -242,35 +287,23 @@ export function rollupSeriesAcrossApps(
       row.period === period &&
       row.capturedAt >= start,
   );
+  if (!matching.length) {
+    return [];
+  }
 
-  const latestPerAppDay = new Map<string, MetricSnapshotRow>();
-  matching.forEach((row) => {
-    const key = appDayKey(row.slug, row.capturedAt);
-    const existing = latestPerAppDay.get(key);
-    if (!existing || row.capturedAt > existing.capturedAt) {
-      latestPerAppDay.set(key, row);
-    }
-  });
+  const rowsBySlug = groupBySlug(matching);
 
-  const totalsByDay = new Map<string, { capturedAt: Date; value: number }>();
-  latestPerAppDay.forEach((row) => {
-    const dayKey = toUtcDayKey(row.capturedAt);
-    const existing = totalsByDay.get(dayKey);
-    totalsByDay.set(dayKey, {
-      capturedAt:
-        existing && existing.capturedAt > row.capturedAt
-          ? existing.capturedAt
-          : row.capturedAt,
-      value: (existing?.value ?? 0) + row.value,
+  return utcDayKeysThrough(start, now).flatMap((dayKey) => {
+    const rowsToday = slugs.flatMap((slug) => {
+      const row = latestRowOnOrBefore(rowsBySlug.get(slug) ?? [], dayKey);
+      return row ? [row] : [];
     });
+    if (!rowsToday.length) {
+      return [];
+    }
+    const total = rowsToday.reduce((sum, row) => sum + row.value, 0);
+    return [{ capturedAt: `${dayKey}T00:00:00.000Z`, value: roundTo2(total) }];
   });
-
-  return [...totalsByDay.entries()]
-    .sort(([dayKeyA], [dayKeyB]) => (dayKeyA < dayKeyB ? -1 : 1))
-    .map(([, day]) => ({
-      capturedAt: toIso(day.capturedAt),
-      value: day.value,
-    }));
 }
 
 // Change from the earliest to the latest point of a rollup series — the

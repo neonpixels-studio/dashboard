@@ -23,15 +23,12 @@
 // mock. No severity chips — metric_snapshot has no severity column yet, and
 // the Sentry provider that would populate one is #16 (see this PR's
 // follow-up suggestions).
-interface RollupIssueItem {
-  label: string;
-  value: string;
-}
+import type { StatListItem } from "./StatList.vue";
 
 defineProps<{
   valueLabel: string;
   deltaLabel: string | null;
-  items: RollupIssueItem[];
+  items: StatListItem[];
   emptyMessage: string;
 }>();
 </script>

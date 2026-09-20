@@ -7,7 +7,7 @@ exports[`RollupIssuesTile > matches its snapshot 1`] = `
       <line x1="12" y1="9" x2="12" y2="13"></line>
       <line x1="12" y1="17" x2="12.01" y2="17"></line>
     </svg><span data-v-a655d826="" class="issues-label">OPEN ISSUES</span></div>
-  <div data-v-a655d826="" class="value-row"><span class="display-num rollup-value">11</span><span class="delta muted">3 new today</span></div>
+  <div data-v-a655d826="" class="value-row"><span class="display-num rollup-value">11</span><span class="delta muted">+3 since yesterday</span></div>
   <ul data-v-5cd44a83="" data-v-a655d826="" class="stat-list rollup-list">
     <li data-v-5cd44a83="" class="stat-row">
       <!--v-if--><span data-v-5cd44a83="" class="label">basin.fm</span><span data-v-5cd44a83="" class="value">6</span>

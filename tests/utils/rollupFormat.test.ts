@@ -5,9 +5,10 @@ import {
   formatCount,
   formatCountDelta,
   formatCurrency,
-  formatNewToday,
+  formatIssuesSinceYesterday,
   formatOrDash,
   formatPctDelta,
+  formatSyncedDate,
   growthDeltaTone,
   NO_VALUE_LABEL,
 } from "../../app/utils/rollupFormat";
@@ -71,6 +72,13 @@ describe("formatPctDelta", () => {
   it("formats a zero delta with a flat dash", () => {
     expect(formatPctDelta({ value: 0, pct: 0 })).toBe("— 0.0%");
   });
+
+  it("shows a flat dash (not an up arrow) when a tiny positive change rounds to 0.0%", () => {
+    // 0.3 out of a large baseline is a real, positive raw delta, but it
+    // rounds to a displayed "0.0%" — the arrow must agree with what's
+    // printed, not the unrounded number underneath it.
+    expect(formatPctDelta({ value: 0.3, pct: 0.04 })).toBe("— 0.0%");
+  });
 });
 
 describe("formatCountDelta", () => {
@@ -87,18 +95,27 @@ describe("formatCountDelta", () => {
   });
 });
 
-describe("formatNewToday", () => {
+describe("formatIssuesSinceYesterday", () => {
   it("returns null when there is no delta yet (e.g. Sentry hasn't synced)", () => {
-    expect(formatNewToday(null)).toBeNull();
+    expect(formatIssuesSinceYesterday(null)).toBeNull();
   });
 
-  it("reports the count of new issues when the delta is positive", () => {
-    expect(formatNewToday({ value: 2, pct: 40 })).toBe("2 new today");
+  it("reports a net increase with a plus sign, not an arrow", () => {
+    expect(formatIssuesSinceYesterday({ value: 2, pct: 40 })).toBe(
+      "+2 since yesterday",
+    );
   });
 
-  it("reports no new issues when the delta is zero or negative", () => {
-    expect(formatNewToday({ value: 0, pct: 0 })).toBe("No new issues today");
-    expect(formatNewToday({ value: -3, pct: -20 })).toBe("No new issues today");
+  it("reports a net decrease with a minus sign", () => {
+    expect(formatIssuesSinceYesterday({ value: -3, pct: -20 })).toBe(
+      "−3 since yesterday",
+    );
+  });
+
+  it("reports no change when opens and closes cancel out", () => {
+    expect(formatIssuesSinceYesterday({ value: 0, pct: 0 })).toBe(
+      "No change since yesterday",
+    );
   });
 });
 
@@ -112,6 +129,15 @@ describe("growthDeltaTone", () => {
     expect(growthDeltaTone({ value: -10, pct: -5 })).toBe("muted");
     expect(growthDeltaTone(null)).toBe("muted");
   });
+
+  it("is muted when a tiny positive change rounds its displayed pct to 0.0", () => {
+    expect(growthDeltaTone({ value: 0.3, pct: 0.04 })).toBe("muted");
+  });
+
+  it("falls back to value when pct is null (zero baseline)", () => {
+    expect(growthDeltaTone({ value: 5, pct: null })).toBe("ok");
+    expect(growthDeltaTone({ value: -5, pct: null })).toBe("muted");
+  });
 });
 
 describe("channelLabel", () => {
@@ -124,5 +150,20 @@ describe("channelLabel", () => {
 
   it("capitalizes an unknown channel rather than dropping it", () => {
     expect(channelLabel("email")).toBe("Email");
+  });
+});
+
+describe("formatSyncedDate", () => {
+  it("formats an ISO timestamp as DD MON YYYY", () => {
+    expect(formatSyncedDate("2026-09-19T11:56:00.000Z")).toBe("19 SEP 2026");
+  });
+
+  it("always uses a 3-letter month abbreviation, for every month", () => {
+    expect(formatSyncedDate("2026-01-05T00:00:00.000Z")).toBe("05 JAN 2026");
+    expect(formatSyncedDate("2026-12-25T00:00:00.000Z")).toBe("25 DEC 2026");
+  });
+
+  it("returns null for an unparseable timestamp rather than NaN/undefined text", () => {
+    expect(formatSyncedDate("not-a-real-timestamp")).toBeNull();
   });
 });

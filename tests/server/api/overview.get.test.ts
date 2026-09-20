@@ -155,10 +155,19 @@ describe("GET /api/overview", () => {
 
     const result = await overviewHandler({} as H3Event);
 
-    expect(result.mrr.series).toEqual([
-      { capturedAt: seriesRows[0].capturedAt.toISOString(), value: 1000 },
-      { capturedAt: seriesRows[1].capturedAt.toISOString(), value: 1082 },
-    ]);
+    // The series carries basin's value forward through every day between
+    // the two rows (see rollupSeriesAcrossApps), so it's asserted by its
+    // boundaries rather than the full day-by-day array: it starts at the
+    // first row's own value and ends at the second row's value, carried
+    // through to "today".
+    expect(result.mrr.series[0]).toEqual({
+      capturedAt: seriesRows[0].capturedAt.toISOString(),
+      value: 1000,
+    });
+    expect(result.mrr.series.at(-1)).toEqual({
+      capturedAt: "2026-09-20T00:00:00.000Z",
+      value: 1082,
+    });
     expect(result.mrr.delta).toEqual({ value: 82, pct: 8.2 });
   });
 

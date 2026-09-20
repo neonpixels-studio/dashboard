@@ -163,6 +163,21 @@ describe("index.vue rollup tiles", () => {
     expect(wrapper.find(".rollup-value").exists()).toBe(false);
   });
 
+  it("shows the loaded-but-empty state gracefully — dashes and empty messages, not skeletons or fabricated numbers — for useFetch's idle case", () => {
+    // pending: false, error: null, data: null is a real state useFetch can
+    // be in (e.g. SSR opted out and the client fetch hasn't kicked off
+    // yet), distinct from both the pending and error branches.
+    mockOverview({});
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findAllComponents(MetricTileSkeleton)).toHaveLength(0);
+    expect(wrapper.findComponent(DataErrorState).exists()).toBe(false);
+    const values = wrapper.findAll(".rollup-value").map((node) => node.text());
+    expect(values).toEqual(["—", "—", "—", "—"]);
+    expect(wrapper.find(".delta").exists()).toBe(false);
+  });
+
   it("shows one error state spanning the grid on failure, wired to the composable's refresh", async () => {
     const refresh = vi.fn();
     mockOverview({ error: new Error("network down"), refresh });
@@ -190,7 +205,7 @@ describe("index.vue rollup tiles", () => {
     expect(text).toContain("61.3K");
     expect(text).toContain("▼ 1.4%");
     expect(text).toContain("11");
-    expect(text).toContain("3 new today");
+    expect(text).toContain("+3 since yesterday");
   });
 
   it("draws the MRR sparkline from the real series, not the old hardcoded bezier path", () => {
@@ -292,8 +307,9 @@ describe("index.vue rollup tiles", () => {
   it("matches its rollup-grid snapshot with live data", () => {
     mockOverview({ data: overviewFixture() });
 
-    // Captured before nextTick so the sync-meta half stays deterministic
-    // (see the mount-timing test above) rather than depending on wall clock.
+    // Scoped to .rollup-grid, not the whole page — the sync meta (whose
+    // text depends on wall-clock time via the mount-timing test above)
+    // renders in a sibling SectionLabel outside this element entirely.
     expect(mountPage().find(".rollup-grid").html()).toMatchSnapshot();
   });
 });

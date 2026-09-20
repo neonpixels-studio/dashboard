@@ -23,18 +23,14 @@
 // near-identical templates. OPEN ISSUES looks similar but has its own icon
 // header and fixed muted delta tone, so it stays as RollupIssuesTile
 // instead of a third near-miss usage of this one.
-interface RollupStatItem {
-  label: string;
-  value: string;
-  swatch?: string;
-}
+import type { StatListItem } from "./StatList.vue";
 
 defineProps<{
   label: string;
   valueLabel: string;
   deltaLabel: string | null;
   deltaTone: "ok" | "muted";
-  items: RollupStatItem[];
+  items: StatListItem[];
   emptyMessage: string;
 }>();
 </script>

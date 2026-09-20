@@ -103,9 +103,10 @@ import {
   formatCount,
   formatCountDelta,
   formatCurrency,
-  formatNewToday,
+  formatIssuesSinceYesterday,
   formatOrDash,
   formatPctDelta,
+  formatSyncedDate,
   growthDeltaTone,
 } from "~/utils/rollupFormat";
 import type { AppMetricSplit } from "#shared/types/dashboard";
@@ -186,13 +187,13 @@ const sessionsDeltaTone = computed(() =>
 const openIssuesValueLabel = computed(() =>
   formatOrDash(overview.value?.openIssues.value, formatCount),
 );
-// "N new today" rather than an arrow — open issues never gets the ok/growth
-// tone treatment the other three tiles do: RollupIssuesTile never passes a
-// `delta-tone` prop to RollupValueRow, so its "muted" default always
-// applies, since more issues is never the "good" direction to celebrate in
-// green.
+// A "since yesterday" sentence rather than an arrow — open issues never
+// gets the ok/growth tone treatment the other three tiles do:
+// RollupIssuesTile never passes a `delta-tone` prop to RollupValueRow, so
+// its "muted" default always applies, since more issues is never the
+// "good" direction to celebrate in green.
 const openIssuesDeltaLabel = computed(() =>
-  formatNewToday(overview.value?.openIssues.delta ?? null),
+  formatIssuesSinceYesterday(overview.value?.openIssues.delta ?? null),
 );
 
 // Shared by the two `byApp`-shaped tiles (active subscribers, open issues) —
@@ -251,34 +252,9 @@ onMounted(() => {
   );
 });
 
-// Built by hand (not Intl.DateTimeFormat) so the month abbreviation is
-// always exactly 3 letters — ICU's "en-GB" short month format renders
-// "Sept", not "Sep", on some Node/ICU versions, which would silently drift
-// from the "19 SEP 2026" style the rest of this design uses.
-const MONTH_ABBREVIATIONS = [
-  "JAN",
-  "FEB",
-  "MAR",
-  "APR",
-  "MAY",
-  "JUN",
-  "JUL",
-  "AUG",
-  "SEP",
-  "OCT",
-  "NOV",
-  "DEC",
-];
-
 const syncedDateLabel = computed(() => {
   const lastSyncedAt = overview.value?.lastSyncedAt;
-  if (!lastSyncedAt) {
-    return null;
-  }
-  const date = new Date(lastSyncedAt);
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = MONTH_ABBREVIATIONS[date.getUTCMonth()];
-  return `${day} ${month} ${date.getUTCFullYear()}`;
+  return lastSyncedAt ? formatSyncedDate(lastSyncedAt) : null;
 });
 
 // Both halves must be ready before showing anything — a meta reading just
