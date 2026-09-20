@@ -179,6 +179,62 @@ describe("normalizeItemToMonthlyDollars", () => {
       /billed in "eur"/,
     );
   });
+
+  it("fails loud on a recurring interval this provider has no monthly-equivalent formula for", () => {
+    const item = buildItem({
+      price: {
+        id: "price_fortnightly",
+        unitAmount: 500,
+        currency: "usd",
+        product: "prod_test",
+        // Not a real Stripe interval — simulates a value the SDK's type
+        // doesn't cover, which mapping.ts deliberately passes through
+        // unvalidated (see types.ts's StripeRecurring["interval"] comment).
+        recurring: { interval: "fortnight", intervalCount: 1 },
+      },
+    });
+
+    expect(() => normalizeItemToMonthlyDollars(item)).toThrow(
+      /Unhandled Stripe recurring interval "fortnight"/,
+    );
+  });
+
+  it("an unhandled interval fails only the subscription it's on, not unrelated ones in the same computeMrrForProducts call", () => {
+    const goodSubscription: StripeSubscription = {
+      id: "sub_good",
+      status: "active",
+      items: { data: [buildItem()] },
+    };
+    const badSubscription: StripeSubscription = {
+      id: "sub_bad_interval",
+      status: "active",
+      items: {
+        data: [
+          buildItem({
+            price: {
+              id: "price_fortnightly",
+              unitAmount: 500,
+              currency: "usd",
+              product: "prod_test",
+              recurring: { interval: "fortnight", intervalCount: 1 },
+            },
+          }),
+        ],
+      },
+    };
+
+    // computeMrrForProducts still throws overall when any matched item is
+    // unnormalizable — it doesn't silently drop the bad subscription and
+    // return a partial total — but per mapping.ts/types.ts's design, this
+    // only happens for the app(s) whose product ids actually match the
+    // offending item, never for an app that has no relationship to it.
+    expect(() =>
+      computeMrrForProducts(
+        [goodSubscription, badSubscription],
+        new Set(["prod_test"]),
+      ),
+    ).toThrow(/Unhandled Stripe recurring interval "fortnight"/);
+  });
 });
 
 describe("computeMrrForProducts (fixture: mixed-tier-active-subscriptions)", () => {
@@ -292,14 +348,37 @@ describe("fetchAllActiveSubscriptions", () => {
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(1);
   });
 
-  it("fails loud instead of looping forever if an empty page claims hasMore", async () => {
+  it("fails loud instead of looping forever if the very first page is empty but claims hasMore", async () => {
     const emptyPage: StripeSubscriptionPage = { data: [], hasMore: true };
     const listActiveSubscriptions = fakeListFromPages({ first: emptyPage });
 
     await expect(
       fetchAllActiveSubscriptions(listActiveSubscriptions),
-    ).rejects.toThrow(/did not advance/);
+    ).rejects.toThrow(/empty page while still claiming has_more/);
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails loud instead of silently truncating the list if a MID-pagination page is empty but claims hasMore", async () => {
+    const firstPage: StripeSubscriptionPage = {
+      data: [{ id: "sub_a", status: "active", items: { data: [] } }],
+      hasMore: true,
+    };
+    const emptyFollowupPage: StripeSubscriptionPage = {
+      data: [],
+      hasMore: true,
+    };
+    const listActiveSubscriptions = fakeListFromPages({
+      first: firstPage,
+      sub_a: emptyFollowupPage,
+    });
+
+    // Without this guard, fetchAllActiveSubscriptions would return only
+    // [sub_a] and computeMrrForProducts would sum a plausible-looking but
+    // silently incomplete MRR total.
+    await expect(
+      fetchAllActiveSubscriptions(listActiveSubscriptions),
+    ).rejects.toThrow(/empty page while still claiming has_more/);
+    expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
   });
 
   it("fails loud instead of looping forever if a non-empty page's cursor never advances", async () => {

@@ -158,9 +158,12 @@ export function computeMrrForProducts(
  * cursor-pagination convention (next page starts after the last row's id).
  * Guards against two ways a misbehaving `listActiveSubscriptions` (a stub,
  * a proxy, a Stripe-side bug — never real Stripe under normal operation)
- * could otherwise spin forever: an empty page still claiming `hasMore`, and
- * a non-empty page whose cursor doesn't advance (the same page returned
- * twice in a row).
+ * could otherwise under-report MRR instead of spinning forever: an empty
+ * page still claiming `hasMore` (silently truncating every subscription
+ * past that point, whether it's the first page or the fifth), and a
+ * non-empty page whose cursor doesn't advance (the same page returned twice
+ * in a row). Both fail loud rather than returning a partial, plausible-
+ * looking subscription list.
  */
 export async function fetchAllActiveSubscriptions(
   listActiveSubscriptions: ListActiveSubscriptions,
@@ -172,17 +175,28 @@ export async function fetchAllActiveSubscriptions(
   while (hasMore) {
     const previousStartingAfter = startingAfter;
     const page = await listActiveSubscriptions(startingAfter);
-    allSubscriptions.push(...page.data);
     const lastSubscription = page.data.at(-1);
-    startingAfter = lastSubscription?.id;
 
-    if (page.hasMore && startingAfter === previousStartingAfter) {
+    if (page.hasMore && !lastSubscription) {
       throw new Error(
-        "Stripe subscription pagination did not advance — " +
-          `listActiveSubscriptions returned the same cursor ("${startingAfter}") twice in a row.`,
+        "Stripe subscription pagination returned an empty page while " +
+          "still claiming has_more — refusing to silently truncate the list.",
       );
     }
-    hasMore = page.hasMore && lastSubscription !== undefined;
+    if (
+      page.hasMore &&
+      lastSubscription &&
+      lastSubscription.id === previousStartingAfter
+    ) {
+      throw new Error(
+        "Stripe subscription pagination did not advance — " +
+          `listActiveSubscriptions returned the same cursor ("${lastSubscription.id}") twice in a row.`,
+      );
+    }
+
+    allSubscriptions.push(...page.data);
+    startingAfter = lastSubscription?.id;
+    hasMore = page.hasMore;
   }
 
   return allSubscriptions;

@@ -24,22 +24,11 @@ function assertProductId(product: Stripe.Price["product"]): string {
   return product;
 }
 
-// Stripe's SDK types `recurring.interval` as `'day' | 'month' | 'week' |
-// 'year' | OtherString` — a forward-compatibility catch-all for values the
-// SDK doesn't know about yet — so it isn't statically assignable to this
-// package's narrower StripeRecurring["interval"]. Validated the same way as
-// assertProductId: fail loud rather than silently mis-normalizing MRR for an
-// interval this provider has no monthly-equivalent formula for.
-const KNOWN_RECURRING_INTERVALS: ReadonlySet<StripeRecurring["interval"]> =
-  new Set(["day", "week", "month", "year"]);
-
-function assertKnownInterval(interval: string): StripeRecurring["interval"] {
-  if (!KNOWN_RECURRING_INTERVALS.has(interval as StripeRecurring["interval"])) {
-    throw new Error(`Unrecognized Stripe recurring interval "${interval}".`);
-  }
-  return interval as StripeRecurring["interval"];
-}
-
+// `recurring.interval` is deliberately NOT validated here against Stripe's
+// known interval set — see the comment on StripeRecurring["interval"]
+// (./types.ts) for why that check belongs in mrr.ts's
+// monthlyIntervalDivisor instead, scoped to only the items that actually
+// matter for one app's MRR.
 function toRecurring(
   recurring: Stripe.Price["recurring"],
 ): StripeRecurring | null {
@@ -47,7 +36,7 @@ function toRecurring(
     return null;
   }
   return {
-    interval: assertKnownInterval(recurring.interval),
+    interval: recurring.interval,
     intervalCount: recurring.interval_count,
   };
 }

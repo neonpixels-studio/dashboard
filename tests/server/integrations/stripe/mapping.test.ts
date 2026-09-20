@@ -124,7 +124,13 @@ describe("toStripeSubscription", () => {
     );
   });
 
-  it("fails loud on a recurring interval this provider has no monthly-equivalent formula for", () => {
+  it("passes an interval Stripe's SDK doesn't have a literal for straight through, unvalidated", () => {
+    // mapping.ts deliberately doesn't validate `interval` against a known
+    // set — see StripeRecurring["interval"]'s comment (./types.ts). That
+    // validation happens in mrr.ts's monthlyIntervalDivisor instead, scoped
+    // to only the items that matter for one app's MRR (see mrr.test.ts's
+    // "fails loud on a recurring interval" case) rather than failing every
+    // app's sync over one subscription elsewhere in the shared account.
     const subscription = buildStripeSubscription({
       items: {
         data: [
@@ -143,8 +149,8 @@ describe("toStripeSubscription", () => {
       } as unknown as Stripe.Subscription["items"],
     });
 
-    expect(() => toStripeSubscription(subscription)).toThrow(
-      /Unrecognized Stripe recurring interval "fortnight"/,
-    );
+    expect(
+      toStripeSubscription(subscription).items.data[0]?.price.recurring,
+    ).toEqual({ interval: "fortnight", intervalCount: 1 });
   });
 });

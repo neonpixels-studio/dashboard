@@ -99,11 +99,17 @@ Two layers of secrets:
   secrets or a database (`tests/server/utils/integrationSecrets.test.ts`
   covers round-trip, tamper-detection, and wrong-key failure).
 
-Only `NUXT_INTEGRATION_ENCRYPTION_KEY` is wired into `runtimeConfig` today,
-since it's what the helper above already consumes. The vendor vars below are
-documented here and in `.env.example` so they're ready to set, but each one's
-`runtimeConfig` entry and actual API client land with that vendor's provider
-issue (GA4/Stripe/Clerk/Sentry/blog-platform sync — separate issues).
+`NUXT_INTEGRATION_ENCRYPTION_KEY` and the Stripe vars are wired into
+`runtimeConfig` today (see nuxt.config.ts) — declared there so the Netlify
+preset forwards them into the deployed function's `process.env`, even though
+the code that actually reads them (`server/integrations/config.ts`'s
+`resolveSecret`, `server/integrations/stripe/provider.ts`'s
+`resolveProductIdsSource`) does a plain `process.env` lookup rather than
+`useRuntimeConfig()`, since both resolve a row/app-specific key name at
+runtime. The remaining vendor vars below are documented here and in
+`.env.example` so they're ready to set, but each one's `runtimeConfig` entry
+and actual API client land with that vendor's provider issue
+(GA4/Clerk/Sentry/blog-platform sync — separate issues).
 
 Set any of the vars below the same way as Clerk/Neon:
 
@@ -127,12 +133,19 @@ Reports property traffic via the GA4 Data API using a service account.
 
 ### Stripe
 
-Reports revenue/subscription stats. One Stripe account across properties,
-scoped per property by product ID.
+Reports MRR and active subscriber counts for the product-template apps
+(basin, markpost, wanderist). One shared Stripe account across properties,
+scoped per property by product ID — see
+`server/integrations/stripe/provider.ts`.
 
-1. Secret key — <https://dashboard.stripe.com/apikeys>.
-2. Per-property product ID — <https://dashboard.stripe.com/products> → the
-   product → copy its `prod_...` ID → `NUXT_STRIPE_PRODUCT_ID_*`.
+1. Secret key — <https://dashboard.stripe.com/apikeys> (restricted,
+   read-only: Subscriptions, Customers, Products) → `NUXT_STRIPE_SECRET_KEY`.
+2. Per-property product ID(s) — <https://dashboard.stripe.com/products> → the
+   product → copy its `prod_...` ID → `NUXT_STRIPE_PRODUCT_ID_*`. A comma-
+   separated list scopes MRR across several tiers/products for the same app
+   (e.g. `prod_basin_core,prod_basin_pro`). This env var is the deploy-time
+   default; an `integration_config` row's `external_id` column, once set,
+   overrides it per app.
 
 ### Per-app Clerk
 

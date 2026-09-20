@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchStripeMetrics,
   stripeProvider,
@@ -6,6 +6,10 @@ import {
 import { createTestIntegrationConfig } from "../../../../server/integrations/testing/testConfig";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type { StripeSubscriptionPage } from "../../../../server/integrations/stripe/types";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("stripeProvider", () => {
   it("identifies itself as the stripe vendor", () => {
@@ -56,6 +60,50 @@ describe("fetchStripeMetrics", () => {
 
     expect(result.metrics).toEqual([]);
     expect(listActiveSubscriptions).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the shared NUXT_STRIPE_PRODUCT_ID_<SLUG> env var when integration_config.external_id is unset", async () => {
+    vi.stubEnv("NUXT_STRIPE_PRODUCT_ID_BASIN", "prod_basin_core");
+    const fixture = await loadFixture<StripeSubscriptionPage>(
+      "stripe",
+      "no-active-subscriptions",
+    );
+    const listActiveSubscriptions = vi.fn(async () => fixture);
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "stripe",
+      externalId: null,
+      secret: "sk_test_basin",
+    });
+
+    const result = await fetchStripeMetrics(config, listActiveSubscriptions);
+
+    // Reaching (and calling) Stripe at all proves the env var was picked up
+    // as the product-id source — the unconfigured branch never calls it.
+    expect(listActiveSubscriptions).toHaveBeenCalled();
+    expect(result.metrics).not.toEqual([]);
+  });
+
+  it("prefers integration_config.external_id over the env var when both are set", async () => {
+    vi.stubEnv("NUXT_STRIPE_PRODUCT_ID_BASIN", "prod_wrong_product");
+    const fixture = await loadFixture<StripeSubscriptionPage>(
+      "stripe",
+      "mixed-tier-active-subscriptions",
+    );
+    const listActiveSubscriptions = vi.fn(async () => fixture);
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "stripe",
+      externalId: "prod_basin_core, prod_basin_pro",
+      secret: "sk_test_basin",
+    });
+
+    const result = await fetchStripeMetrics(config, listActiveSubscriptions);
+
+    // If the env var (pointing at a product with no subscriptions in the
+    // fixture) had won instead of external_id, mrr would be 0.
+    const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");
+    expect(mrrMetric?.value).toBe(37);
   });
 
   it("emits mrr + active_subscribers metrics for a configured app, scoped to its comma-separated product ids", async () => {

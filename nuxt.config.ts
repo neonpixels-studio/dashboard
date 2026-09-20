@@ -30,6 +30,14 @@ export default defineNuxtConfig({
     // all; see resolveSecret's comment for why an env var absent from
     // runtimeConfig resolves fine locally but not once deployed.
     stripeSecretKey: process.env.NUXT_STRIPE_SECRET_KEY || "",
+    // Same reasoning as stripeSecretKey above, one per product-template app
+    // (server/integrations/stripe/provider.ts's resolveProductIdsSource):
+    // declared here purely so Netlify forwards each into the deployed
+    // function's process.env, not read via useRuntimeConfig() anywhere.
+    stripeProductIdBasin: process.env.NUXT_STRIPE_PRODUCT_ID_BASIN || "",
+    stripeProductIdMarkpost: process.env.NUXT_STRIPE_PRODUCT_ID_MARKPOST || "",
+    stripeProductIdWanderist:
+      process.env.NUXT_STRIPE_PRODUCT_ID_WANDERIST || "",
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package

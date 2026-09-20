@@ -9,7 +9,15 @@
 // ever sees this file's types, and test fixtures are recorded directly in
 // this shape.
 export interface StripeRecurring {
-  interval: "day" | "week" | "month" | "year";
+  // Deliberately `string`, not a `"day" | "week" | "month" | "year"` union:
+  // validating against the known set happens once, narrowly, in
+  // mrr.ts's monthlyIntervalDivisor — the one place that actually needs a
+  // formula per interval, and which only ever runs on items already
+  // filtered down to one app's product ids. Rejecting an unrecognized
+  // interval any earlier (e.g. while mapping every subscription in the
+  // shared Stripe account, before any app-specific filtering) would fail
+  // every app's sync over one subscription that may belong to none of them.
+  interval: string;
   intervalCount: number;
 }
 
