@@ -7,9 +7,12 @@ import type {
 
 // Stripe amounts are in the currency's smallest unit (cents for USD); the
 // studio's shared Stripe account bills exclusively in USD today, so this is
-// a straight cents -> dollars conversion, not a currency-rate lookup. A
-// non-USD price would silently be treated as USD — tracked as a follow-up,
-// not handled here (see the PR's follow-up suggestions).
+// a straight cents -> dollars conversion, not a currency-rate lookup. Rather
+// than silently mis-reporting a non-USD price as if it were USD,
+// normalizeItemToMonthlyDollars fails loud on anything else (no FX lookup is
+// wired up) — see the PR's follow-up suggestions for adding real conversion
+// if the account ever prices in more than one currency.
+const BILLING_CURRENCY = "usd";
 const CENTS_PER_DOLLAR = 100;
 const MONTHS_PER_YEAR = 12;
 const WEEKS_PER_MONTH = 52 / MONTHS_PER_YEAR;
@@ -35,10 +38,15 @@ export function parseProductIds(externalId: string | null): string[] {
     .filter((productId) => productId.length > 0);
 }
 
-// How many billing cycles fit in one month, so `amountPerCycle / divisor`
-// normalizes any interval to a monthly-equivalent amount. Week/day are
-// handled for completeness (Stripe allows them), even though the issue only
-// requires yearly->monthly to be unit-tested.
+// How many months one billing cycle spans, so `amountPerCycle / divisor`
+// spreads that cycle's revenue evenly across each of its months (e.g. a
+// yearly, once-a-year charge spans 12 months, so dividing by 12 gives its
+// monthly-equivalent share). Exhaustive over StripeRecurring["interval"]
+// with an explicit throw rather than a silent fallthrough — mapping.ts's
+// assertKnownInterval already guards real Stripe responses, but this
+// function is also called directly from provider/test code against
+// hand-built or fixture data that bypasses that guard, so it needs its own
+// defense against an interval it has no formula for.
 function monthlyIntervalDivisor(recurring: StripeRecurring): number {
   const { interval, intervalCount } = recurring;
   if (interval === "year") {
@@ -50,22 +58,39 @@ function monthlyIntervalDivisor(recurring: StripeRecurring): number {
   if (interval === "week") {
     return intervalCount / WEEKS_PER_MONTH;
   }
-  return intervalCount / DAYS_PER_MONTH;
+  if (interval === "day") {
+    return intervalCount / DAYS_PER_MONTH;
+  }
+  throw new Error(`Unhandled Stripe recurring interval "${interval}".`);
 }
 
 /**
- * One subscription item's contribution to MRR, in dollars. A price with no
- * `unitAmount` (e.g. tiered/graduated pricing with no flat per-unit amount)
- * or no `recurring` block (a one-time price attached to a subscription item)
- * contributes 0 rather than throwing — summing across many subscriptions
- * shouldn't abort on one item shaped differently than expected.
+ * One subscription item's contribution to MRR, in dollars.
+ *
+ * A price with no `recurring` block (a one-time price attached to a
+ * subscription item, e.g. a setup fee) legitimately contributes 0 — it
+ * isn't recurring revenue. A price with `recurring` set but no `unitAmount`
+ * (tiered/graduated/volume pricing, which has no single flat per-unit
+ * amount) also contributes 0 today: that's a real, bounded gap — such a
+ * subscription's item is silently excluded from MRR rather than computed
+ * from its tiers — tracked as a follow-up rather than handled here, since
+ * summing tiered pricing needs its own tier-lookup logic. Contributing 0
+ * (not throwing) so one oddly-priced item doesn't abort every other app's
+ * sync in the same run.
  */
 export function normalizeItemToMonthlyDollars(
   item: StripeSubscriptionItem,
 ): number {
   const { price, quantity } = item;
-  if (price.unitAmount === null || !price.recurring) {
+  if (!price.recurring || price.unitAmount === null) {
     return 0;
+  }
+  if (price.currency !== BILLING_CURRENCY) {
+    throw new Error(
+      `Stripe price "${price.id}" is billed in "${price.currency}", ` +
+        `but this provider only normalizes "${BILLING_CURRENCY}" amounts ` +
+        `(no FX conversion is wired up).`,
+    );
   }
   const amountPerCycleDollars =
     (price.unitAmount / CENTS_PER_DOLLAR) * (quantity ?? 1);
@@ -95,6 +120,14 @@ export interface StripeMrrResult {
  * matching items and counted as exactly one subscriber; a subscription with
  * no matching items is excluded entirely, so an unrelated add-on item never
  * pulls a subscription into another app's numbers.
+ *
+ * `activeSubscribers` counts matching *subscriptions*, not distinct
+ * customers — per the issue's own acceptance criteria ("a mixed-tier
+ * subscription is counted once"), the subscription is the unit being
+ * counted here. A customer holding two separate subscriptions for the same
+ * app (rather than multiple items on one subscription) counts as two; a
+ * true distinct-customer count would need `subscription.customer`, which
+ * this provider doesn't currently fetch — tracked as a follow-up.
  */
 export function computeMrrForProducts(
   subscriptions: StripeSubscription[],
@@ -123,8 +156,11 @@ export function computeMrrForProducts(
 /**
  * Walks every page of `listActiveSubscriptions`, following Stripe's
  * cursor-pagination convention (next page starts after the last row's id).
- * Guards against an empty page still claiming `hasMore` — that would
- * otherwise spin forever re-requesting the same cursor.
+ * Guards against two ways a misbehaving `listActiveSubscriptions` (a stub,
+ * a proxy, a Stripe-side bug — never real Stripe under normal operation)
+ * could otherwise spin forever: an empty page still claiming `hasMore`, and
+ * a non-empty page whose cursor doesn't advance (the same page returned
+ * twice in a row).
  */
 export async function fetchAllActiveSubscriptions(
   listActiveSubscriptions: ListActiveSubscriptions,
@@ -134,11 +170,19 @@ export async function fetchAllActiveSubscriptions(
   let hasMore = true;
 
   while (hasMore) {
+    const previousStartingAfter = startingAfter;
     const page = await listActiveSubscriptions(startingAfter);
     allSubscriptions.push(...page.data);
     const lastSubscription = page.data.at(-1);
-    hasMore = page.hasMore && lastSubscription !== undefined;
     startingAfter = lastSubscription?.id;
+
+    if (page.hasMore && startingAfter === previousStartingAfter) {
+      throw new Error(
+        "Stripe subscription pagination did not advance — " +
+          `listActiveSubscriptions returned the same cursor ("${startingAfter}") twice in a row.`,
+      );
+    }
+    hasMore = page.hasMore && lastSubscription !== undefined;
   }
 
   return allSubscriptions;

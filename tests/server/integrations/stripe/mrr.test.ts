@@ -133,6 +133,52 @@ describe("normalizeItemToMonthlyDollars", () => {
 
     expect(normalizeItemToMonthlyDollars(item)).toBe(0);
   });
+
+  it("normalizes a weekly price up to its monthly equivalent", () => {
+    const item = buildItem({
+      price: {
+        id: "price_weekly",
+        unitAmount: 1000,
+        currency: "usd",
+        product: "prod_test",
+        recurring: { interval: "week", intervalCount: 1 },
+      },
+    });
+
+    // $10/week * (52 weeks/year / 12 months/year) ≈ $43.33/month
+    expect(normalizeItemToMonthlyDollars(item)).toBeCloseTo(43.33, 2);
+  });
+
+  it("normalizes a daily price up to its monthly equivalent (30-day month)", () => {
+    const item = buildItem({
+      price: {
+        id: "price_daily",
+        unitAmount: 100,
+        currency: "usd",
+        product: "prod_test",
+        recurring: { interval: "day", intervalCount: 1 },
+      },
+    });
+
+    // $1/day * 30 days/month = $30/month
+    expect(normalizeItemToMonthlyDollars(item)).toBe(30);
+  });
+
+  it("fails loud on a non-USD price rather than silently treating it as USD", () => {
+    const item = buildItem({
+      price: {
+        id: "price_eur",
+        unitAmount: 900,
+        currency: "eur",
+        product: "prod_test",
+        recurring: { interval: "month", intervalCount: 1 },
+      },
+    });
+
+    expect(() => normalizeItemToMonthlyDollars(item)).toThrow(
+      /billed in "eur"/,
+    );
+  });
 });
 
 describe("computeMrrForProducts (fixture: mixed-tier-active-subscriptions)", () => {
@@ -246,14 +292,30 @@ describe("fetchAllActiveSubscriptions", () => {
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(1);
   });
 
-  it("does not loop forever if an empty page claims hasMore", async () => {
+  it("fails loud instead of looping forever if an empty page claims hasMore", async () => {
     const emptyPage: StripeSubscriptionPage = { data: [], hasMore: true };
     const listActiveSubscriptions = fakeListFromPages({ first: emptyPage });
 
-    const subscriptions: StripeSubscription[] =
-      await fetchAllActiveSubscriptions(listActiveSubscriptions);
-
-    expect(subscriptions).toEqual([]);
+    await expect(
+      fetchAllActiveSubscriptions(listActiveSubscriptions),
+    ).rejects.toThrow(/did not advance/);
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails loud instead of looping forever if a non-empty page's cursor never advances", async () => {
+    const stuckPage: StripeSubscriptionPage = {
+      data: [{ id: "sub_stuck", status: "active", items: { data: [] } }],
+      hasMore: true,
+    };
+    // Every call (regardless of the cursor it's given) returns the exact
+    // same last-item id, simulating a misbehaving lister that ignores
+    // `startingAfter`.
+    const listActiveSubscriptions = vi.fn(async () => stuckPage);
+
+    await expect(
+      fetchAllActiveSubscriptions(listActiveSubscriptions),
+    ).rejects.toThrow(/did not advance/);
+    // Fails on the second call, once the stall is detectable, not the first.
+    expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
   });
 });

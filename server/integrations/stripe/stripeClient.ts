@@ -20,6 +20,14 @@ export function createStripeSubscriptionLister(
   const stripeClient = new Stripe(secretKey);
 
   return async (startingAfter) => {
+    // `status: "active"` only — `trialing` and `past_due` subscriptions are
+    // excluded, and MRR is computed from each price's list amount with no
+    // discount/coupon applied (`subscription.discounts` isn't fetched or
+    // read). Both are deliberate scope boundaries for this first pass, not
+    // oversights: whether a past-due (in dunning, often recovered) or
+    // trialing subscription should count, and whether MRR should reflect
+    // discounted vs. list price, are product decisions, not something to
+    // guess at here — tracked as follow-ups.
     const page = await stripeClient.subscriptions.list({
       status: "active",
       limit: SUBSCRIPTIONS_PAGE_SIZE,
