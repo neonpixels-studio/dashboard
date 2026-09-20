@@ -46,12 +46,13 @@ CREATE TABLE "traffic_breakdown" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"slug" text NOT NULL,
 	"channel" text NOT NULL,
-	"pct" numeric NOT NULL,
-	"captured_at" timestamp with time zone DEFAULT now() NOT NULL
+	"pct" numeric(5, 2) NOT NULL,
+	"captured_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "traffic_breakdown_pct_range" CHECK ("traffic_breakdown"."pct" >= 0 AND "traffic_breakdown"."pct" <= 100)
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "integration_config_slug_vendor_idx" ON "integration_config" USING btree ("slug","vendor");--> statement-breakpoint
 CREATE INDEX "metric_snapshot_slug_metric_captured_at_idx" ON "metric_snapshot" USING btree ("slug","metric","captured_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE UNIQUE INDEX "sync_status_slug_vendor_idx" ON "sync_status" USING btree ("slug","vendor");--> statement-breakpoint
-CREATE INDEX "syndication_post_slug_idx" ON "syndication_post" USING btree ("slug");--> statement-breakpoint
+CREATE UNIQUE INDEX "syndication_post_slug_platform_post_ref_idx" ON "syndication_post" USING btree ("slug","platform","post_ref");--> statement-breakpoint
 CREATE INDEX "traffic_breakdown_slug_captured_at_idx" ON "traffic_breakdown" USING btree ("slug","captured_at" DESC NULLS LAST);

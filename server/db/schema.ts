@@ -81,7 +81,13 @@ export const integrationConfig = pgTable(
       table.vendor,
     ),
     // Enforces the "at most one secret source" rule from the comment above —
-    // a row must not carry both a secret_ref and an encrypted_secret.
+    // a row must not carry both a secret_ref and an encrypted_secret. `enabled`
+    // deliberately does NOT require either to be set: most vendors (ga4,
+    // stripe, sentry, medium, hashnode, devto) authenticate with a single
+    // shared studio-wide env var the poller reads directly by vendor name
+    // (see .env.example), so only `externalId` varies per row. `secretRef`
+    // only applies to a vendor whose credential genuinely varies per app,
+    // e.g. clerk's NUXT_CLERK_SECRET_KEY_<SLUG>.
     check(
       "integration_config_single_secret",
       sql`num_nonnulls(${table.secretRef}, ${table.encryptedSecret}) <= 1`,
@@ -101,7 +107,11 @@ export const metricSnapshot = pgTable(
     vendor: text("vendor").notNull(),
     // e.g. mrr, active_subscribers, sessions, open_issues, users, posts.
     metric: text("metric").notNull(),
-    value: numeric("value").notNull(),
+    // `mode: "number"` — otherwise Drizzle returns numeric columns as
+    // strings, and every downstream comparison/aggregation over `value`
+    // silently does the wrong thing (string concatenation, lexicographic
+    // ordering) instead of throwing.
+    value: numeric("value", { mode: "number" }).notNull(),
     // e.g. "30d", "current".
     period: text("period").notNull(),
     capturedAt: timestamp("captured_at", { withTimezone: true })
@@ -128,7 +138,10 @@ export const trafficBreakdown = pgTable(
     id: serial("id").primaryKey(),
     slug: text("slug").notNull(),
     channel: text("channel").notNull(),
-    pct: numeric("pct").notNull(),
+    // Same `mode: "number"` reasoning as metric_snapshot.value, with an
+    // explicit precision/scale and range check since this is always a
+    // percentage.
+    pct: numeric("pct", { precision: 5, scale: 2, mode: "number" }).notNull(),
     capturedAt: timestamp("captured_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -140,11 +153,18 @@ export const trafficBreakdown = pgTable(
       table.slug,
       table.capturedAt.desc(),
     ),
+    check(
+      "traffic_breakdown_pct_range",
+      sql`${table.pct} >= 0 AND ${table.pct} <= 100`,
+    ),
   ],
 );
 
 // Per-post cross-post status for the writing app's syndication targets
-// (Medium, Hashnode, DEV, ...).
+// (Medium, Hashnode, DEV, ...). `postRef` identifies which local post a row
+// is about, so a row is uniquely identified by (slug, platform, postRef) —
+// a re-sync of the same post/platform pair should update this row, not
+// insert a duplicate.
 export const syndicationPost = pgTable(
   "syndication_post",
   {
@@ -155,7 +175,13 @@ export const syndicationPost = pgTable(
     status: syndicationStatus("status").notNull(),
     syncedAt: timestamp("synced_at", { withTimezone: true }),
   },
-  (table) => [index("syndication_post_slug_idx").on(table.slug)],
+  (table) => [
+    uniqueIndex("syndication_post_slug_platform_post_ref_idx").on(
+      table.slug,
+      table.platform,
+      table.postRef,
+    ),
+  ],
 );
 
 // One row per (slug, vendor), overwritten on every poll. Powers "SYNCED Xm
@@ -171,6 +197,10 @@ export const syncStatus = pgTable(
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
     ok: boolean("ok").notNull().default(false),
+    // Rendered directly in the health chips — the poller that writes this
+    // MUST NOT store a raw upstream error. Vendor SDK errors routinely echo
+    // the failing request (API keys/tokens in URLs or headers); write a
+    // short, redacted message only.
     error: text("error"),
   },
   (table) => [

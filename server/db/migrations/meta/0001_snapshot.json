@@ -1,5 +1,5 @@
 {
-  "id": "b4796d46-454a-45ef-b2a5-e875c595719b",
+  "id": "e77d2c8a-155f-4ead-bb00-e36289a04b8a",
   "prevId": "c7cd0f96-081e-4377-a1b9-6ae7c16de70d",
   "version": "7",
   "dialect": "postgresql",
@@ -307,17 +307,29 @@
         }
       },
       "indexes": {
-        "syndication_post_slug_idx": {
-          "name": "syndication_post_slug_idx",
+        "syndication_post_slug_platform_post_ref_idx": {
+          "name": "syndication_post_slug_platform_post_ref_idx",
           "columns": [
             {
               "expression": "slug",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "platform",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "post_ref",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -354,7 +366,7 @@
         },
         "pct": {
           "name": "pct",
-          "type": "numeric",
+          "type": "numeric(5, 2)",
           "primaryKey": false,
           "notNull": true
         },
@@ -393,7 +405,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "traffic_breakdown_pct_range": {
+          "name": "traffic_breakdown_pct_range",
+          "value": "\"traffic_breakdown\".\"pct\" >= 0 AND \"traffic_breakdown\".\"pct\" <= 100"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.users": {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DashboardApp } from "../../../app/config/apps";
+import type { AppTemplate, DashboardApp } from "../../../app/config/apps";
 import { APPS } from "../../../app/config/apps";
 import { buildIntegrationConfigSeed } from "../../../server/db/seedData";
 
@@ -13,13 +13,35 @@ function vendorsForSlug(
   return rows.filter((row) => row.slug === slug).map((row) => row.vendor);
 }
 
-// A fabricated app list, independent of the live `apps.ts` content, so the
-// core mapping logic is pinned regardless of how many real apps exist per
-// template.
+// A fully-typed fixture app, independent of the live `apps.ts` content, so
+// the core mapping logic is pinned regardless of how many real apps exist
+// per template — and so a future required field on `DashboardApp` fails this
+// test file to update, rather than being cast away.
+function buildFixtureApp(slug: string, template: AppTemplate): DashboardApp {
+  return {
+    name: `${slug}.test`,
+    url: `https://${slug}.test`,
+    slug,
+    nameBase: slug,
+    nameTld: ".test",
+    accent: "#000000",
+    order: "00",
+    category: "TEST",
+    statusLabel: "LIVE",
+    statusColor: "#000000",
+    description: "Fixture app for seed data tests.",
+    tagline: "Fixture app for seed data tests.",
+    template,
+    stats: [],
+    sparklinePath: "M0 0",
+    integrations: [],
+  };
+}
+
 const FIXTURE_APPS: DashboardApp[] = [
-  { slug: "fixture-product", template: "product" } as DashboardApp,
-  { slug: "fixture-writing", template: "writing" } as DashboardApp,
-  { slug: "fixture-marketing", template: "marketing" } as DashboardApp,
+  buildFixtureApp("fixture-product", "product"),
+  buildFixtureApp("fixture-writing", "writing"),
+  buildFixtureApp("fixture-marketing", "marketing"),
 ];
 
 describe("buildIntegrationConfigSeed", () => {
@@ -47,16 +69,10 @@ describe("buildIntegrationConfigSeed", () => {
     expect(vendorsForSlug(rows, "fixture-marketing")).toEqual(["ga4"]);
   });
 
-  it("produces exactly one row per (slug, vendor) pair", () => {
-    const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
-    const pairIds = rows.map((row) => `${row.slug}:${row.vendor}`);
-    expect(new Set(pairIds).size).toBe(pairIds.length);
-  });
-
   // Grounds the fixture-based assertions above in the real console config,
-  // per the issue's acceptance criteria — asserted on vendor membership
-  // rather than exact row counts so adding another app of an existing
-  // template doesn't make this brittle.
+  // per the issue's acceptance criteria — asserted on vendor membership and
+  // pair-uniqueness rather than exact row counts, so adding another app of
+  // an existing template doesn't make this brittle.
   describe("against the real apps.ts config", () => {
     it("gives every current app a GA4 row", () => {
       const rows = buildIntegrationConfigSeed(APPS);
@@ -96,6 +112,12 @@ describe("buildIntegrationConfigSeed", () => {
       for (const app of marketingApps) {
         expect(vendorsForSlug(rows, app.slug)).toEqual(["ga4"]);
       }
+    });
+
+    it("produces exactly one row per (slug, vendor) pair", () => {
+      const rows = buildIntegrationConfigSeed(APPS);
+      const pairIds = rows.map((row) => `${row.slug}:${row.vendor}`);
+      expect(new Set(pairIds).size).toBe(pairIds.length);
     });
   });
 });
