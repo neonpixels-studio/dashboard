@@ -1,0 +1,25 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppHeaderBand > matches its snapshot once status has loaded 1`] = `
+"<div data-v-aecea9a4="" class="header-band" aria-busy="false">
+  <div data-v-aecea9a4="" class="accent-bar" style="background: #FFB020;" aria-hidden="true"></div>
+  <div data-v-aecea9a4="" class="title-wrap">
+    <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1>
+    <p data-v-aecea9a4="" class="tagline">Everything you consume, in one stream · production</p>
+  </div><span data-v-aecea9a4="" class="status-chip" style="color: var(--ok);">LIVE</span><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></a>
+</div>"
+`;
+
+exports[`AppHeaderBand > matches its snapshot while status is loading 1`] = `
+"<div data-v-aecea9a4="" class="header-band" aria-busy="true">
+  <div data-v-aecea9a4="" class="accent-bar" style="background: #FFB020;" aria-hidden="true"></div>
+  <div data-v-aecea9a4="" class="title-wrap">
+    <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1>
+    <p data-v-aecea9a4="" class="tagline">Everything you consume, in one stream · production</p>
+  </div><span data-v-bf48201a="" data-v-aecea9a4="" class="skeleton-block" style="width: 60px; height: 18px; border-radius: var(--r-sm);" aria-hidden="true"></span><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></a>
+</div>"
+`;

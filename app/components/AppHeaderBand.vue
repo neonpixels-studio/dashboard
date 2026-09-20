@@ -1,5 +1,5 @@
 <template>
-  <div class="header-band">
+  <div class="header-band" :aria-busy="!status">
     <BrandMark v-if="app.isStudioSite" :size="26" />
     <div
       v-else
@@ -17,14 +17,13 @@
     </div>
 
     <span
+      v-if="status"
       class="status-chip"
-      :style="{
-        color: app.statusColor,
-        background: `color-mix(in srgb, ${app.statusColor} 15%, transparent)`,
-      }"
+      :style="healthToneChipStyle(status.tone)"
     >
-      {{ app.statusLabel }}
+      {{ status.label }}
     </span>
+    <SkeletonBlock v-else width="60px" height="18px" radius="var(--r-sm)" />
 
     <span class="grow"></span>
 
@@ -65,11 +64,26 @@
 </template>
 
 <script setup lang="ts">
+import type { AppStatus } from "#shared/types/dashboard";
 import type { DashboardApp } from "~/config/apps";
+import { healthToneChipStyle } from "~/utils/statusColor";
 
-withDefaults(defineProps<{ app: DashboardApp; secondaryLinks?: string[] }>(), {
-  secondaryLinks: () => [],
-});
+// `status` is a separate optional prop rather than folded into a view model
+// because the detail-page read API (`GET /api/apps/[slug]`, used by #20)
+// doesn't return one — only `GET /api/apps` (`AppCard`, used by #19) does.
+// Until a wiring issue supplies it, this renders a loading placeholder
+// rather than pretending to know the property's health.
+withDefaults(
+  defineProps<{
+    app: DashboardApp;
+    status?: AppStatus | null;
+    secondaryLinks?: string[];
+  }>(),
+  {
+    status: null,
+    secondaryLinks: () => [],
+  },
+);
 </script>
 
 <style scoped>

@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PropertyCardMetricsSkeleton > matches its snapshot 1`] = `
+"<div data-v-8da57ad3="" class="metrics-skeleton">
+  <ul data-v-8da57ad3="" class="stats-skeleton">
+    <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
+    <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
+    <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
+  </ul><span data-v-8da57ad3="" class="grow"></span>
+</div>"
+`;

@@ -3,17 +3,17 @@
     :to="`/apps/${app.slug}`"
     class="card prop-card"
     :style="{ borderTopColor: app.accent }"
+    :aria-busy="!app.card"
   >
     <div class="head-row">
       <span
+        v-if="app.card"
         class="status-chip"
-        :style="{
-          color: app.statusColor,
-          background: `color-mix(in srgb, ${app.statusColor} 15%, transparent)`,
-        }"
+        :style="healthToneChipStyle(app.card.status.tone)"
       >
-        {{ app.statusLabel }}
+        {{ app.card.status.label }}
       </span>
+      <SkeletonBlock v-else width="52px" height="16px" radius="var(--r-xs)" />
       <span class="category">{{ app.order }} — {{ app.category }}</span>
       <svg
         width="13"
@@ -39,55 +39,55 @@
 
     <p class="description">{{ app.description }}</p>
 
-    <div class="stats-row">
+    <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
+         tone) and draw a real sparkline path from app.card.sparklines. This
+         generic list/label render is a placeholder, not the final design. -->
+    <PropertyCardMetricsSkeleton v-if="!app.card" />
+    <div v-else class="stats-row">
       <ul class="stats">
-        <li v-for="stat in app.stats" :key="stat.label" class="stat">
-          <span class="micro-label">{{ stat.label }}</span>
-          <span class="stat-value" :style="{ color: statColor(stat) }">
-            {{ stat.value }}
-          </span>
+        <li
+          v-for="metric in visibleMetrics"
+          :key="`${metric.metric}-${metric.period}`"
+          class="stat"
+        >
+          <span class="micro-label">{{ metric.metric }}</span>
+          <span class="stat-value">{{ metric.value }}</span>
         </li>
       </ul>
       <span class="grow"></span>
-      <SparkLine
-        :path="app.sparklinePath"
-        :width="120"
-        :height="34"
-        view-box="0 0 120 34"
-        :color="app.accent"
-      />
     </div>
 
-    <ul class="chips">
+    <ul v-if="app.card" class="chips">
       <li
-        v-for="integration in app.integrations"
-        :key="integration.label"
+        v-for="integration in app.card.integrations"
+        :key="integration.vendor"
         class="chip-tag"
-        :class="integration.tone ?? 'default'"
+        :class="integrationHealthTone(integration)"
       >
-        {{ integration.label }}
+        {{ integration.vendor }}
       </li>
     </ul>
   </NuxtLink>
 </template>
 
 <script setup lang="ts">
-import type { AppStat, DashboardApp } from "~/config/apps";
+import {
+  PROPERTY_CARD_STAT_COUNT,
+  type AppCardViewModel,
+} from "~/utils/appViewModel";
+import {
+  healthToneChipStyle,
+  integrationHealthTone,
+} from "~/utils/statusColor";
 
-defineProps<{ app: DashboardApp }>();
+const props = defineProps<{ app: AppCardViewModel }>();
 
-const STAT_TONE_COLORS: Record<string, string> = {
-  ok: "var(--ok)",
-  warn: "var(--warn)",
-  danger: "var(--err)",
-};
-
-function statColor(stat: AppStat): string {
-  if (!stat.tone) {
-    return "var(--ink)";
-  }
-  return STAT_TONE_COLORS[stat.tone] ?? "var(--ink)";
-}
+// Bounded to the same count PropertyCardMetricsSkeleton reserves space for —
+// `AppCard.metrics` is a generic, unbounded list, but the card's fixed
+// height and non-wrapping stats row aren't.
+const visibleMetrics = computed(
+  () => props.app.card?.metrics.slice(0, PROPERTY_CARD_STAT_COUNT) ?? [],
+);
 </script>
 
 <style scoped>
@@ -176,7 +176,7 @@ function statColor(stat: AppStat): string {
   border-color: color-mix(in srgb, var(--warn) 25%, transparent);
   color: var(--warn);
 }
-.chip-tag.planned {
+.chip-tag.muted {
   border-style: dashed;
   color: var(--ink-3);
 }

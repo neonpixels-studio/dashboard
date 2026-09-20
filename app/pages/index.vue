@@ -6,6 +6,11 @@
     <main class="overview-body">
       <SectionLabel label="ALL PROPERTIES" meta="SYNCED 4M AGO · 19 SEP 2026" />
 
+      <!-- @todo #18: wire these four rollup tiles (and the meta above) to
+           useOverview(); swap the loading branch to MetricTileSkeleton and
+           the error branch to DataErrorState instead of these hardcoded
+           values. Left as-is here — out of scope for the seam this issue
+           builds (composables/view-model/loading-error primitives). -->
       <div class="rollup-grid">
         <div class="card rollup-tile">
           <span class="metric-label">MRR · ALL APPS</span>
@@ -118,7 +123,11 @@
       />
 
       <div id="integrations" class="property-grid">
-        <PropertyCard v-for="app in APPS" :key="app.slug" :app="app" />
+        <PropertyCard
+          v-for="app in cardViewModels"
+          :key="app.slug"
+          :app="app"
+        />
       </div>
     </main>
   </div>
@@ -126,10 +135,16 @@
 
 <script setup lang="ts">
 import { APPS } from "~/config/apps";
+import { toAppCardViewModel } from "~/utils/appViewModel";
 
 useHead({ title: "Overview · Neon Pixels Control" });
 
 const propertyCount = String(APPS.length).padStart(2, "0");
+
+// GET /api/apps isn't wired here yet (see issue #19) — every card's `card`
+// merges in as `null` for now, so PropertyCard renders its skeleton state
+// rather than pretending to have metrics that were never fetched.
+const cardViewModels = APPS.map((app) => toAppCardViewModel(app, null));
 
 function accentFor(slug: string): string {
   return APPS.find((app) => app.slug === slug)?.accent ?? "var(--ink-3)";
