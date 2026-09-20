@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { H3Event } from "h3";
 import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
+import { users } from "../../../server/db/schema";
 
 const mockFindFirst = vi.fn();
 const mockReturning = vi.fn();
+const mockOnConflictDoNothing = vi.fn();
 const mockValues = vi.fn();
 const mockInsert = vi.fn();
 
@@ -59,7 +61,10 @@ describe("getOrCreateUser", () => {
     vi.resetAllMocks();
     runtimeConfig.disableSignups = "";
     mockInsert.mockReturnValue({ values: mockValues });
-    mockValues.mockReturnValue({ returning: mockReturning });
+    mockValues.mockReturnValue({
+      onConflictDoNothing: mockOnConflictDoNothing,
+    });
+    mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning });
   });
 
   it("returns the existing row without inserting", async () => {
@@ -94,5 +99,29 @@ describe("getOrCreateUser", () => {
     mockFindFirst.mockResolvedValue(existingUser);
 
     await expect(getOrCreateUser("user_abc")).resolves.toEqual(existingUser);
+  });
+
+  it("re-reads the row when a concurrent insert wins the race", async () => {
+    const raced = { ...existingUser, id: 3, providerId: "user_raced" };
+    // First lookup misses (triggering the insert attempt); onConflictDoNothing
+    // means our own insert loses the race and returns no row; the re-read
+    // after that finds the row the concurrent request created.
+    mockFindFirst.mockResolvedValueOnce(undefined).mockResolvedValueOnce(raced);
+    mockReturning.mockResolvedValue([]);
+
+    await expect(getOrCreateUser("user_raced")).resolves.toEqual(raced);
+    expect(mockFindFirst).toHaveBeenCalledTimes(2);
+    expect(mockOnConflictDoNothing).toHaveBeenCalledWith({
+      target: users.providerId,
+    });
+  });
+
+  it("throws 500 when the insert is skipped and no row exists on re-read", async () => {
+    mockFindFirst.mockResolvedValue(undefined);
+    mockReturning.mockResolvedValue([]);
+
+    await expect(getOrCreateUser("user_xyz")).rejects.toMatchObject({
+      statusCode: 500,
+    });
   });
 });

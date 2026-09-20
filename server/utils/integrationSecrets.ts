@@ -123,6 +123,42 @@ export function encryptSecret(
   ].join(":");
 }
 
+interface ParsedPayloadSegments {
+  version: string;
+  initializationVectorBase64: string;
+  authTagBase64: string;
+  ciphertextBase64: string;
+}
+
+/**
+ * Splits and validates the `v1:<iv>:<authTag>:<ciphertext>` segment count.
+ * TS's noUncheckedIndexedAccess types each destructured element as possibly
+ * undefined, so this same length check both rejects a malformed payload and
+ * narrows the four segments to `string` for callers.
+ */
+function parsePayloadSegments(payload: string): ParsedPayloadSegments {
+  const segments = payload.split(":");
+  const [version, initializationVectorBase64, authTagBase64, ciphertextBase64] =
+    segments;
+  if (
+    segments.length !== PAYLOAD_SEGMENT_COUNT ||
+    version === undefined ||
+    initializationVectorBase64 === undefined ||
+    authTagBase64 === undefined ||
+    ciphertextBase64 === undefined
+  ) {
+    throw new IntegrationSecretError(
+      `Malformed integration secret payload: expected format "${PAYLOAD_FORMAT_VERSION}:<iv>:<authTag>:<ciphertext>".`,
+    );
+  }
+  return {
+    version,
+    initializationVectorBase64,
+    authTagBase64,
+    ciphertextBase64,
+  };
+}
+
 /**
  * Reverses encryptSecret(). Throws IntegrationSecretError on a malformed
  * payload, a wrong-length key, a wrong key, a mismatched `associatedData`, or
@@ -137,15 +173,12 @@ export function decryptSecret(
   assertKeyLength(encryptionKey);
   assertAssociatedDataNotEmpty(associatedData);
 
-  const segments = payload.split(":");
-  if (segments.length !== PAYLOAD_SEGMENT_COUNT) {
-    throw new IntegrationSecretError(
-      `Malformed integration secret payload: expected format "${PAYLOAD_FORMAT_VERSION}:<iv>:<authTag>:<ciphertext>".`,
-    );
-  }
-
-  const [version, initializationVectorBase64, authTagBase64, ciphertextBase64] =
-    segments;
+  const {
+    version,
+    initializationVectorBase64,
+    authTagBase64,
+    ciphertextBase64,
+  } = parsePayloadSegments(payload);
   if (version !== PAYLOAD_FORMAT_VERSION) {
     throw new IntegrationSecretError(
       `Unsupported integration secret payload version "${version}".`,
