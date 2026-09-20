@@ -33,6 +33,14 @@ export function formatCount(value: number): string {
   return COUNT_FORMATTER.format(value);
 }
 
+// "44%" for the sessions tile's traffic-source split. The shaping layer
+// (trafficChannelSplitAcrossApps) rounds to 2 decimal places, not to a
+// whole number, so a share can genuinely be "33.33" — round for display
+// here rather than printing raw decimals the design never shows.
+export function formatPct(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
 // Every rollup tile's headline value goes through this same "null/undefined
 // becomes the dash placeholder, otherwise format the real number" branch —
 // factored out once it was the same two-line ternary four times over in

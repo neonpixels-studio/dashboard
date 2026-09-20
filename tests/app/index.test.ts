@@ -150,6 +150,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  // Restored here (not in-body at the end of each fake-timers test) so a
+  // failed assertion can't skip the restore and leave a frozen clock
+  // running into whichever test happens to run next.
+  vi.useRealTimers();
 });
 
 describe("index.vue rollup tiles", () => {
@@ -218,10 +222,27 @@ describe("index.vue rollup tiles", () => {
     expect(sparkline.props("path").length).toBeGreaterThan(0);
   });
 
-  it("hides the sparkline and shows an empty state when fewer than two mrr points have synced", () => {
+  it("hides the sparkline and shows an empty state when there is no mrr series yet", () => {
     const fixture = overviewFixture();
     mockOverview({
       data: { ...fixture, mrr: { ...fixture.mrr, series: [] } },
+    });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findComponent(SparkLine).exists()).toBe(false);
+    expect(wrapper.text()).toContain(
+      "Not enough synced data for a trend line yet.",
+    );
+  });
+
+  it("still hides the sparkline with exactly one mrr point — a single point has no trend to draw", () => {
+    const fixture = overviewFixture();
+    mockOverview({
+      data: {
+        ...fixture,
+        mrr: { ...fixture.mrr, series: [fixture.mrr.series[0]!] },
+      },
     });
 
     const wrapper = mountPage();
@@ -289,6 +310,13 @@ describe("index.vue rollup tiles", () => {
   });
 
   it("keeps the sync meta blank on the initial render (no relative-time hydration mismatch), then fills it in after mount", async () => {
+    // Pinned rather than relying on the real clock: the fixture's
+    // lastSyncedAt is a fixed timestamp, and formatRelativeTime treats
+    // anything not yet in the past as "just now" (not "... ago") — running
+    // this suite before 11:56 UTC on 2026-09-20 against the real clock
+    // would make the "AGO" match below fail.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-20T11:59:00.000Z"));
     mockOverview({ data: overviewFixture() });
 
     const wrapper = mountPage();
@@ -299,8 +327,8 @@ describe("index.vue rollup tiles", () => {
 
     await nextTick();
 
-    expect(wrapper.findComponent(SectionLabel).props("meta")).toMatch(
-      /^SYNCED .+ AGO · \d{2} SEP 2026$/,
+    expect(wrapper.findComponent(SectionLabel).props("meta")).toBe(
+      "SYNCED 3M AGO · 20 SEP 2026",
     );
   });
 
@@ -325,8 +353,6 @@ describe("index.vue rollup tiles", () => {
     expect(wrapper.findComponent(SectionLabel).props("meta")).toContain(
       "2M AGO",
     );
-
-    vi.useRealTimers();
   });
 
   it("stops the refresh interval on unmount", async () => {
@@ -335,13 +361,11 @@ describe("index.vue rollup tiles", () => {
 
     const wrapper = mountPage();
     await nextTick();
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
     wrapper.unmount();
 
-    // Would throw if the interval callback ran after unmount and touched a
-    // torn-down component instance — advancing time is the assertion.
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
-
-    vi.useRealTimers();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("matches its rollup-grid snapshot with live data", () => {

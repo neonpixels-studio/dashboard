@@ -99,6 +99,7 @@ import { formatRelativeTime } from "~/utils/relativeTime";
 import { buildSparklinePath } from "~/utils/sparklinePath";
 import {
   channelLabel,
+  formatPct,
   formatCompactCount,
   formatCount,
   formatCountDelta,
@@ -231,7 +232,7 @@ const sessionSourceStats = computed(() =>
     .sort((a, b) => b.pct - a.pct)
     .map((source) => ({
       label: channelLabel(source.channel),
-      value: `${source.pct}%`,
+      value: formatPct(source.pct),
     })),
 );
 

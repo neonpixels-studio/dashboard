@@ -8,6 +8,7 @@ import {
   formatCurrency,
   formatIssuesSinceYesterday,
   formatOrDash,
+  formatPct,
   formatPctDelta,
   formatSyncedDate,
   NO_VALUE_LABEL,
@@ -49,6 +50,17 @@ describe("formatCompactCount", () => {
 describe("formatCount", () => {
   it("adds thousands separators", () => {
     expect(formatCount(48200)).toBe("48,200");
+  });
+});
+
+describe("formatPct", () => {
+  it("appends a percent sign to a whole number", () => {
+    expect(formatPct(44)).toBe("44%");
+  });
+
+  it("rounds a fractional share — trafficChannelSplitAcrossApps can return one", () => {
+    expect(formatPct(33.33)).toBe("33%");
+    expect(formatPct(33.5)).toBe("34%");
   });
 });
 
