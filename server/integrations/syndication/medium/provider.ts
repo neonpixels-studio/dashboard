@@ -21,7 +21,10 @@ const MEDIUM_VENDOR = "medium";
 // Bounds the per-sync request cost of fetching full article detail (title/
 // slug/publishedAt), on top of the 2 flat requests createMediumArticleIdLister
 // always makes — see mediumClient.ts and mediumSyncGuard.ts's rate-limit
-// comment. The `posts` metric itself still reports the platform's true total
+// comment, which derives this provider's whole sync cadence FROM this
+// constant to stay under mediumapi.com's 150-requests/month cap; changing
+// this number without re-checking that math will blow the budget. The
+// `posts` metric itself still reports the platform's true total
 // (articleIds.length, free — already in hand from the id listing) so it's
 // never stale/undercounted; only the syndication_post rows (and therefore
 // the matrix) are bounded to the MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC most
@@ -29,7 +32,7 @@ const MEDIUM_VENDOR = "medium";
 // way to backfill the rest (e.g. only fetching ids not already present in
 // syndication_post) needs its own DB read, which this pure fetch()-only
 // provider doesn't have.
-export const MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC = 15;
+export const MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC = 2;
 
 /**
  * The Medium handle can live in either `integration_config.external_id` or
@@ -40,6 +43,28 @@ export const MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC = 15;
  */
 function resolveUsername(config: IntegrationConfig): string | null {
   return resolveExternalIdOrEnvVar(config, "NUXT_MEDIUM_USERNAME");
+}
+
+// toPostRef (mapping.ts) strips Medium's per-article hash, so two DIFFERENT
+// Medium articles that happen to share a title (e.g. two "Weekly Notes"
+// posts) can collide onto the SAME postRef — left alone, that would either
+// violate syndication_post's (slug, platform, post_ref) unique index and
+// fail the whole persist, or silently overwrite one post's row with the
+// other's on a later sync. Deduping here, keeping the most recently
+// published of any collision, keeps exactly one row per postRef — the
+// production-DB uniqueness rule can't be enforced any earlier than this,
+// since it's a property of the STRIPPED slug, not of the raw article id.
+function dedupeByPostRefKeepingLatest(
+  posts: SyndicationSourcePost[],
+): SyndicationSourcePost[] {
+  const latestByPostRef = new Map<string, SyndicationSourcePost>();
+  for (const post of posts) {
+    const existing = latestByPostRef.get(post.postRef);
+    if (!existing || post.publishedAt > existing.publishedAt) {
+      latestByPostRef.set(post.postRef, post);
+    }
+  }
+  return [...latestByPostRef.values()];
 }
 
 async function fetchArticleDetails(
@@ -59,7 +84,7 @@ async function fetchArticleDetails(
     const info = await fetchArticleInfo(articleId);
     posts.push(toSyndicationSourcePost(info));
   }
-  return posts;
+  return dedupeByPostRefKeepingLatest(posts);
 }
 
 /**

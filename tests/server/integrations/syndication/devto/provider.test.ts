@@ -5,6 +5,7 @@ import {
   fetchDevtoSyndication,
 } from "../../../../../server/integrations/syndication/devto/provider";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
+import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
 import type {
   DevtoArticle,
@@ -34,20 +35,12 @@ describe("devtoProvider", () => {
   it("end-to-end: builds a real DEV.to client from config.secret and returns normalized posts", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        json: async () => [
+      .mockResolvedValueOnce(
+        jsonResponse([
           { id: 1, slug: "a-post", published_at: "2026-09-01T12:00:00Z" },
-        ],
-      })
-      .mockResolvedValue({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        json: async () => [],
-      });
+        ]),
+      )
+      .mockResolvedValue(jsonResponse([]));
     vi.stubGlobal("fetch", fetchImpl);
     const config = createTestIntegrationConfig({
       slug: "danholloran",

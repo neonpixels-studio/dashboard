@@ -7,6 +7,7 @@
 // their own SDKs, not raw fetch, so they have no equivalent duplication this
 // needs to absorb.
 const DEFAULT_TIMEOUT_MS = 20_000;
+const ABORT_ERROR_NAME = "AbortError";
 
 export interface FetchJsonOptions {
   method?: string;
@@ -40,7 +41,7 @@ export async function fetchJson<ResponseBody>(
   const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
-    const response = await requestJson(
+    const response = await sendRequest(
       url,
       options,
       abortController.signal,
@@ -57,11 +58,15 @@ export async function fetchJson<ResponseBody>(
   }
 }
 
+function isAbortError(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === ABORT_ERROR_NAME;
+}
+
 // Isolated so its catch block only ever wraps fetchImpl's own failure modes
 // (a network error, or the timeout above firing and aborting the signal) —
 // never a `!response.ok` throw from the caller, which already carries its
 // own clear, vendor-labeled message and shouldn't be re-wrapped.
-async function requestJson(
+async function sendRequest(
   url: string,
   options: FetchJsonOptions,
   signal: AbortSignal,
@@ -75,11 +80,12 @@ async function requestJson(
       signal,
     });
   } catch (cause) {
+    const reason = isAbortError(cause) ? "timed out" : "failed";
     // A generic AbortError ("This operation was aborted") or network error
     // doesn't say which vendor or URL failed — every other throw in this
     // package (each client's own errors, mapping.ts's parse failures) is
     // already labeled, so this is too.
-    throw new Error(`${options.vendorLabel} request to ${url} failed.`, {
+    throw new Error(`${options.vendorLabel} request to ${url} ${reason}.`, {
       cause,
     });
   }
@@ -92,6 +98,15 @@ async function parseJsonBody<ResponseBody>(
   try {
     return (await response.json()) as ResponseBody;
   } catch (cause) {
+    // The timeout's AbortController stays armed while the body streams in,
+    // so a slow body can abort mid-read here too — distinguished from a
+    // genuinely malformed body so debugging isn't sent chasing a JSON
+    // parsing bug that was actually a timeout.
+    if (isAbortError(cause)) {
+      throw new Error(`${vendorLabel} timed out reading the response body.`, {
+        cause,
+      });
+    }
     throw new Error(`${vendorLabel} returned a body that isn't valid JSON.`, {
       cause,
     });

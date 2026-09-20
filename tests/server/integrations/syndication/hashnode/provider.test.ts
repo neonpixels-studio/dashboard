@@ -5,6 +5,7 @@ import {
   resolvePublicationId,
 } from "../../../../../server/integrations/syndication/hashnode/provider";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
+import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
 import type {
   FetchHashnodePostsPage,
@@ -57,11 +58,8 @@ describe("hashnodeProvider", () => {
   });
 
   it("end-to-end: builds a real Hashnode client from config.secret/external_id and returns normalized posts", async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: async () => ({
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
         data: {
           publication: {
             posts: {
@@ -79,7 +77,7 @@ describe("hashnodeProvider", () => {
           },
         },
       }),
-    }));
+    );
     vi.stubGlobal("fetch", fetchImpl);
     const config = createTestIntegrationConfig({
       slug: "danholloran",

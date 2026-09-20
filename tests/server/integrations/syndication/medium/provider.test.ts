@@ -6,6 +6,7 @@ import {
   mediumProvider,
 } from "../../../../../server/integrations/syndication/medium/provider";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
+import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
 import type {
   FetchMediumArticleInfo,
@@ -100,7 +101,7 @@ describe("createMediumProvider", () => {
   it("falls back to NUXT_MEDIUM_USERNAME when external_id is unset, and actually uses it in the request", async () => {
     vi.stubEnv("NUXT_MEDIUM_USERNAME", "dan-from-env");
     const { provider } = buildProvider({
-      lastSuccessfulSyncAt: new Date("2026-09-20T03:00:00Z"), // 9h ago -> due
+      lastSuccessfulSyncAt: null, // never synced -> always due
     });
     const config = createTestIntegrationConfig({
       slug: "danholloran",
@@ -108,12 +109,9 @@ describe("createMediumProvider", () => {
       externalId: null,
       secret: "rapidapi_key",
     });
-    const fetchSpy = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: async () => ({ id: "user_123", associated_articles: [] }),
-    }));
+    const fetchSpy = vi.fn(async () =>
+      jsonResponse({ id: "user_123", associated_articles: [] }),
+    );
     vi.stubGlobal("fetch", fetchSpy);
 
     await provider.fetch(config);
@@ -150,7 +148,7 @@ describe("createMediumProvider", () => {
 
   it("proceeds when the guard says the last successful sync is stale enough", async () => {
     const { provider } = buildProvider({
-      lastSuccessfulSyncAt: new Date("2026-09-20T03:00:00Z"), // 9h ago
+      lastSuccessfulSyncAt: null, // never synced -> always due
       now: new Date("2026-09-20T12:00:00Z"),
     });
     const config = createTestIntegrationConfig({
@@ -159,15 +157,13 @@ describe("createMediumProvider", () => {
       externalId: "dan-handle",
       secret: "rapidapi_key",
     });
-    const fetchSpy = vi.fn(async (url: string) => ({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: async () =>
+    const fetchSpy = vi.fn(async (url: string) =>
+      jsonResponse(
         url.includes("/user/id_for/")
           ? { id: "user_123" }
           : { associated_articles: [], count: 0 },
-    }));
+      ),
+    );
     vi.stubGlobal("fetch", fetchSpy);
 
     await provider.fetch(config);
@@ -228,7 +224,13 @@ describe("fetchMediumSyndication", () => {
   });
 
   it("fetches article detail sequentially, in id-list order, not concurrently", async () => {
-    const articleIds = ["a1", "a2", "a3"];
+    // Exactly MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC ids — one more would be
+    // silently dropped by the bound (covered by its own test below), which
+    // would make this test's later assertions fail for an unrelated reason.
+    const articleIds = Array.from(
+      { length: MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC },
+      (_, index) => `a${index}`,
+    );
     const listArticleIds: ListMediumArticleIds = vi
       .fn()
       .mockResolvedValue(articleIds);
@@ -249,10 +251,36 @@ describe("fetchMediumSyndication", () => {
 
     await fetchMediumSyndication(listArticleIds, fetchArticleInfo);
 
-    expect(inFlightAtCallTime).toEqual([1, 1, 1]);
-    expect(fetchArticleInfo).toHaveBeenNthCalledWith(1, "a1");
-    expect(fetchArticleInfo).toHaveBeenNthCalledWith(2, "a2");
-    expect(fetchArticleInfo).toHaveBeenNthCalledWith(3, "a3");
+    expect(inFlightAtCallTime).toEqual(articleIds.map(() => 1));
+    articleIds.forEach((articleId, index) => {
+      expect(fetchArticleInfo).toHaveBeenNthCalledWith(index + 1, articleId);
+    });
+  });
+
+  it("dedupes two articles that collide onto the same postRef after hash-stripping, keeping the most recently published one", async () => {
+    const articleIds = ["older", "newer"];
+    const listArticleIds: ListMediumArticleIds = vi
+      .fn()
+      .mockResolvedValue(articleIds);
+    const fetchArticleInfo: FetchMediumArticleInfo = vi.fn(
+      async (articleId: string) => ({
+        // Both strip down to postRef "weekly-notes" — same title, different
+        // Medium articles.
+        unique_slug: `weekly-notes-${articleId === "older" ? "1a2b3c4d5e" : "6f5e4d3c2b"}`,
+        published_at: articleId === "older" ? 1786786500000 : 1798108800000,
+      }),
+    );
+
+    const result = await fetchMediumSyndication(
+      listArticleIds,
+      fetchArticleInfo,
+    );
+
+    expect(result.syndicationPosts).toHaveLength(1);
+    expect(result.syndicationPosts[0]).toMatchObject({
+      postRef: "weekly-notes",
+      syncedAt: new Date(1798108800000),
+    });
   });
 
   it("bounds per-article detail fetches (and therefore matrix rows) to MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC, while still reporting the platform's TRUE posts count", async () => {

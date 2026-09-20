@@ -50,7 +50,20 @@ describe("fetchJson", () => {
     ).rejects.toThrow("Example API responded with 500 Error.");
   });
 
-  it("throws a vendorLabel-prefixed error (not a bare AbortError) when the request itself fails", async () => {
+  it("throws a vendorLabel-prefixed 'failed' error (not a bare network error) when the request itself fails", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+
+    await expect(
+      fetchJson("https://example.com", {
+        fetchImpl,
+        vendorLabel: "Example API",
+      }),
+    ).rejects.toThrow("Example API request to https://example.com failed.");
+  });
+
+  it("throws a vendorLabel-prefixed 'timed out' error (not a generic AbortError) when the request itself aborts", async () => {
     const fetchImpl = vi.fn(async () => {
       throw new DOMException("The operation was aborted", "AbortError");
     });
@@ -60,7 +73,25 @@ describe("fetchJson", () => {
         fetchImpl,
         vendorLabel: "Example API",
       }),
-    ).rejects.toThrow("Example API request to https://example.com failed.");
+    ).rejects.toThrow("Example API request to https://example.com timed out.");
+  });
+
+  it("throws a vendorLabel-prefixed 'timed out reading the response body' error (not a bare invalid-JSON error) when the body read itself aborts", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => {
+        throw new DOMException("The operation was aborted", "AbortError");
+      },
+    }));
+
+    await expect(
+      fetchJson("https://example.com", {
+        fetchImpl,
+        vendorLabel: "Example API",
+      }),
+    ).rejects.toThrow("Example API timed out reading the response body.");
   });
 
   it("throws a vendorLabel-prefixed error (not a bare SyntaxError) when the body isn't valid JSON", async () => {
