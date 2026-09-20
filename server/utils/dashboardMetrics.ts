@@ -7,6 +7,10 @@ export const METRIC_MRR = "mrr";
 export const METRIC_ACTIVE_SUBSCRIBERS = "active_subscribers";
 export const METRIC_SESSIONS = "sessions";
 export const METRIC_OPEN_ISSUES = "open_issues";
+// Unresolved issues at Sentry's "fatal" level specifically — the subset of
+// METRIC_OPEN_ISSUES that drives the status chip's danger tone (see
+// server/integrations/sentry/mapping.ts's sentryStatusChip).
+export const METRIC_FATAL_ISSUES = "fatal_issues";
 
 // Canonical `metric_snapshot.period` values (schema: "e.g. \"30d\", \"current\"").
 // A metric name alone doesn't identify a series — the schema allows the same

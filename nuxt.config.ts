@@ -65,6 +65,25 @@ export default defineNuxtConfig({
       process.env.NUXT_GA4_PROPERTY_ID_DANHOLLORAN || "",
     ga4PropertyIdGrimicorn: process.env.NUXT_GA4_PROPERTY_ID_GRIMICORN || "",
     ga4PropertyIdNeonpixels: process.env.NUXT_GA4_PROPERTY_ID_NEONPIXELS || "",
+    // The Sentry provider's shared studio-wide auth token + org slug
+    // (server/integrations/sentry). Same reasoning as the Stripe/GA4 entries
+    // above: declared here purely so the Netlify preset forwards these into
+    // the deployed function's process.env — the auth token still resolves
+    // via config.ts's resolveSecret (integration_config.secret_ref ->
+    // process.env), and the org slug via a plain process.env read in
+    // server/integrations/sentry/provider.ts, neither via
+    // useRuntimeConfig(). Scoped to the product-template apps only (basin,
+    // markpost, wanderist) — grimicorn.dev and neonpixels.dev don't use
+    // Sentry, per issue #16.
+    sentryAuthToken: process.env.NUXT_SENTRY_AUTH_TOKEN || "",
+    sentryOrg: process.env.NUXT_SENTRY_ORG || "",
+    // One per property (server/integrations/sentry/provider.ts's
+    // resolveProjectSlug) — the deploy-time default; an integration_config
+    // row's external_id overrides it per app, same precedent as Stripe's
+    // product ids / GA4's property ids.
+    sentryProjectBasin: process.env.NUXT_SENTRY_PROJECT_BASIN || "",
+    sentryProjectMarkpost: process.env.NUXT_SENTRY_PROJECT_MARKPOST || "",
+    sentryProjectWanderist: process.env.NUXT_SENTRY_PROJECT_WANDERIST || "",
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package

@@ -99,19 +99,20 @@ Two layers of secrets:
   secrets or a database (`tests/server/utils/integrationSecrets.test.ts`
   covers round-trip, tamper-detection, and wrong-key failure).
 
-`NUXT_INTEGRATION_ENCRYPTION_KEY`, the Stripe vars, and the GA4 vars are
-wired into `runtimeConfig` today (see nuxt.config.ts) — declared there so the
-Netlify preset forwards them into the deployed function's `process.env`,
-even though the code that actually reads them
+`NUXT_INTEGRATION_ENCRYPTION_KEY`, the Stripe vars, the GA4 vars, and the
+Sentry vars are wired into `runtimeConfig` today (see nuxt.config.ts) —
+declared there so the Netlify preset forwards them into the deployed
+function's `process.env`, even though the code that actually reads them
 (`server/integrations/config.ts`'s `resolveSecret`,
 `server/integrations/stripe/provider.ts`'s `resolveProductIdsSource`,
 `server/integrations/ga4/provider.ts`'s `resolvePropertyId` and its direct
-`NUXT_GA4_SA_CLIENT_EMAIL` read) does a plain `process.env` lookup rather
-than `useRuntimeConfig()`, since each resolves a row/app-specific key name at
-runtime. The remaining vendor vars below are documented here and in
-`.env.example` so they're ready to set, but each one's `runtimeConfig` entry
-and actual API client land with that vendor's provider issue
-(Clerk/Sentry/blog-platform sync — separate issues).
+`NUXT_GA4_SA_CLIENT_EMAIL` read, `server/integrations/sentry/provider.ts`'s
+`resolveProjectSlug` and its direct `NUXT_SENTRY_ORG` read) does a plain
+`process.env` lookup rather than `useRuntimeConfig()`, since each resolves a
+row/app-specific key name at runtime. The remaining vendor vars below are
+documented here and in `.env.example` so they're ready to set, but each
+one's `runtimeConfig` entry and actual API client land with that vendor's
+provider issue (Clerk/blog-platform sync — separate issues).
 
 Set any of the vars below the same way as Clerk/Neon:
 
@@ -168,13 +169,24 @@ this dashboard's own Clerk app configured above). Each property's
 
 ### Sentry
 
-Reports open issue counts per property.
+Reports open-issue and fatal-issue counts for the product-template apps
+(basin, markpost, wanderist) — grimicorn.dev and neonpixels.dev don't use
+Sentry and get no `integration_config` row for it. One shared Sentry org
+across properties, scoped per property by project slug — see
+`server/integrations/sentry/provider.ts`. Fatal count drives the per-app
+status chip's tone via `server/integrations/sentry/mapping.ts`'s
+`sentryStatusChip`: any unresolved fatal-level issue is `danger` ("N
+FATAL"), otherwise any other open issue is `warn` ("N OPEN"), otherwise `ok`
+("OK").
 
 1. Auth token — <https://sentry.io/settings/account/api/auth-tokens/>, needs
-   `project:read` and `org:read` scopes.
+   `project:read` and `org:read` scopes → `NUXT_SENTRY_AUTH_TOKEN`.
 2. Org slug (`NUXT_SENTRY_ORG`) — the slug in your Sentry settings URL.
 3. Per-property project slug — that project's Settings page, in the URL as
-   `sentry.io/organizations/<org>/projects/<slug>/`.
+   `sentry.io/organizations/<org>/projects/<slug>/` →
+   `NUXT_SENTRY_PROJECT_*`. This env var is the deploy-time default; an
+   `integration_config` row's `external_id` column, once set, overrides it
+   per app.
 
 ### Blog platforms (markpost publishing targets)
 
