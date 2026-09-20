@@ -99,17 +99,19 @@ Two layers of secrets:
   secrets or a database (`tests/server/utils/integrationSecrets.test.ts`
   covers round-trip, tamper-detection, and wrong-key failure).
 
-`NUXT_INTEGRATION_ENCRYPTION_KEY` and the Stripe vars are wired into
-`runtimeConfig` today (see nuxt.config.ts) — declared there so the Netlify
-preset forwards them into the deployed function's `process.env`, even though
-the code that actually reads them (`server/integrations/config.ts`'s
-`resolveSecret`, `server/integrations/stripe/provider.ts`'s
-`resolveProductIdsSource`) does a plain `process.env` lookup rather than
-`useRuntimeConfig()`, since both resolve a row/app-specific key name at
+`NUXT_INTEGRATION_ENCRYPTION_KEY`, the Stripe vars, and the GA4 vars are
+wired into `runtimeConfig` today (see nuxt.config.ts) — declared there so the
+Netlify preset forwards them into the deployed function's `process.env`,
+even though the code that actually reads them
+(`server/integrations/config.ts`'s `resolveSecret`,
+`server/integrations/stripe/provider.ts`'s `resolveProductIdsSource`,
+`server/integrations/ga4/provider.ts`'s `resolvePropertyId` and its direct
+`NUXT_GA4_SA_CLIENT_EMAIL` read) does a plain `process.env` lookup rather
+than `useRuntimeConfig()`, since each resolves a row/app-specific key name at
 runtime. The remaining vendor vars below are documented here and in
 `.env.example` so they're ready to set, but each one's `runtimeConfig` entry
 and actual API client land with that vendor's provider issue
-(GA4/Clerk/Sentry/blog-platform sync — separate issues).
+(Clerk/Sentry/blog-platform sync — separate issues).
 
 Set any of the vars below the same way as Clerk/Neon:
 
@@ -119,7 +121,11 @@ npx dotenvx set NUXT_STRIPE_SECRET_KEY "sk_live_…" -f .env
 
 ### Google Analytics 4
 
-Reports property traffic via the GA4 Data API using a service account.
+Reports sessions (current 30d total + daily series for the sparkline) and a
+channel/traffic-source split for every property — see
+`server/integrations/ga4/provider.ts`. One shared service account across
+properties, scoped per property by property ID, same override precedent as
+Stripe's product IDs.
 
 1. Create a service account at
    <https://console.cloud.google.com> → IAM & Admin → Service Accounts.
@@ -127,9 +133,15 @@ Reports property traffic via the GA4 Data API using a service account.
    Admin → Property Access Management.
 3. Download the service account's JSON key and copy `client_email` and
    `private_key` into `NUXT_GA4_SA_CLIENT_EMAIL` /
-   `NUXT_GA4_SA_PRIVATE_KEY`.
+   `NUXT_GA4_SA_PRIVATE_KEY`. An `integration_config` row's `secret_ref`
+   pointing at `NUXT_GA4_SA_PRIVATE_KEY` is what actually resolves the
+   private key into `config.secret` at sync time
+   (`server/integrations/config.ts`'s `resolveSecret`); the client email is
+   not treated as a secret and is read directly from `process.env`.
 4. Copy each property's numeric Property ID (Admin → Property Settings) into
-   the matching `NUXT_GA4_PROPERTY_ID_*` var.
+   the matching `NUXT_GA4_PROPERTY_ID_*` var. This env var is the deploy-time
+   default; an `integration_config` row's `external_id` column, once set,
+   overrides it per app.
 
 ### Stripe
 

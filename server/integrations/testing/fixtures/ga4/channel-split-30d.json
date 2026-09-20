@@ -1,0 +1,10 @@
+[
+  { "dimensionValue": "Organic Search", "metricValue": "1350" },
+  { "dimensionValue": "Direct", "metricValue": "870" },
+  { "dimensionValue": "Referral", "metricValue": "380" },
+  { "dimensionValue": "Organic Social", "metricValue": "190" },
+  { "dimensionValue": "Paid Social", "metricValue": "145" },
+  { "dimensionValue": "Paid Search", "metricValue": "240" },
+  { "dimensionValue": "Email", "metricValue": "90" },
+  { "dimensionValue": "Unassigned", "metricValue": "55" }
+]
