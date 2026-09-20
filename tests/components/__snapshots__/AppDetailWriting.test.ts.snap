@@ -1,117 +1,36 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`AppDetailWriting > matches its snapshot 1`] = `
-"<div data-v-9aaccbc6="" class="detail-body">
-  <div data-v-823d5be8="" data-v-9aaccbc6="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">REACH</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">NO STRIPE OR CLERK ON THIS PROPERTY</span></div>
-  <div data-v-9aaccbc6="" class="tile-grid">
-    <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile">
-      <div data-v-d6008d9b="" class="tile-head">
-        <!--v-if--><span data-v-d6008d9b="" class="tile-label">SESSIONS · OWN SITE</span>
-      </div>
-      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">12.4K</span><span data-v-d6008d9b="" class="delta ok">▲ 44%</span></div>
-      <div data-v-d6008d9b="" class="sub">8.6K last month</div>
+exports[`AppDetailWriting > matches its tile-grid snapshot 1`] = `
+"<div data-v-9aaccbc6="" class="tile-grid">
+  <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile">
+    <div data-v-d6008d9b="" class="tile-head">
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">SESSIONS · OWN SITE</span>
     </div>
-    <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile">
-      <div data-v-d6008d9b="" class="tile-head">
-        <!--v-if--><span data-v-d6008d9b="" class="tile-label">SYNDICATED VIEWS</span>
-      </div>
-      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">8,914</span><span data-v-d6008d9b="" class="delta ok">▲ 12%</span></div>
-      <div data-v-d6008d9b="" class="sub">across 4 platforms</div>
-    </div>
-    <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile">
-      <div data-v-d6008d9b="" class="tile-head">
-        <!--v-if--><span data-v-d6008d9b="" class="tile-label">POSTS PUBLISHED</span>
-      </div>
-      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">3</span><span data-v-d6008d9b="" class="delta muted">this month</span></div>
-      <div data-v-d6008d9b="" class="sub">2 dev · 1 travel</div>
-    </div>
-    <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile warn">
-      <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
-          <line x1="12" y1="9" x2="12" y2="13"></line>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg><span data-v-d6008d9b="" class="tile-label">CROSS-POST FAILURES</span></div>
-      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1</span><span data-v-d6008d9b="" class="delta muted">ZyVOP</span></div>
-      <div data-v-d6008d9b="" class="sub">API 502 · retry queued</div>
-    </div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">12.4K</span><span data-v-d6008d9b="" class="delta ok">▲ 44%</span></div>
+    <div data-v-d6008d9b="" class="sub">8.6K last month</div>
   </div>
-  <div data-v-9aaccbc6="" class="card syndication-panel">
-    <div class="panel-head" data-v-9aaccbc6=""><span class="panel-title" data-v-9aaccbc6="">Syndication</span><span class="panel-meta" data-v-9aaccbc6="">MEDIUM · HASHNODE · DEV.TO · ZYVOP</span><span class="grow" data-v-9aaccbc6=""></span><button type="button" class="retry-btn" data-v-9aaccbc6=""><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" data-v-9aaccbc6="">
-          <path d="M13.5 8a5.5 5.5 0 1 1-1.9-4.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" data-v-9aaccbc6=""></path>
-          <path d="M13.6 2v3.2h-3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-v-9aaccbc6=""></path>
-        </svg> Retry failed </button></div>
-    <div data-v-9aaccbc6="" class="platform-table">
-      <div class="table-head" data-v-9aaccbc6=""><span class="col-platform" data-v-9aaccbc6="">PLATFORM</span><span class="col-sync" data-v-9aaccbc6="">LAST SYNC</span><span class="col-num" data-v-9aaccbc6="">POSTS</span><span class="col-num wide" data-v-9aaccbc6="">VIEWS 30D</span><span class="col-num wide" data-v-9aaccbc6="">REACTIONS</span><span class="col-num wider" data-v-9aaccbc6="">FOLLOWERS</span><span class="col-status" data-v-9aaccbc6="">STATUS</span></div>
-      <ul data-v-9aaccbc6="" class="platform-rows">
-        <li data-v-9aaccbc6="" class="platform-row"><span data-v-9aaccbc6="" class="col-platform name">Medium</span><span data-v-9aaccbc6="" class="col-sync">3h ago</span><span data-v-9aaccbc6="" class="col-num">41</span><span data-v-9aaccbc6="" class="col-num wide strong">4,102</span><span data-v-9aaccbc6="" class="col-num wide">318</span><span data-v-9aaccbc6="" class="col-num wider">1,204</span><span data-v-9aaccbc6="" class="col-status"><span data-v-9aaccbc6="" class="status-pill ok"><span data-v-9aaccbc6="" class="dot" aria-hidden="true"></span> SYNCED</span></span></li>
-        <li data-v-9aaccbc6="" class="platform-row"><span data-v-9aaccbc6="" class="col-platform name">Hashnode</span><span data-v-9aaccbc6="" class="col-sync">3h ago</span><span data-v-9aaccbc6="" class="col-num">28</span><span data-v-9aaccbc6="" class="col-num wide strong">2,466</span><span data-v-9aaccbc6="" class="col-num wide">204</span><span data-v-9aaccbc6="" class="col-num wider">612</span><span data-v-9aaccbc6="" class="col-status"><span data-v-9aaccbc6="" class="status-pill ok"><span data-v-9aaccbc6="" class="dot" aria-hidden="true"></span> SYNCED</span></span></li>
-        <li data-v-9aaccbc6="" class="platform-row"><span data-v-9aaccbc6="" class="col-platform name">dev.to</span><span data-v-9aaccbc6="" class="col-sync">3h ago</span><span data-v-9aaccbc6="" class="col-num">28</span><span data-v-9aaccbc6="" class="col-num wide strong">2,101</span><span data-v-9aaccbc6="" class="col-num wide">177</span><span data-v-9aaccbc6="" class="col-num wider">489</span><span data-v-9aaccbc6="" class="col-status"><span data-v-9aaccbc6="" class="status-pill ok"><span data-v-9aaccbc6="" class="dot" aria-hidden="true"></span> SYNCED</span></span></li>
-        <li data-v-9aaccbc6="" class="platform-row"><span data-v-9aaccbc6="" class="col-platform name">ZyVOP</span><span data-v-9aaccbc6="" class="col-sync warn">2d ago</span><span data-v-9aaccbc6="" class="col-num">26</span><span data-v-9aaccbc6="" class="col-num wide strong">245</span><span data-v-9aaccbc6="" class="col-num wide">31</span><span data-v-9aaccbc6="" class="col-num wider">84</span><span data-v-9aaccbc6="" class="col-status"><span data-v-9aaccbc6="" class="status-pill warn"><span data-v-9aaccbc6="" class="dot" aria-hidden="true"></span> API 502</span></span></li>
-      </ul>
+  <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile">
+    <div data-v-d6008d9b="" class="tile-head">
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">SYNDICATED VIEWS</span>
     </div>
-    <div data-v-bcce6923="" data-v-9aaccbc6="" class="post-matrix"><span data-v-bcce6923="" class="metric-label">RECENT POSTS × PLATFORM</span>
-      <div data-v-bcce6923="" class="matrix-head"><span data-v-bcce6923="" class="col-post">POST</span><span data-v-bcce6923="" class="col-cell">MEDIUM</span><span data-v-bcce6923="" class="col-cell">HASHNODE</span><span data-v-bcce6923="" class="col-cell">DEV.TO</span><span data-v-bcce6923="" class="col-cell">ZYVOP</span><span data-v-bcce6923="" class="col-views">SITE VIEWS</span></div>
-      <ul data-v-bcce6923="" class="matrix-rows">
-        <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post">Shipping a Nuxt site with an agent that never sleeps</span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill failed">✗ FAILED</span></span><span data-v-bcce6923="" class="col-views">3,188</span></li>
-        <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post">Why I stopped paying for five analytics tools</span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill queued">• QUEUED</span></span><span data-v-bcce6923="" class="col-views">2,415</span></li>
-        <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post">Three days in the Missouri Ozarks</span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill off">— DEV ONLY</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill off">— DEV ONLY</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill off">— DEV ONLY</span></span><span data-v-bcce6923="" class="col-views">1,904</span></li>
-      </ul>
-    </div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">8,914</span><span data-v-d6008d9b="" class="delta ok">▲ 12%</span></div>
+    <div data-v-d6008d9b="" class="sub">across 4 platforms</div>
   </div>
-  <div data-v-823d5be8="" data-v-9aaccbc6="" class="section-label section-gap"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">TRAFFIC</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">GOOGLE ANALYTICS · GA4</span></div>
-  <div data-v-b28e9303="" data-v-9aaccbc6="" class="card traffic-panel">
-    <div data-v-b28e9303="" class="traffic-chart">
-      <div data-v-b28e9303="" class="traffic-head">
-        <ul data-v-b28e9303="" class="headline-stats">
-          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">SESSIONS</span><span data-v-b28e9303="" class="display-num headline-value">12,431</span></li>
-          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">USERS</span><span data-v-b28e9303="" class="display-num headline-value">9,882</span></li>
-          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">AVG TIME</span><span data-v-b28e9303="" class="display-num headline-value">4:02</span></li>
-          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">BOUNCE</span><span data-v-b28e9303="" class="display-num headline-value">46%</span></li>
-        </ul><span data-v-b28e9303="" class="grow"></span><span data-v-b28e9303="" class="delta ok">▲ 44% vs prev 30d</span>
-      </div><svg data-v-b28e9303="" width="100%" height="150" viewBox="0 0 860 150" preserveAspectRatio="none" role="img" aria-label="danholloran.me daily sessions over the last 30 days">
-        <line x1="0" y1="14" x2="860" y2="14" stroke="var(--line-3)" stroke-width="1"></line>
-        <line x1="0" y1="55" x2="860" y2="55" stroke="var(--line-3)" stroke-width="1"></line>
-        <line x1="0" y1="96" x2="860" y2="96" stroke="var(--line-3)" stroke-width="1"></line>
-        <line x1="0" y1="149" x2="860" y2="149" stroke="var(--line)" stroke-width="1"></line>
-        <path d="M0 136 C5 135.6 19.8 135.9 29.7 133.3 C39.6 130.7 49.4 123.1 59.3 120.6 C69.2 118.1 79.1 120 89 118.3 C98.9 116.6 108.7 111.5 118.6 110.6 C128.5 109.7 138.4 114.4 148.3 112.9 C158.2 111.4 168 103.4 177.9 101.8 C187.8 100.2 197.7 105.1 207.6 103.5 C217.5 101.9 227.3 94.3 237.2 92 C247.1 89.7 257 91.2 266.9 89.7 C276.8 88.2 286.7 86.1 296.6 82.9 C306.5 79.8 316.3 72.9 326.2 70.8 C336.1 68.7 346 69.5 355.9 70.1 C365.8 70.7 375.6 73 385.5 74.2 C395.4 75.4 405.3 77.9 415.2 77.4 C425.1 76.9 434.9 71.9 444.8 71 C454.7 70.1 464.6 73.8 474.5 72.1 C484.4 70.4 494.2 63.8 504.1 61 C514 58.2 523.9 56.2 533.8 55.3 C543.7 54.4 553.5 55.9 563.4 55.6 C573.3 55.4 583.2 54.6 593.1 53.8 C603 53 612.9 50.9 622.8 50.8 C632.7 50.7 642.5 53.6 652.4 53.2 C662.3 52.8 672.2 51.1 682.1 48.3 C692 45.5 701.8 40.5 711.7 36.4 C721.6 32.3 731.5 26.9 741.4 23.9 C751.3 20.8 761.1 18.7 771 18.1 C780.9 17.5 790.8 20 800.7 20.2 C810.6 20.4 820.4 20.2 830.3 19.2 C840.2 18.2 855 14.9 860 14 L860 150 L0 150 Z" fill="color-mix(in srgb, #A78BFA 9%, transparent)"></path>
-        <path d="M0 136 C5 135.6 19.8 135.9 29.7 133.3 C39.6 130.7 49.4 123.1 59.3 120.6 C69.2 118.1 79.1 120 89 118.3 C98.9 116.6 108.7 111.5 118.6 110.6 C128.5 109.7 138.4 114.4 148.3 112.9 C158.2 111.4 168 103.4 177.9 101.8 C187.8 100.2 197.7 105.1 207.6 103.5 C217.5 101.9 227.3 94.3 237.2 92 C247.1 89.7 257 91.2 266.9 89.7 C276.8 88.2 286.7 86.1 296.6 82.9 C306.5 79.8 316.3 72.9 326.2 70.8 C336.1 68.7 346 69.5 355.9 70.1 C365.8 70.7 375.6 73 385.5 74.2 C395.4 75.4 405.3 77.9 415.2 77.4 C425.1 76.9 434.9 71.9 444.8 71 C454.7 70.1 464.6 73.8 474.5 72.1 C484.4 70.4 494.2 63.8 504.1 61 C514 58.2 523.9 56.2 533.8 55.3 C543.7 54.4 553.5 55.9 563.4 55.6 C573.3 55.4 583.2 54.6 593.1 53.8 C603 53 612.9 50.9 622.8 50.8 C632.7 50.7 642.5 53.6 652.4 53.2 C662.3 52.8 672.2 51.1 682.1 48.3 C692 45.5 701.8 40.5 711.7 36.4 C721.6 32.3 731.5 26.9 741.4 23.9 C751.3 20.8 761.1 18.7 771 18.1 C780.9 17.5 790.8 20 800.7 20.2 C810.6 20.4 820.4 20.2 830.3 19.2 C840.2 18.2 855 14.9 860 14" fill="none" stroke="#A78BFA" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
-      </svg>
-      <div data-v-5654670f="" data-v-b28e9303="" class="axis-row"><span data-v-5654670f="">20 AUG</span><span data-v-5654670f="">27 AUG</span><span data-v-5654670f="">03 SEP</span><span data-v-5654670f="">10 SEP</span><span data-v-5654670f="">19 SEP</span></div>
+  <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile">
+    <div data-v-d6008d9b="" class="tile-head">
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">POSTS PUBLISHED</span>
     </div>
-    <div data-v-b28e9303="" class="traffic-list"><span data-v-b28e9303="" class="metric-label">TOP POSTS ON SITE</span>
-      <ul data-v-5cd44a83="" data-v-b28e9303="" class="stat-list divided">
-        <li data-v-5cd44a83="" class="stat-row">
-          <!--v-if--><span data-v-5cd44a83="" class="label">/posts/agent-that-never-sleeps</span><span data-v-5cd44a83="" class="value">3,188</span>
-          <!--v-if-->
-        </li>
-        <li data-v-5cd44a83="" class="stat-row">
-          <!--v-if--><span data-v-5cd44a83="" class="label">/posts/five-analytics-tools</span><span data-v-5cd44a83="" class="value">2,415</span>
-          <!--v-if-->
-        </li>
-        <li data-v-5cd44a83="" class="stat-row">
-          <!--v-if--><span data-v-5cd44a83="" class="label">/posts/missouri-ozarks</span><span data-v-5cd44a83="" class="value">1,904</span>
-          <!--v-if-->
-        </li>
-        <li data-v-5cd44a83="" class="stat-row">
-          <!--v-if--><span data-v-5cd44a83="" class="label">/resume</span><span data-v-5cd44a83="" class="value">1,461</span>
-          <!--v-if-->
-        </li>
-        <li data-v-5cd44a83="" class="stat-row">
-          <!--v-if--><span data-v-5cd44a83="" class="label">/photos</span><span data-v-5cd44a83="" class="value">988</span>
-          <!--v-if-->
-        </li>
-      </ul>
-    </div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">3</span><span data-v-d6008d9b="" class="delta muted">this month</span></div>
+    <div data-v-d6008d9b="" class="sub">2 dev · 1 travel</div>
   </div>
-  <div data-v-f8143493="" data-v-9aaccbc6="" class="sources-footer"><span data-v-f8143493="" class="label">SOURCES</span>
-    <ul data-v-f8143493="" class="sources">
-      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> GOOGLE ANALYTICS · 6m</li>
-      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> MEDIUM · 3h</li>
-      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> HASHNODE · 3h</li>
-      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> DEV.TO · 3h</li>
-      <li data-v-f8143493="" class="source-chip warn"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> ZYVOP · 2d</li>
-    </ul><span data-v-f8143493="" class="grow"></span>
-    <!--v-if--><span data-v-f8143493="" class="note-tag">STRIPE · CLERK · SENTRY NOT CONNECTED</span>
+  <div data-v-d6008d9b="" data-v-9aaccbc6="" class="card tile warn">
+    <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg><span data-v-d6008d9b="" class="tile-label">CROSS-POST FAILURES</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1</span><span data-v-d6008d9b="" class="delta muted">ZyVOP</span></div>
+    <div data-v-d6008d9b="" class="sub">API 502 · retry queued</div>
   </div>
 </div>"
 `;

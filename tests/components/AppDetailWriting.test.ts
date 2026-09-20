@@ -70,7 +70,10 @@ describe("AppDetailWriting", () => {
     );
   });
 
-  it("matches its snapshot", () => {
-    expect(mountDetail().html()).toMatchSnapshot();
+  it("matches its tile-grid snapshot", () => {
+    // See AppDetailMarketing.test.ts's equivalent note — the full-component
+    // snapshot is dominated by hardcoded SparkLine bezier paths; the tile
+    // grid stays human-reviewable.
+    expect(mountDetail().find(".tile-grid").html()).toMatchSnapshot();
   });
 });

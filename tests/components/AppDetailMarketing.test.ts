@@ -39,7 +39,10 @@ describe("AppDetailMarketing", () => {
     expect(wrapper.findComponent(SparkLine).props("color")).toBe("var(--ink)");
   });
 
-  it("renders an outbound-click bar per resolvable app slug, labeled and colored from that app's own config", () => {
+  it("renders an outbound-click bar per configured slug, labeled and colored from that app's own config", () => {
+    // OUTBOUND_CLICKS is a module-private constant with no unresolvable
+    // slugs today, so the "drops an unresolvable slug" branch in
+    // outboundRows' flatMap isn't reachable from a prop-driven test here.
     const wrapper = mountDetail("grimicorn");
     const bars = wrapper.findAllComponents(BarMeter);
     expect(bars.map((bar) => bar.props("label"))).toEqual([
@@ -69,7 +72,13 @@ describe("AppDetailMarketing", () => {
     expect(wrapper.text()).toContain("copy tweak on hero");
   });
 
-  it("matches its snapshot", () => {
-    expect(mountDetail("grimicorn").html()).toMatchSnapshot();
+  it("matches its tile-grid snapshot", () => {
+    // Snapshotting the full component would embed the hardcoded SparkLine
+    // bezier paths (hundreds of unreadable coordinates) with no extra
+    // coverage beyond the explicit assertions above; the tile grid is the
+    // largest subtree that stays human-reviewable in a diff.
+    expect(
+      mountDetail("grimicorn").find(".tile-grid").html(),
+    ).toMatchSnapshot();
   });
 });

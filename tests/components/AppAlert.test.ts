@@ -32,16 +32,20 @@ describe("AppAlert", () => {
     expect(wrapper.find(".a-title").text()).toBe("Cross-post failed");
   });
 
-  it.each<["err" | "warn" | "ok" | "info", string]>([
-    ["err", "Error"],
-    ["warn", "Warning"],
-    ["ok", "Success"],
-    ["info", "Info"],
-  ])("labels the %s tone as %s by default", (tone, label) => {
-    const wrapper = mountAlert({ tone });
-    expect(wrapper.classes()).toContain(tone);
-    expect(wrapper.find(".a-title").text()).toBe(label);
-  });
+  it.each<["err" | "warn" | "ok" | "info", string, string]>([
+    ["err", "Error", "triangle"],
+    ["warn", "Warning", "triangle"],
+    ["ok", "Success", "checkCircle"],
+    ["info", "Info", "info"],
+  ])(
+    "labels the %s tone as %s by default and shows the %s icon",
+    (tone, label, iconName) => {
+      const wrapper = mountAlert({ tone });
+      expect(wrapper.classes()).toContain(tone);
+      expect(wrapper.find(".a-title").text()).toBe(label);
+      expect(wrapper.findComponent(AppIcon).props("name")).toBe(iconName);
+    },
+  );
 
   it("exposes role=alert for assistive tech", () => {
     expect(mountAlert().attributes("role")).toBe("alert");
