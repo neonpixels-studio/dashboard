@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   channelLabel,
+  countGrowthDeltaTone,
   formatCompactCount,
   formatCount,
   formatCountDelta,
@@ -9,8 +10,8 @@ import {
   formatOrDash,
   formatPctDelta,
   formatSyncedDate,
-  growthDeltaTone,
   NO_VALUE_LABEL,
+  pctGrowthDeltaTone,
 } from "../../app/utils/rollupFormat";
 import type { RollupDelta } from "../../shared/types/dashboard";
 
@@ -119,24 +120,39 @@ describe("formatIssuesSinceYesterday", () => {
   });
 });
 
-describe("growthDeltaTone", () => {
+describe("pctGrowthDeltaTone", () => {
   it("is ok for positive growth", () => {
-    expect(growthDeltaTone({ value: 10, pct: 5 })).toBe("ok");
+    expect(pctGrowthDeltaTone({ value: 10, pct: 5 })).toBe("ok");
   });
 
   it("is muted for zero, negative, or missing deltas", () => {
-    expect(growthDeltaTone({ value: 0, pct: 0 })).toBe("muted");
-    expect(growthDeltaTone({ value: -10, pct: -5 })).toBe("muted");
-    expect(growthDeltaTone(null)).toBe("muted");
+    expect(pctGrowthDeltaTone({ value: 0, pct: 0 })).toBe("muted");
+    expect(pctGrowthDeltaTone({ value: -10, pct: -5 })).toBe("muted");
+    expect(pctGrowthDeltaTone(null)).toBe("muted");
   });
 
-  it("is muted when a tiny positive change rounds its displayed pct to 0.0", () => {
-    expect(growthDeltaTone({ value: 0.3, pct: 0.04 })).toBe("muted");
+  it("agrees with formatPctDelta's rounding: muted when a tiny positive change rounds to 0.0%", () => {
+    expect(pctGrowthDeltaTone({ value: 0.3, pct: 0.04 })).toBe("muted");
   });
 
-  it("falls back to value when pct is null (zero baseline)", () => {
-    expect(growthDeltaTone({ value: 5, pct: null })).toBe("ok");
-    expect(growthDeltaTone({ value: -5, pct: null })).toBe("muted");
+  it("is muted when pct is null (zero baseline) — formatPctDelta hides the delta entirely then, so the tone is never actually rendered", () => {
+    expect(pctGrowthDeltaTone({ value: 5, pct: null })).toBe("muted");
+  });
+});
+
+describe("countGrowthDeltaTone", () => {
+  it("is ok for positive growth", () => {
+    expect(countGrowthDeltaTone({ value: 10, pct: 5 })).toBe("ok");
+  });
+
+  it("is muted for zero, negative, or missing deltas", () => {
+    expect(countGrowthDeltaTone({ value: 0, pct: 0 })).toBe("muted");
+    expect(countGrowthDeltaTone({ value: -10, pct: -5 })).toBe("muted");
+    expect(countGrowthDeltaTone(null)).toBe("muted");
+  });
+
+  it("agrees with formatCountDelta's rounding, not pct — ok here even though pct alone would round to 0.0%", () => {
+    expect(countGrowthDeltaTone({ value: 1, pct: 0.01 })).toBe("ok");
   });
 });
 

@@ -235,11 +235,27 @@ function utcDayKeysThrough(start: Date, end: Date): string[] {
   return dayKeys;
 }
 
+// The row with the latest capturedAt in a non-empty list — like lastOf, but
+// doesn't assume the list is already sorted ascending. rollupSeriesAcrossApps
+// gets its rows from fetchMetricSnapshotSeries, which does sort ascending
+// today, but "the caller happens to sort it" isn't a contract this function
+// should have to rely on to pick the right row.
+function maxByCapturedAt(rows: MetricSnapshotRow[]): MetricSnapshotRow {
+  return rows.reduce((latest, row) =>
+    row.capturedAt > latest.capturedAt ? row : latest,
+  );
+}
+
 // One app's most recently known row as of the end of `dayKey` — the
 // "carry forward" rollupSeriesAcrossApps needs so a day an app simply
 // didn't poll still counts that app's last real value instead of silently
 // dropping it from that day's sum (see the function's own doc comment for
-// why dropping it is wrong, not just conservative).
+// why dropping it is wrong, not just conservative). Considers rows from
+// before the series' display window too (whatever the caller passed in) —
+// otherwise the window's first days would understate the total for any app
+// whose most recent poll happens to land just outside it, which is common
+// with the "yesterday vs. today" 2-day window and not just a rare
+// once-in-a-month edge case.
 function latestRowOnOrBefore(
   rowsForSlug: MetricSnapshotRow[],
   dayKey: string,
@@ -250,27 +266,28 @@ function latestRowOnOrBefore(
   if (!rowsOnOrBefore.length) {
     return undefined;
   }
-  return lastOf(rowsOnOrBefore);
+  return maxByCapturedAt(rowsOnOrBefore);
 }
 
-// One rollup point per UTC calendar day in the window, summing each app's
-// most recently known value AS OF that day — not just rows that happen to
-// land on that exact day. Without carrying a value forward, a day where
-// only some apps happened to poll would understate the true total and read
-// as a real swing rather than the polling-cadence noise it actually is;
-// with it, the series' last point always agrees with
-// metricRollupWithSplit's headline total (both are "sum of each app's
-// latest known value"), which is what a delta/sparkline is implicitly
-// compared against. A day before ANY app in `slugs` has ever reported this
-// metric/period isn't a point at all — still never a fabricated zero.
+// One rollup point per UTC calendar day in the display window, summing each
+// app's most recently known value AS OF that day — not just rows that
+// happen to land on that exact day, and not just rows inside the window
+// either. Without carrying a value forward from an app's last real poll
+// (wherever it falls), a day where only some apps happened to poll would
+// understate the true total and read as a real swing rather than the
+// polling-cadence noise it actually is; with it, the series' last point
+// always agrees with metricRollupWithSplit's headline total (both are "sum
+// of each app's latest known value"), which is what a delta/sparkline is
+// implicitly compared against. A day before ANY app in `slugs` has ever
+// reported this metric/period at all isn't a point — still never a
+// fabricated zero, just genuinely unknown.
 //
-// Rows before the window start are excluded entirely, including as a seed
-// for carrying forward into the window's first day — an app that hasn't
-// reported in over `windowDays` simply isn't counted until it reports
-// again inside the window. This can undercount the window's early days
-// relative to the (unbounded) headline total for a genuinely stale app;
-// accepted here rather than widening the query, since normal polling
-// cadence (daily or more) makes it a rare edge case.
+// `windowDays` only controls which days become POINTS in the output, never
+// which rows are eligible to seed one — a row from well before the window
+// can still be the most recent thing known about an app on the window's
+// first day. How far back a stale app's last poll can be and still count
+// is bounded by the caller's own query (fetchMetricSnapshotSeries' fixed
+// lookback), not by anything here.
 export function rollupSeriesAcrossApps(
   rows: MetricSnapshotRow[],
   slugs: string[],
@@ -279,19 +296,18 @@ export function rollupSeriesAcrossApps(
   windowDays: number = ROLLUP_WINDOW_DAYS,
   now: Date = new Date(),
 ): MetricPoint[] {
-  const start = windowStart(windowDays, now);
   const matching = rows.filter(
     (row) =>
       slugs.includes(row.slug) &&
       row.metric === metric &&
-      row.period === period &&
-      row.capturedAt >= start,
+      row.period === period,
   );
   if (!matching.length) {
     return [];
   }
 
   const rowsBySlug = groupBySlug(matching);
+  const start = windowStart(windowDays, now);
 
   return utcDayKeysThrough(start, now).flatMap((dayKey) => {
     const rowsToday = slugs.flatMap((slug) => {

@@ -107,17 +107,30 @@ export function formatIssuesSinceYesterday(
   return `${sign}${formatCount(Math.abs(roundedValue))} since yesterday`;
 }
 
-// "more is better" tiles (MRR, active subscribers, sessions): growth reads
-// as the positive/ok tone, anything else is neutral. Prefers `pct` (what
-// MRR/sessions actually display) over `value` so the tone agrees with
-// formatPctDelta's rounding — falls back to `value` only when `pct` is
-// null (zero baseline), which is also what formatCountDelta displays.
-export function growthDeltaTone(delta: RollupDelta | null): DeltaTone {
+function toneFromRoundedMagnitude(magnitude: number): DeltaTone {
+  return magnitude > 0 ? "ok" : "muted";
+}
+
+// For MRR/sessions, which display formatPctDelta — tone must agree with
+// THAT rounding, not the unrounded pct, or a delta that prints "0.0%" could
+// still show the ok/green tone next to it.
+export function pctGrowthDeltaTone(delta: RollupDelta | null): DeltaTone {
+  if (!delta || delta.pct === null) {
+    return "muted";
+  }
+  return toneFromRoundedMagnitude(Number(delta.pct.toFixed(1)));
+}
+
+// For active subscribers, which displays formatCountDelta — tone must
+// agree with THAT rounding (the whole-count value), not pct, for the same
+// reason pctGrowthDeltaTone exists: the two formatters can disagree near
+// zero (e.g. `{ value: 1, pct: 0.01 }` prints "▲ 1" but would round to
+// "0.0%" under the pct-based tone).
+export function countGrowthDeltaTone(delta: RollupDelta | null): DeltaTone {
   if (!delta) {
     return "muted";
   }
-  const magnitude = delta.pct ?? delta.value;
-  return Number(magnitude.toFixed(1)) > 0 ? "ok" : "muted";
+  return toneFromRoundedMagnitude(Math.round(delta.value));
 }
 
 // GA4's channel buckets (server/integrations/ga4/mapping.ts) presented the

@@ -383,9 +383,12 @@ describe("rollupSeriesAcrossApps", () => {
         value: 10,
         capturedAt: new Date("2026-09-19T18:00:00Z"),
       }),
-      // The day before yesterday — outside the window despite being under
-      // 48 raw hours before `midday`, which the old (unaligned) window
-      // would have wrongly included.
+      // The day before yesterday. Older than the row above regardless of
+      // the window, so it would lose to it either way here — this test is
+      // about the DAY AXIS excluding 09-18 as its own point (windowDays=2
+      // only produces 09-19/09-20), not about this row failing to seed
+      // anything; see the "seeds ... from before the display window" test
+      // below for that.
       metricRow({
         value: 999,
         capturedAt: new Date("2026-09-18T18:00:00Z"),
@@ -396,25 +399,42 @@ describe("rollupSeriesAcrossApps", () => {
       rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 2, midday),
     ).toEqual([
       { capturedAt: "2026-09-19T00:00:00.000Z", value: 10 },
-      // Carried forward into "today" — the 999 row is excluded from
-      // seeding this entirely (it's from before the window), so there's no
-      // value it could have come from other than the in-window row.
       { capturedAt: "2026-09-20T00:00:00.000Z", value: 10 },
     ]);
   });
 
-  it("excludes rows outside the comparison window, including as a carry-forward seed", () => {
+  it("seeds carry-forward from a row before the display window, however old, instead of dropping a stale app from early days", () => {
+    // A single missed poll for any app would otherwise read as a fake jump
+    // once the window starts — this is the same "sum of each app's latest
+    // known value" rule metricRollupWithSplit's headline total already
+    // follows, just applied once per day.
     const rows = [
       metricRow({ value: 999, capturedAt: new Date("2026-01-01T00:00:00Z") }),
       metricRow({ value: 100, capturedAt: new Date("2026-09-19T00:00:00Z") }),
     ];
 
     expect(
-      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, now),
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 3, now),
     ).toEqual([
+      // Window covers 09-18 through 09-20 (windowDays=3, now=09-20); the
+      // 01-01 row is the only thing known as of 09-18, however stale.
+      { capturedAt: "2026-09-18T00:00:00.000Z", value: 999 },
       { capturedAt: "2026-09-19T00:00:00.000Z", value: 100 },
       { capturedAt: "2026-09-20T00:00:00.000Z", value: 100 },
     ]);
+  });
+
+  it("picks the row with the latest capturedAt regardless of input order, not the last element in the array", () => {
+    const rows = [
+      // Deliberately out of chronological order — a caller sorted
+      // descending (or not at all) shouldn't change which row wins.
+      metricRow({ value: 100, capturedAt: new Date("2026-09-19T00:00:00Z") }),
+      metricRow({ value: 999, capturedAt: new Date("2026-01-01T00:00:00Z") }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 1, now),
+    ).toEqual([{ capturedAt: "2026-09-20T00:00:00.000Z", value: 100 }]);
   });
 
   it("never mixes two different periods of the same metric into one series", () => {

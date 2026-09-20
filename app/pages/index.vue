@@ -107,7 +107,8 @@ import {
   formatOrDash,
   formatPctDelta,
   formatSyncedDate,
-  growthDeltaTone,
+  countGrowthDeltaTone,
+  pctGrowthDeltaTone,
 } from "~/utils/rollupFormat";
 import type { AppMetricSplit } from "#shared/types/dashboard";
 
@@ -161,7 +162,7 @@ const mrrDeltaLabel = computed(() =>
   formatPctDelta(overview.value?.mrr.delta ?? null),
 );
 const mrrDeltaTone = computed(() =>
-  growthDeltaTone(overview.value?.mrr.delta ?? null),
+  pctGrowthDeltaTone(overview.value?.mrr.delta ?? null),
 );
 
 const activeSubscribersValueLabel = computed(() =>
@@ -171,7 +172,7 @@ const activeSubscribersDeltaLabel = computed(() =>
   formatCountDelta(overview.value?.activeSubscribers.delta ?? null),
 );
 const activeSubscribersDeltaTone = computed(() =>
-  growthDeltaTone(overview.value?.activeSubscribers.delta ?? null),
+  countGrowthDeltaTone(overview.value?.activeSubscribers.delta ?? null),
 );
 
 const sessionsValueLabel = computed(() =>
@@ -181,7 +182,7 @@ const sessionsDeltaLabel = computed(() =>
   formatPctDelta(overview.value?.sessions30d.delta ?? null),
 );
 const sessionsDeltaTone = computed(() =>
-  growthDeltaTone(overview.value?.sessions30d.delta ?? null),
+  pctGrowthDeltaTone(overview.value?.sessions30d.delta ?? null),
 );
 
 const openIssuesValueLabel = computed(() =>
@@ -240,16 +241,31 @@ const sessionSourceStats = computed(() =>
 // absolute date half is pure data (derived from lastSyncedAt, not from wall
 // clock) and safe to compute eagerly.
 const relativeSyncLabel = ref<string | null>(null);
+
+// "Xm ago" goes stale the longer the tab stays open on its own — recomputed
+// on an interval (re-reading lastSyncedAt fresh each tick, not just once at
+// mount) as well as whenever lastSyncedAt itself changes via refresh.
+const SYNC_LABEL_REFRESH_MS = 60_000;
+
+function updateRelativeSyncLabel() {
+  const lastSyncedAt = overview.value?.lastSyncedAt ?? null;
+  relativeSyncLabel.value = lastSyncedAt
+    ? formatRelativeTime(lastSyncedAt)
+    : null;
+}
+
+let syncLabelInterval: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
-  watch(
-    () => overview.value?.lastSyncedAt ?? null,
-    (lastSyncedAt) => {
-      relativeSyncLabel.value = lastSyncedAt
-        ? formatRelativeTime(lastSyncedAt)
-        : null;
-    },
-    { immediate: true },
+  watch(() => overview.value?.lastSyncedAt ?? null, updateRelativeSyncLabel, {
+    immediate: true,
+  });
+  syncLabelInterval = setInterval(
+    updateRelativeSyncLabel,
+    SYNC_LABEL_REFRESH_MS,
   );
+});
+onUnmounted(() => {
+  clearInterval(syncLabelInterval);
 });
 
 const syncedDateLabel = computed(() => {

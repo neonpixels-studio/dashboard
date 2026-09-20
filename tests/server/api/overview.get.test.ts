@@ -171,7 +171,7 @@ describe("GET /api/overview", () => {
     expect(result.mrr.delta).toEqual({ value: 82, pct: 8.2 });
   });
 
-  it("computes 'new today' for open issues from just the last two days of the series", async () => {
+  it("computes open issues' since-yesterday delta from just the last two calendar days of the series", async () => {
     vi.setSystemTime(new Date("2026-09-20T12:00:00Z"));
 
     mockFetchMetricSnapshotSeries.mockResolvedValue([

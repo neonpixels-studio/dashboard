@@ -304,6 +304,46 @@ describe("index.vue rollup tiles", () => {
     );
   });
 
+  it("refreshes the relative sync time on an interval, not just once at mount", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-20T11:59:00.000Z"));
+    mockOverview({
+      data: overviewFixture({ lastSyncedAt: "2026-09-20T11:58:00.000Z" }),
+    });
+
+    const wrapper = mountPage();
+    await nextTick();
+    expect(wrapper.findComponent(SectionLabel).props("meta")).toContain(
+      "1M AGO",
+    );
+
+    // Advances the fake clock by exactly one refresh interval — the label
+    // must recompute from the CURRENT time on each tick, not just re-report
+    // whatever it calculated once at mount.
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(wrapper.findComponent(SectionLabel).props("meta")).toContain(
+      "2M AGO",
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("stops the refresh interval on unmount", async () => {
+    vi.useFakeTimers();
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+    await nextTick();
+    wrapper.unmount();
+
+    // Would throw if the interval callback ran after unmount and touched a
+    // torn-down component instance — advancing time is the assertion.
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+
+    vi.useRealTimers();
+  });
+
   it("matches its rollup-grid snapshot with live data", () => {
     mockOverview({ data: overviewFixture() });
 
