@@ -6,6 +6,8 @@ import {
   fetchMetricSnapshotSeries,
   fetchSyncStatuses,
   fetchSyndicationPosts,
+  seriesWindowStart,
+  SERIES_WINDOW_DAYS,
 } from "../../../server/utils/dashboardQueries";
 
 type FakeDb = Parameters<typeof fetchMetricSnapshotSeries>[0];
@@ -30,8 +32,7 @@ function createUnorderedFakeDb(rows: unknown[]) {
 }
 
 // Stubs `selectDistinctOn().from().where().orderBy()` — the chain used by
-// the unbounded "latest per group" fetches (metric_snapshot,
-// traffic_breakdown).
+// the unbounded "latest per group" metric_snapshot fetch.
 function createDistinctFakeDb(rows: unknown[]) {
   const orderBy = vi.fn().mockResolvedValue(rows);
   const where = vi.fn().mockReturnValue({ orderBy });
@@ -45,6 +46,51 @@ function createDistinctFakeDb(rows: unknown[]) {
     orderBy,
   };
 }
+
+// fetchLatestTrafficBreakdowns is two queries: first the max capturedAt per
+// slug (`select().from().where().groupBy()`), then the batch of rows near
+// each slug's max (`select().from().where()`). Stubs `db.select` to return
+// a different chain on each of its two calls.
+function createTrafficBreakdownFakeDb(
+  maxRows: { slug: string; capturedAt: Date | null }[],
+  detailRows: unknown[],
+) {
+  const groupBy = vi.fn().mockResolvedValue(maxRows);
+  const whereForMax = vi.fn().mockReturnValue({ groupBy });
+  const fromForMax = vi.fn().mockReturnValue({ where: whereForMax });
+
+  const whereForDetail = vi.fn().mockResolvedValue(detailRows);
+  const fromForDetail = vi.fn().mockReturnValue({ where: whereForDetail });
+
+  const select = vi
+    .fn()
+    .mockReturnValueOnce({ from: fromForMax })
+    .mockReturnValueOnce({ from: fromForDetail });
+
+  return {
+    db: { select } as unknown as FakeDb,
+    select,
+    groupBy,
+    whereForMax,
+    whereForDetail,
+  };
+}
+
+describe("seriesWindowStart", () => {
+  it(`returns exactly ${SERIES_WINDOW_DAYS} days before the given moment`, () => {
+    const now = new Date("2026-09-20T12:00:00Z");
+    const start = seriesWindowStart(now);
+    const daysBack = (now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000);
+    expect(daysBack).toBe(SERIES_WINDOW_DAYS);
+  });
+
+  it("holds across a month boundary", () => {
+    const start = seriesWindowStart(new Date("2026-01-15T00:00:00Z"));
+    expect(start.toISOString()).toBe(
+      new Date("2025-11-16T00:00:00Z").toISOString(),
+    );
+  });
+});
 
 describe("fetchLatestMetricSnapshots", () => {
   it("never touches the db for an empty slug list", async () => {
@@ -82,18 +128,28 @@ describe("fetchMetricSnapshotSeries", () => {
 
 describe("fetchLatestTrafficBreakdowns", () => {
   it("never touches the db for an empty slug list", async () => {
-    const { db, selectDistinctOn } = createDistinctFakeDb([]);
+    const { db, select } = createTrafficBreakdownFakeDb([], []);
     expect(await fetchLatestTrafficBreakdowns(db, [])).toEqual([]);
-    expect(selectDistinctOn).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
   });
 
-  it("returns whatever rows the query resolves", async () => {
-    const rows = [{ id: 1, channel: "organic" }];
-    const { db, orderBy } = createDistinctFakeDb(rows);
-    await expect(fetchLatestTrafficBreakdowns(db, ["basin"])).resolves.toEqual(
-      rows,
+  it("returns an empty array without a second query when no slug has any row", async () => {
+    const { db, select } = createTrafficBreakdownFakeDb([], []);
+    expect(await fetchLatestTrafficBreakdowns(db, ["basin"])).toEqual([]);
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the batch of rows near each slug's own most recent capture", async () => {
+    const detailRows = [{ id: 1, slug: "basin", channel: "organic" }];
+    const { db, select } = createTrafficBreakdownFakeDb(
+      [{ slug: "basin", capturedAt: new Date("2026-09-19T00:00:00Z") }],
+      detailRows,
     );
-    expect(orderBy).toHaveBeenCalled();
+
+    await expect(fetchLatestTrafficBreakdowns(db, ["basin"])).resolves.toEqual(
+      detailRows,
+    );
+    expect(select).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -21,9 +21,14 @@ import type {
   SyndicationMatrixRow,
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
+import { METRIC_SESSIONS, PERIOD_30D } from "./dashboardMetrics";
 
 function toIso(date: Date): string {
   return date.toISOString();
+}
+
+function toIsoOrNull(date: Date | null): string | null {
+  return date ? toIso(date) : null;
 }
 
 function roundTo2(value: number): number {
@@ -132,50 +137,48 @@ function latestRowForMetric(
   return lastOf(matches);
 }
 
-// Sums the latest value of one (metric, period) across every app that has a
-// row for it. Apps with no data are omitted rather than counted as zero —
-// per the no-fabricated-numbers rule, a missing metric isn't a real zero.
-// Returns value/period/capturedAt all null only when NO app has any data yet.
-export function sumLatestMetricAcrossApps(
+// The overview rollup for one (metric, period): the sum across every app
+// that has a row for it, plus that same per-app breakdown — the two always
+// travel together on OverviewResponse (`mrr`, `activeSubscribers`,
+// `openIssues` all pair a total with a `byApp` list), and computing them
+// together means every app's latest row is looked up once, not twice.
+// Apps with no data are omitted from both rather than counted as zero — per
+// the no-fabricated-numbers rule, a missing metric isn't a real zero.
+// value/period/capturedAt are all null only when NO app has any data yet.
+export function metricRollupWithSplit(
   rows: MetricSnapshotRow[],
   slugs: string[],
   metric: string,
   period: string,
-): OverviewMetric {
-  const latestPerApp = slugs
-    .map((slug) => latestRowForMetric(rows, slug, metric, period))
-    .filter((row): row is MetricSnapshotRow => row !== null);
-
-  if (!latestPerApp.length) {
-    return { value: null, period: null, capturedAt: null };
-  }
-
-  const total = latestPerApp.reduce((sum, row) => sum + row.value, 0);
-  const mostRecent = latestPerApp.reduce((latest, row) =>
-    row.capturedAt > latest.capturedAt ? row : latest,
-  );
-  return {
-    value: total,
-    period: mostRecent.period,
-    capturedAt: toIso(mostRecent.capturedAt),
-  };
-}
-
-// Per-app breakdown of one (metric, period)'s latest value — apps with no
-// data are left out of the list entirely (never shown as a zero).
-export function metricSplitByApp(
-  rows: MetricSnapshotRow[],
-  slugs: string[],
-  metric: string,
-  period: string,
-): AppMetricSplit[] {
-  return slugs.flatMap((slug) => {
+): OverviewMetric & { byApp: AppMetricSplit[] } {
+  const latestPerApp = slugs.flatMap((slug) => {
     const row = latestRowForMetric(rows, slug, metric, period);
     if (!row) {
       return [];
     }
-    return [{ slug, value: row.value }];
+    return [{ slug, row }];
   });
+
+  const byApp = latestPerApp.map((entry) => ({
+    slug: entry.slug,
+    value: entry.row.value,
+  }));
+
+  if (!latestPerApp.length) {
+    return { value: null, period: null, capturedAt: null, byApp };
+  }
+
+  const total = latestPerApp.reduce((sum, entry) => sum + entry.row.value, 0);
+  const mostRecent = latestPerApp.reduce((latest, entry) =>
+    entry.row.capturedAt > latest.row.capturedAt ? entry : latest,
+  ).row;
+
+  return {
+    value: total,
+    period: mostRecent.period,
+    capturedAt: toIso(mostRecent.capturedAt),
+    byApp,
+  };
 }
 
 // Channel split for a single app's detail page. Takes rows from
@@ -190,52 +193,99 @@ export function trafficChannelSplitForApp(
     .map((row) => ({ channel: row.channel, pct: row.pct }));
 }
 
-// Studio-wide channel split for the overview page. Each channel's total is
-// divided by the number of apps that have *any* breakdown yet — not by how
-// many of them happen to report that specific channel — so an app that
-// doesn't report a given channel counts as 0% for it rather than being
-// excluded from the average. That keeps the split summing to ~100% across
-// channels; excluding it from the denominator per-channel would let two
-// apps with disjoint channel sets each average near 100%, on their own,
-// summing to ~200% overall.
+// Studio-wide channel split for the overview page, weighted by each app's
+// latest 30d sessions — a 12,000-session app should move the split far more
+// than a 300-session one. A flat average of percentages would let a small
+// property's mix count exactly as much as the studio's biggest, and would
+// silently misdescribe the `sessions30d.value` total it ships next to.
+// Apps with a breakdown but no sessions metric yet are excluded entirely
+// (not treated as zero weight, which reads as "reported zero sessions").
 export function trafficChannelSplitAcrossApps(
-  rows: TrafficBreakdownRow[],
+  breakdownRows: TrafficBreakdownRow[],
+  metricRows: MetricSnapshotRow[],
   slugs: string[],
 ): TrafficChannelSplit[] {
-  const relevantRows = rows.filter((row) => slugs.includes(row.slug));
-  const appsWithData = new Set(relevantRows.map((row) => row.slug));
+  const weightedApps = slugs.flatMap((slug) => {
+    const sessionsRow = latestRowForMetric(
+      metricRows,
+      slug,
+      METRIC_SESSIONS,
+      PERIOD_30D,
+    );
+    const breakdownForApp = breakdownRows.filter((row) => row.slug === slug);
+    if (!sessionsRow || !breakdownForApp.length) {
+      return [];
+    }
+    return [{ sessions: sessionsRow.value, breakdownForApp }];
+  });
 
-  if (!appsWithData.size) {
+  const totalSessions = weightedApps.reduce(
+    (sum, app) => sum + app.sessions,
+    0,
+  );
+  if (!totalSessions) {
     return [];
   }
 
-  const totalsByChannel = new Map<string, number>();
-  relevantRows.forEach((row) => {
-    totalsByChannel.set(
-      row.channel,
-      (totalsByChannel.get(row.channel) ?? 0) + row.pct,
-    );
-  });
+  const weightedTotalsByChannel = new Map<string, number>();
+  weightedApps
+    .flatMap((app) =>
+      app.breakdownForApp.map((row) => ({
+        channel: row.channel,
+        weightedSessions: (row.pct / 100) * app.sessions,
+      })),
+    )
+    .forEach(({ channel, weightedSessions }) => {
+      weightedTotalsByChannel.set(
+        channel,
+        (weightedTotalsByChannel.get(channel) ?? 0) + weightedSessions,
+      );
+    });
 
-  return [...totalsByChannel.entries()].map(([channel, sum]) => ({
-    channel,
-    pct: roundTo2(sum / appsWithData.size),
-  }));
+  return [...weightedTotalsByChannel.entries()].map(
+    ([channel, weightedSessions]) => ({
+      channel,
+      pct: roundTo2((weightedSessions / totalSessions) * 100),
+    }),
+  );
 }
 
-// No sync_status rows at all means nothing has ever polled for this app
-// (providers/sync aren't built yet, per the issue) — distinct from every
-// integration being healthy.
+// Drops a vendor's sync_status row once it's been explicitly disabled in
+// integration_config — nothing polls a disabled vendor, so its last (maybe
+// failing) row would otherwise report as a permanent issue with no way to
+// clear it short of editing the database. A vendor with no config row at all
+// (e.g. a free-text source like `github` that was never a toggleable
+// integration) still counts — only an explicit `enabled: false` suppresses.
+function activeSyncRowsForApp(
+  syncRows: SyncStatusRow[],
+  configRows: IntegrationConfigRow[],
+  slug: string,
+): SyncStatusRow[] {
+  return syncRows
+    .filter((row) => row.slug === slug)
+    .filter((row) => {
+      const config = configRows.find(
+        (configRow) =>
+          configRow.slug === slug && configRow.vendor === row.vendor,
+      );
+      return config ? config.enabled : true;
+    });
+}
+
+// No *active* sync_status rows at all means nothing has ever polled for this
+// app (providers/sync aren't built yet, per the issue, or every configured
+// vendor has been disabled) — distinct from every integration being healthy.
 export function computeAppStatus(
   syncRows: SyncStatusRow[],
+  configRows: IntegrationConfigRow[],
   slug: string,
 ): AppStatus {
-  const rowsForSlug = syncRows.filter((row) => row.slug === slug);
-  if (!rowsForSlug.length) {
+  const activeRows = activeSyncRowsForApp(syncRows, configRows, slug);
+  if (!activeRows.length) {
     return { label: "NOT SYNCED", tone: "muted" };
   }
 
-  const failing = rowsForSlug.filter((row) => !row.ok);
+  const failing = activeRows.filter((row) => !row.ok);
   if (!failing.length) {
     return { label: "LIVE", tone: "ok" };
   }
@@ -262,8 +312,8 @@ export function integrationHealthForApp(
         vendor: config.vendor,
         enabled: config.enabled,
         ok: sync?.ok ?? null,
-        lastRunAt: sync?.lastRunAt ? toIso(sync.lastRunAt) : null,
-        lastSuccessAt: sync?.lastSuccessAt ? toIso(sync.lastSuccessAt) : null,
+        lastRunAt: toIsoOrNull(sync?.lastRunAt ?? null),
+        lastSuccessAt: toIsoOrNull(sync?.lastSuccessAt ?? null),
         error: sync?.error ?? null,
       };
     });
@@ -280,26 +330,29 @@ export function syncSourcesForApp(
     .map((row) => ({
       vendor: row.vendor,
       ok: row.ok,
-      lastRunAt: row.lastRunAt ? toIso(row.lastRunAt) : null,
-      lastSuccessAt: row.lastSuccessAt ? toIso(row.lastSuccessAt) : null,
+      lastRunAt: toIsoOrNull(row.lastRunAt),
+      lastSuccessAt: toIsoOrNull(row.lastSuccessAt),
       error: row.error,
     }));
 }
 
-// One alert per vendor currently failing to sync for this app.
+// One alert per vendor currently failing to sync for this app, excluding any
+// vendor that's been explicitly disabled since its last (failing) poll —
+// see activeSyncRowsForApp.
 export function alertsForApp(
   syncRows: SyncStatusRow[],
+  configRows: IntegrationConfigRow[],
   slug: string,
 ): AppAlert[] {
-  return syncRows
-    .filter((row) => row.slug === slug && !row.ok)
+  return activeSyncRowsForApp(syncRows, configRows, slug)
+    .filter((row) => !row.ok)
     .map((row) => ({
       slug,
       vendor: row.vendor,
       // `||`, not `??`: a poller-written empty-string error is exactly as
       // uninformative as a missing one, and should fall back the same way.
       message: row.error || `${row.vendor} sync is failing`,
-      occurredAt: row.lastRunAt ? toIso(row.lastRunAt) : null,
+      occurredAt: toIsoOrNull(row.lastRunAt),
     }));
 }
 
@@ -338,7 +391,7 @@ export function syndicationMatrixForApp(
     cells: rows.map((row) => ({
       platform: row.platform,
       status: row.status,
-      syncedAt: row.syncedAt ? toIso(row.syncedAt) : null,
+      syncedAt: toIsoOrNull(row.syncedAt),
     })),
   }));
 }

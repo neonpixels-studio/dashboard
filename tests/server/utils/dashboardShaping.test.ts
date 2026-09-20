@@ -5,9 +5,8 @@ import {
   integrationHealthForApp,
   latestMetricsBySlug,
   latestSyncedAt,
+  metricRollupWithSplit,
   metricSeriesBySlug,
-  metricSplitByApp,
-  sumLatestMetricAcrossApps,
   syncSourcesForApp,
   syndicationMatrixForApp,
   trafficChannelSplitAcrossApps,
@@ -32,6 +31,15 @@ function metricRow(overrides: Partial<MetricSnapshotRow>): MetricSnapshotRow {
     capturedAt: new Date("2026-09-01T00:00:00Z"),
     ...overrides,
   };
+}
+
+function sessionsRow(overrides: Partial<MetricSnapshotRow>): MetricSnapshotRow {
+  return metricRow({
+    vendor: "ga4",
+    metric: "sessions",
+    period: "30d",
+    ...overrides,
+  });
 }
 
 function breakdownRow(
@@ -127,7 +135,9 @@ describe("latestMetricsBySlug", () => {
       metricRow({ metric: "sessions", period: "30d", value: 12400 }),
     ];
 
-    expect(latestMetricsBySlug(rows, "basin")).toEqual(
+    const result = latestMetricsBySlug(rows, "basin");
+    expect(result).toHaveLength(2);
+    expect(result).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           metric: "sessions",
@@ -141,7 +151,6 @@ describe("latestMetricsBySlug", () => {
         }),
       ]),
     );
-    expect(latestMetricsBySlug(rows, "basin")).toHaveLength(2);
   });
 });
 
@@ -205,36 +214,30 @@ describe("metricSeriesBySlug", () => {
   });
 });
 
-describe("sumLatestMetricAcrossApps", () => {
-  it("returns all-null when no app has any data for the metric", () => {
+describe("metricRollupWithSplit", () => {
+  it("returns all-null with an empty byApp when no app has any data", () => {
     expect(
-      sumLatestMetricAcrossApps([], ["basin", "markpost"], "mrr", "current"),
-    ).toEqual({
-      value: null,
-      period: null,
-      capturedAt: null,
-    });
+      metricRollupWithSplit([], ["basin", "markpost"], "mrr", "current"),
+    ).toEqual({ value: null, period: null, capturedAt: null, byApp: [] });
   });
 
-  it("sums only apps that have data, never treating a missing app as zero", () => {
-    const rows = [
-      metricRow({
-        slug: "basin",
-        metric: "mrr",
-        value: 100,
-        capturedAt: new Date("2026-09-01"),
-      }),
-      metricRow({
-        slug: "markpost",
-        metric: "mrr",
-        value: 200,
-        capturedAt: new Date("2026-09-05"),
-      }),
-    ];
+  it("sums and splits only apps that have data, never treating a missing app as zero", () => {
+    const basinRow = metricRow({
+      slug: "basin",
+      metric: "mrr",
+      value: 100,
+      capturedAt: new Date("2026-09-01"),
+    });
+    const markpostRow = metricRow({
+      slug: "markpost",
+      metric: "mrr",
+      value: 200,
+      capturedAt: new Date("2026-09-05"),
+    });
 
     expect(
-      sumLatestMetricAcrossApps(
-        rows,
+      metricRollupWithSplit(
+        [basinRow, markpostRow],
         ["basin", "markpost", "wanderist"],
         "mrr",
         "current",
@@ -242,11 +245,15 @@ describe("sumLatestMetricAcrossApps", () => {
     ).toEqual({
       value: 300,
       period: "current",
-      capturedAt: new Date("2026-09-05").toISOString(),
+      capturedAt: markpostRow.capturedAt.toISOString(),
+      byApp: [
+        { slug: "basin", value: 100 },
+        { slug: "markpost", value: 200 },
+      ],
     });
   });
 
-  it("never sums across two different periods of the same metric", () => {
+  it("never sums or splits across two different periods of the same metric", () => {
     const rows = [
       metricRow({
         slug: "basin",
@@ -263,24 +270,13 @@ describe("sumLatestMetricAcrossApps", () => {
     ];
 
     expect(
-      sumLatestMetricAcrossApps(rows, ["basin", "markpost"], "sessions", "30d"),
+      metricRollupWithSplit(rows, ["basin", "markpost"], "sessions", "30d"),
     ).toEqual({
       value: 12400,
       period: "30d",
       capturedAt: rows[1].capturedAt.toISOString(),
+      byApp: [{ slug: "markpost", value: 12400 }],
     });
-  });
-});
-
-describe("metricSplitByApp", () => {
-  it("omits apps with no data rather than reporting a zero", () => {
-    const rows = [
-      metricRow({ slug: "basin", metric: "open_issues", value: 3 }),
-    ];
-
-    expect(
-      metricSplitByApp(rows, ["basin", "markpost"], "open_issues", "current"),
-    ).toEqual([{ slug: "basin", value: 3 }]);
   });
 });
 
@@ -304,46 +300,50 @@ describe("trafficChannelSplitForApp", () => {
 });
 
 describe("trafficChannelSplitAcrossApps", () => {
-  it("returns an empty array when no app has a breakdown yet", () => {
-    expect(trafficChannelSplitAcrossApps([], ["basin", "markpost"])).toEqual(
-      [],
-    );
-  });
-
-  it("averages the channel pct across apps that have data", () => {
-    const rows = [
-      breakdownRow({ slug: "basin", channel: "organic", pct: 40 }),
-      breakdownRow({ slug: "markpost", channel: "organic", pct: 60 }),
-    ];
-
+  it("returns an empty array when no app has both a breakdown and a sessions metric", () => {
     expect(
-      trafficChannelSplitAcrossApps(rows, ["basin", "markpost", "wanderist"]),
-    ).toEqual([{ channel: "organic", pct: 50 }]);
+      trafficChannelSplitAcrossApps([], [], ["basin", "markpost"]),
+    ).toEqual([]);
   });
 
-  it("treats a channel an app doesn't report as 0% for that app, so the split still sums to ~100%", () => {
-    const rows = [
-      breakdownRow({ slug: "basin", channel: "organic", pct: 60 }),
-      breakdownRow({ slug: "basin", channel: "direct", pct: 40 }),
-      breakdownRow({ slug: "markpost", channel: "organic", pct: 100 }),
+  it("weighs each app's channel split by its own 30d sessions", () => {
+    const breakdownRows = [
+      breakdownRow({ slug: "danholloran", channel: "organic", pct: 80 }),
+      breakdownRow({ slug: "neonpixels", channel: "organic", pct: 20 }),
+    ];
+    const metricRows = [
+      sessionsRow({ slug: "danholloran", value: 12400 }),
+      sessionsRow({ slug: "neonpixels", value: 6100 }),
     ];
 
-    const result = trafficChannelSplitAcrossApps(rows, ["basin", "markpost"]);
-    const total = result.reduce((sum, entry) => sum + entry.pct, 0);
+    const result = trafficChannelSplitAcrossApps(breakdownRows, metricRows, [
+      "danholloran",
+      "neonpixels",
+    ]);
 
-    expect(result).toEqual(
-      expect.arrayContaining([
-        { channel: "organic", pct: 80 },
-        { channel: "direct", pct: 20 },
-      ]),
-    );
-    expect(total).toBe(100);
+    // (12400*0.8 + 6100*0.2) / 18500 = 60.22%
+    expect(result).toEqual([{ channel: "organic", pct: 60.22 }]);
+  });
+
+  it("excludes an app with a breakdown but no sessions metric, rather than weighting it at zero", () => {
+    const breakdownRows = [
+      breakdownRow({ slug: "basin", channel: "organic", pct: 100 }),
+      breakdownRow({ slug: "markpost", channel: "direct", pct: 100 }),
+    ];
+    const metricRows = [sessionsRow({ slug: "basin", value: 500 })];
+
+    const result = trafficChannelSplitAcrossApps(breakdownRows, metricRows, [
+      "basin",
+      "markpost",
+    ]);
+
+    expect(result).toEqual([{ channel: "organic", pct: 100 }]);
   });
 });
 
 describe("computeAppStatus", () => {
   it("reports NOT SYNCED (muted) when no sync_status row exists yet", () => {
-    expect(computeAppStatus([], "basin")).toEqual({
+    expect(computeAppStatus([], [], "basin")).toEqual({
       label: "NOT SYNCED",
       tone: "muted",
     });
@@ -354,20 +354,47 @@ describe("computeAppStatus", () => {
       syncRow({ vendor: "ga4", ok: true }),
       syncRow({ vendor: "stripe", ok: true }),
     ];
-    expect(computeAppStatus(rows, "basin")).toEqual({
+    expect(computeAppStatus(rows, [], "basin")).toEqual({
       label: "LIVE",
       tone: "ok",
     });
   });
 
-  it("counts failing vendors (danger) when any sync is unhealthy", () => {
+  it("reports the singular ISSUE label for exactly one failing vendor", () => {
+    const rows = [syncRow({ vendor: "stripe", ok: false })];
+    expect(computeAppStatus(rows, [], "basin")).toEqual({
+      label: "1 ISSUE",
+      tone: "danger",
+    });
+  });
+
+  it("counts failing vendors (danger) when more than one sync is unhealthy", () => {
     const rows = [
       syncRow({ vendor: "ga4", ok: true }),
       syncRow({ vendor: "stripe", ok: false }),
       syncRow({ vendor: "sentry", ok: false }),
     ];
-    expect(computeAppStatus(rows, "basin")).toEqual({
+    expect(computeAppStatus(rows, [], "basin")).toEqual({
       label: "2 ISSUES",
+      tone: "danger",
+    });
+  });
+
+  it("stops counting a vendor once it's explicitly disabled in integration_config", () => {
+    const syncRows = [syncRow({ vendor: "stripe", ok: false })];
+    const configRows = [
+      integrationConfigRow({ vendor: "stripe", enabled: false }),
+    ];
+    expect(computeAppStatus(syncRows, configRows, "basin")).toEqual({
+      label: "NOT SYNCED",
+      tone: "muted",
+    });
+  });
+
+  it("still counts a failing vendor that has no integration_config row at all", () => {
+    const syncRows = [syncRow({ vendor: "github", ok: false })];
+    expect(computeAppStatus(syncRows, [], "basin")).toEqual({
+      label: "1 ISSUE",
       tone: "danger",
     });
   });
@@ -435,12 +462,12 @@ describe("syncSourcesForApp", () => {
 
 describe("alertsForApp", () => {
   it("returns no alerts when every vendor is healthy", () => {
-    expect(alertsForApp([syncRow({ ok: true })], "basin")).toEqual([]);
+    expect(alertsForApp([syncRow({ ok: true })], [], "basin")).toEqual([]);
   });
 
   it("builds one alert per failing vendor, falling back to a generic message", () => {
     const rows = [syncRow({ vendor: "stripe", ok: false, error: null })];
-    expect(alertsForApp(rows, "basin")).toEqual([
+    expect(alertsForApp(rows, [], "basin")).toEqual([
       {
         slug: "basin",
         vendor: "stripe",
@@ -452,9 +479,17 @@ describe("alertsForApp", () => {
 
   it("falls back to the generic message for an empty-string error too", () => {
     const rows = [syncRow({ vendor: "stripe", ok: false, error: "" })];
-    expect(alertsForApp(rows, "basin")[0]?.message).toBe(
+    expect(alertsForApp(rows, [], "basin")[0]?.message).toBe(
       "stripe sync is failing",
     );
+  });
+
+  it("suppresses an alert for a vendor that's been explicitly disabled", () => {
+    const syncRows = [syncRow({ vendor: "stripe", ok: false })];
+    const configRows = [
+      integrationConfigRow({ vendor: "stripe", enabled: false }),
+    ];
+    expect(alertsForApp(syncRows, configRows, "basin")).toEqual([]);
   });
 });
 

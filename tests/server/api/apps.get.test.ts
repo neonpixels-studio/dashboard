@@ -91,4 +91,35 @@ describe("GET /api/apps", () => {
     expect(otherCard?.status).toEqual({ label: "NOT SYNCED", tone: "muted" });
     expect(otherCard?.metrics).toEqual([]);
   });
+
+  it("doesn't report a card as having issues once its failing vendor is disabled", async () => {
+    const syncRow: SyncStatusRow = {
+      id: 1,
+      slug: "basin",
+      vendor: "stripe",
+      lastRunAt: new Date("2026-09-19T00:00:00Z"),
+      lastSuccessAt: null,
+      ok: false,
+      error: "card declined",
+    };
+    mockFetchSyncStatuses.mockResolvedValue([syncRow]);
+    mockFetchIntegrationConfigs.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "stripe",
+        enabled: false,
+        externalId: null,
+        secretRef: null,
+        encryptedSecret: null,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        updatedAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await appsHandler({} as H3Event);
+    const basinCard = result.find((card) => card.slug === "basin");
+
+    expect(basinCard?.status).toEqual({ label: "NOT SYNCED", tone: "muted" });
+  });
 });

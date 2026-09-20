@@ -96,9 +96,12 @@ export interface OverviewMetric {
   capturedAt: string | null;
 }
 
-// GET /api/overview
+// GET /api/overview. Every rollup pairs its studio-wide total with the
+// per-app numbers it was built from (`mrr` included — the issue only calls
+// out a per-app split as required for active subscribers/open issues, but
+// computing one for MRR is free alongside the total, so it's shipped too).
 export interface OverviewResponse {
-  mrr: OverviewMetric;
+  mrr: OverviewMetric & { byApp: AppMetricSplit[] };
   activeSubscribers: OverviewMetric & { byApp: AppMetricSplit[] };
   sessions30d: OverviewMetric & { bySource: TrafficChannelSplit[] };
   openIssues: OverviewMetric & { byApp: AppMetricSplit[] };

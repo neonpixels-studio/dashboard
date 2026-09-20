@@ -12,12 +12,14 @@ const mockFetchLatestMetricSnapshots = vi.fn();
 const mockFetchMetricSnapshotSeries = vi.fn();
 const mockFetchLatestTrafficBreakdowns = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
+const mockFetchIntegrationConfigs = vi.fn();
 const mockFetchSyndicationPosts = vi.fn();
 vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
   fetchMetricSnapshotSeries: mockFetchMetricSnapshotSeries,
   fetchLatestTrafficBreakdowns: mockFetchLatestTrafficBreakdowns,
   fetchSyncStatuses: mockFetchSyncStatuses,
+  fetchIntegrationConfigs: mockFetchIntegrationConfigs,
   fetchSyndicationPosts: mockFetchSyndicationPosts,
 }));
 
@@ -35,6 +37,7 @@ describe("GET /api/apps/[slug]", () => {
     mockFetchMetricSnapshotSeries.mockResolvedValue([]);
     mockFetchLatestTrafficBreakdowns.mockResolvedValue([]);
     mockFetchSyncStatuses.mockResolvedValue([]);
+    mockFetchIntegrationConfigs.mockResolvedValue([]);
     mockFetchSyndicationPosts.mockResolvedValue([]);
   });
 
@@ -86,6 +89,7 @@ describe("GET /api/apps/[slug]", () => {
       "basin",
     ]);
     expect(mockFetchSyncStatuses).toHaveBeenCalledWith({}, ["basin"]);
+    expect(mockFetchIntegrationConfigs).toHaveBeenCalledWith({}, ["basin"]);
     expect(mockFetchSyndicationPosts).toHaveBeenCalledWith({}, "basin");
   });
 
@@ -122,5 +126,38 @@ describe("GET /api/apps/[slug]", () => {
       },
     ]);
     expect(result.lastSyncedAt).toBeNull();
+  });
+
+  it("suppresses an alert for a vendor that's been explicitly disabled", async () => {
+    mockFetchSyncStatuses.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "sentry",
+        lastRunAt: new Date("2026-09-19T00:00:00Z"),
+        lastSuccessAt: null,
+        ok: false,
+        error: "rate limited",
+      },
+    ]);
+    mockFetchIntegrationConfigs.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "sentry",
+        enabled: false,
+        externalId: null,
+        secretRef: null,
+        encryptedSecret: null,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        updatedAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await appDetailHandler(makeEvent("basin"));
+
+    expect(result.alerts).toEqual([]);
+    // sources still reflect sync history regardless of enabled/disabled.
+    expect(result.sources).toHaveLength(1);
   });
 });

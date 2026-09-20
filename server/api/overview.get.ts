@@ -16,11 +16,37 @@ import {
 } from "../utils/dashboardQueries";
 import {
   latestSyncedAt,
-  metricSplitByApp,
-  sumLatestMetricAcrossApps,
+  metricRollupWithSplit,
   trafficChannelSplitAcrossApps,
 } from "../utils/dashboardShaping";
+import type {
+  MetricSnapshotRow,
+  TrafficBreakdownRow,
+} from "../utils/dashboardQueries";
 import type { OverviewResponse } from "../../shared/types/dashboard";
+
+// Named field-by-field (not `...metricRollupWithSplit(...)`):
+// metricRollupWithSplit's `byApp` isn't part of `sessions30d` (that field is
+// `bySource` instead), so spreading it in would leak an undeclared property
+// into the response.
+function buildSessionsRollup(
+  metricRows: MetricSnapshotRow[],
+  breakdownRows: TrafficBreakdownRow[],
+  slugs: string[],
+): OverviewResponse["sessions30d"] {
+  const sessionsRollup = metricRollupWithSplit(
+    metricRows,
+    slugs,
+    METRIC_SESSIONS,
+    PERIOD_30D,
+  );
+  return {
+    value: sessionsRollup.value,
+    period: sessionsRollup.period,
+    capturedAt: sessionsRollup.capturedAt,
+    bySource: trafficChannelSplitAcrossApps(breakdownRows, metricRows, slugs),
+  };
+}
 
 // The "/" rollups, DB-backed only — never a live vendor call. All numbers
 // come from metric_snapshot / traffic_breakdown / sync_status; app identity
@@ -39,49 +65,20 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
   ]);
 
   return {
-    mrr: sumLatestMetricAcrossApps(
+    mrr: metricRollupWithSplit(metricRows, slugs, METRIC_MRR, PERIOD_CURRENT),
+    activeSubscribers: metricRollupWithSplit(
       metricRows,
       slugs,
-      METRIC_MRR,
+      METRIC_ACTIVE_SUBSCRIBERS,
       PERIOD_CURRENT,
     ),
-    activeSubscribers: {
-      ...sumLatestMetricAcrossApps(
-        metricRows,
-        slugs,
-        METRIC_ACTIVE_SUBSCRIBERS,
-        PERIOD_CURRENT,
-      ),
-      byApp: metricSplitByApp(
-        metricRows,
-        slugs,
-        METRIC_ACTIVE_SUBSCRIBERS,
-        PERIOD_CURRENT,
-      ),
-    },
-    sessions30d: {
-      ...sumLatestMetricAcrossApps(
-        metricRows,
-        slugs,
-        METRIC_SESSIONS,
-        PERIOD_30D,
-      ),
-      bySource: trafficChannelSplitAcrossApps(breakdownRows, slugs),
-    },
-    openIssues: {
-      ...sumLatestMetricAcrossApps(
-        metricRows,
-        slugs,
-        METRIC_OPEN_ISSUES,
-        PERIOD_CURRENT,
-      ),
-      byApp: metricSplitByApp(
-        metricRows,
-        slugs,
-        METRIC_OPEN_ISSUES,
-        PERIOD_CURRENT,
-      ),
-    },
+    sessions30d: buildSessionsRollup(metricRows, breakdownRows, slugs),
+    openIssues: metricRollupWithSplit(
+      metricRows,
+      slugs,
+      METRIC_OPEN_ISSUES,
+      PERIOD_CURRENT,
+    ),
     lastSyncedAt: latestSyncedAt(syncRows),
   };
 });

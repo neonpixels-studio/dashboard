@@ -56,7 +56,7 @@ describe("GET /api/overview", () => {
     const result = await overviewHandler({} as H3Event);
 
     expect(result).toEqual({
-      mrr: { value: null, period: null, capturedAt: null },
+      mrr: { value: null, period: null, capturedAt: null, byApp: [] },
       activeSubscribers: {
         value: null,
         period: null,
@@ -96,6 +96,10 @@ describe("GET /api/overview", () => {
       value: 1003,
       period: "current",
       capturedAt: markpostRow.capturedAt.toISOString(),
+      byApp: [
+        { slug: "basin", value: 412 },
+        { slug: "markpost", value: 591 },
+      ],
     });
   });
 
@@ -119,6 +123,47 @@ describe("GET /api/overview", () => {
 
     expect(result.sessions30d.value).toBe(12400);
     expect(result.sessions30d.period).toBe("30d");
+  });
+
+  it("weighs the studio-wide traffic split by each app's sessions", async () => {
+    mockFetchLatestMetricSnapshots.mockResolvedValue([
+      metricRow({
+        slug: "danholloran",
+        vendor: "ga4",
+        metric: "sessions",
+        period: "30d",
+        value: 12400,
+      }),
+      metricRow({
+        slug: "neonpixels",
+        vendor: "ga4",
+        metric: "sessions",
+        period: "30d",
+        value: 6100,
+      }),
+    ]);
+    mockFetchLatestTrafficBreakdowns.mockResolvedValue([
+      {
+        id: 1,
+        slug: "danholloran",
+        channel: "organic",
+        pct: 80,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      },
+      {
+        id: 2,
+        slug: "neonpixels",
+        channel: "organic",
+        pct: 20,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await overviewHandler({} as H3Event);
+
+    expect(result.sessions30d.bySource).toEqual([
+      { channel: "organic", pct: 60.22 },
+    ]);
   });
 
   it("fetches metrics scoped to every configured app slug", async () => {

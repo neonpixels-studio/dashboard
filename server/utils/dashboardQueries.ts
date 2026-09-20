@@ -5,7 +5,7 @@
 // server/db/seed.ts:seedIntegrationConfig. All shaping/aggregation logic
 // lives in dashboardShaping.ts, which operates on plain row arrays and needs
 // no `db` fake at all.
-import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, max, or } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/neon-http";
 import type * as schema from "../db/schema";
@@ -25,33 +25,46 @@ export type SyndicationPostRow = InferSelectModel<typeof syndicationPost>;
 export type SyncStatusRow = InferSelectModel<typeof syncStatus>;
 export type IntegrationConfigRow = InferSelectModel<typeof integrationConfig>;
 
+// Every fetch below is scoped to a list of slugs; an empty list means "no
+// apps configured yet" rather than "no filter", so every function short
+// circuits before touching the db instead of running a query that (with an
+// empty `inArray`) some drivers turn into a full-table scan.
+async function forSlugs<Row>(
+  slugs: string[],
+  run: () => Promise<Row[]>,
+): Promise<Row[]> {
+  if (!slugs.length) {
+    return [];
+  }
+  return run();
+}
+
 // The current-value tiles and rollups need the single latest row per
 // (slug, metric, period) — unbounded, so a vendor that's been broken (or
 // simply unpolled) for longer than any fixed window doesn't silently vanish
 // from a sum with no null and no indication anything was excluded. Postgres
 // `DISTINCT ON` is exactly this query, and the ORDER BY below matches the
 // DISTINCT ON columns (required) before breaking ties on the newest capture.
-export async function fetchLatestMetricSnapshots(
+export function fetchLatestMetricSnapshots(
   db: DrizzleDb,
   slugs: string[],
 ): Promise<MetricSnapshotRow[]> {
-  if (!slugs.length) {
-    return [];
-  }
-  return db
-    .selectDistinctOn([
-      metricSnapshot.slug,
-      metricSnapshot.metric,
-      metricSnapshot.period,
-    ])
-    .from(metricSnapshot)
-    .where(inArray(metricSnapshot.slug, slugs))
-    .orderBy(
-      metricSnapshot.slug,
-      metricSnapshot.metric,
-      metricSnapshot.period,
-      desc(metricSnapshot.capturedAt),
-    );
+  return forSlugs(slugs, () =>
+    db
+      .selectDistinctOn([
+        metricSnapshot.slug,
+        metricSnapshot.metric,
+        metricSnapshot.period,
+      ])
+      .from(metricSnapshot)
+      .where(inArray(metricSnapshot.slug, slugs))
+      .orderBy(
+        metricSnapshot.slug,
+        metricSnapshot.metric,
+        metricSnapshot.period,
+        desc(metricSnapshot.capturedAt),
+      ),
+  );
 }
 
 // Sparklines draw from a bounded history instead: wide enough to always
@@ -60,58 +73,88 @@ export async function fetchLatestMetricSnapshots(
 // for the chart series — current-value tiles/rollups use
 // fetchLatestMetricSnapshots (unbounded) so they never drop stale-but-real
 // data.
-const SERIES_WINDOW_DAYS = 60;
+export const SERIES_WINDOW_DAYS = 60;
 
-function seriesWindowStart(now: Date = new Date()): Date {
+export function seriesWindowStart(now: Date = new Date()): Date {
   const start = new Date(now);
   start.setUTCDate(start.getUTCDate() - SERIES_WINDOW_DAYS);
   return start;
 }
 
-export async function fetchMetricSnapshotSeries(
+export function fetchMetricSnapshotSeries(
   db: DrizzleDb,
   slugs: string[],
 ): Promise<MetricSnapshotRow[]> {
-  if (!slugs.length) {
-    return [];
-  }
-  return db
-    .select()
-    .from(metricSnapshot)
-    .where(
-      and(
-        inArray(metricSnapshot.slug, slugs),
-        gte(metricSnapshot.capturedAt, seriesWindowStart()),
-      ),
-    )
-    .orderBy(asc(metricSnapshot.capturedAt));
+  return forSlugs(slugs, () =>
+    db
+      .select()
+      .from(metricSnapshot)
+      .where(
+        and(
+          inArray(metricSnapshot.slug, slugs),
+          gte(metricSnapshot.capturedAt, seriesWindowStart()),
+        ),
+      )
+      .orderBy(asc(metricSnapshot.capturedAt)),
+  );
 }
 
-// The latest row per (slug, channel), independent of the other channels —
-// deliberately not "the latest batch of rows sharing one capturedAt", since
-// nothing enforces the poller writing every channel in a single transaction.
-// Unbounded for the same reason as fetchLatestMetricSnapshots: a channel
-// split shouldn't silently drop out of the rollup once it ages past a fixed
-// window.
+// A poller isn't guaranteed to write every channel of one sync in a single
+// transaction, so neither "rows sharing one exact capturedAt" nor "the
+// latest row per channel, independent of the others" is safe: the former
+// can lose channels to per-row autocommit timestamps, the latter can mix a
+// channel that stopped reporting with a newer sync of the others (each row
+// individually respects `traffic_breakdown_pct_range`, but nothing
+// constrains the *set* to sum to ~100%). Splitting the difference: find each
+// slug's own most recent capturedAt, then take every row within a short
+// tolerance of it — wide enough to absorb multiple autocommit inserts from
+// one sync run, narrow enough that a genuinely new sync hours later isn't
+// merged in. Unbounded (no fixed history window) for the same reason as
+// fetchLatestMetricSnapshots: a channel split shouldn't silently drop out of
+// the rollup once it ages past a fixed window.
+const BREAKDOWN_BATCH_TOLERANCE_MS = 5 * 60 * 1000;
+
 export async function fetchLatestTrafficBreakdowns(
   db: DrizzleDb,
   slugs: string[],
 ): Promise<TrafficBreakdownRow[]> {
-  if (!slugs.length) {
-    return [];
-  }
-  return db
-    .selectDistinctOn([trafficBreakdown.slug, trafficBreakdown.channel])
-    .from(trafficBreakdown)
-    .where(inArray(trafficBreakdown.slug, slugs))
-    .orderBy(
-      trafficBreakdown.slug,
-      trafficBreakdown.channel,
-      desc(trafficBreakdown.capturedAt),
-    );
+  return forSlugs(slugs, async () => {
+    const latestCapturedAtBySlug = await db
+      .select({
+        slug: trafficBreakdown.slug,
+        capturedAt: max(trafficBreakdown.capturedAt),
+      })
+      .from(trafficBreakdown)
+      .where(inArray(trafficBreakdown.slug, slugs))
+      .groupBy(trafficBreakdown.slug);
+
+    const batchConditions = latestCapturedAtBySlug.flatMap((row) => {
+      if (!row.capturedAt) {
+        return [];
+      }
+      const batchStart = new Date(
+        row.capturedAt.getTime() - BREAKDOWN_BATCH_TOLERANCE_MS,
+      );
+      return [
+        and(
+          eq(trafficBreakdown.slug, row.slug),
+          gte(trafficBreakdown.capturedAt, batchStart),
+        ),
+      ];
+    });
+
+    if (!batchConditions.length) {
+      return [];
+    }
+
+    return db
+      .select()
+      .from(trafficBreakdown)
+      .where(or(...batchConditions));
+  });
 }
 
-export async function fetchSyndicationPosts(
+export function fetchSyndicationPosts(
   db: DrizzleDb,
   slug: string,
 ): Promise<SyndicationPostRow[]> {
@@ -122,25 +165,23 @@ export async function fetchSyndicationPosts(
     .orderBy(desc(syndicationPost.syncedAt), asc(syndicationPost.platform));
 }
 
-export async function fetchSyncStatuses(
+export function fetchSyncStatuses(
   db: DrizzleDb,
   slugs: string[],
 ): Promise<SyncStatusRow[]> {
-  if (!slugs.length) {
-    return [];
-  }
-  return db.select().from(syncStatus).where(inArray(syncStatus.slug, slugs));
+  return forSlugs(slugs, () =>
+    db.select().from(syncStatus).where(inArray(syncStatus.slug, slugs)),
+  );
 }
 
-export async function fetchIntegrationConfigs(
+export function fetchIntegrationConfigs(
   db: DrizzleDb,
   slugs: string[],
 ): Promise<IntegrationConfigRow[]> {
-  if (!slugs.length) {
-    return [];
-  }
-  return db
-    .select()
-    .from(integrationConfig)
-    .where(inArray(integrationConfig.slug, slugs));
+  return forSlugs(slugs, () =>
+    db
+      .select()
+      .from(integrationConfig)
+      .where(inArray(integrationConfig.slug, slugs)),
+  );
 }
