@@ -92,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { APPS, sortByAppOrder } from "~/config/apps";
+import { APPS, findAppBySlug, sortByAppOrder } from "~/config/apps";
 import { toAppCardViewModel } from "~/utils/appViewModel";
 import { useOverview } from "~/composables/useOverview";
 import { formatRelativeTime } from "~/utils/relativeTime";
@@ -104,6 +104,7 @@ import {
   formatCountDelta,
   formatCurrency,
   formatNewToday,
+  formatOrDash,
   formatPctDelta,
   growthDeltaTone,
 } from "~/utils/rollupFormat";
@@ -127,11 +128,11 @@ const propertyCount = String(APPS.length).padStart(2, "0");
 const cardViewModels = APPS.map((app) => toAppCardViewModel(app, null));
 
 function accentFor(slug: string): string {
-  return APPS.find((app) => app.slug === slug)?.accent ?? "var(--ink-3)";
+  return findAppBySlug(slug)?.accent ?? "var(--ink-3)";
 }
 
 function nameFor(slug: string): string {
-  return APPS.find((app) => app.slug === slug)?.name ?? slug;
+  return findAppBySlug(slug)?.name ?? slug;
 }
 
 const {
@@ -152,10 +153,9 @@ const mrrSparklinePath = computed(() =>
   ),
 );
 
-const mrrValueLabel = computed(() => {
-  const value = overview.value?.mrr.value;
-  return value === null || value === undefined ? "—" : formatCurrency(value);
-});
+const mrrValueLabel = computed(() =>
+  formatOrDash(overview.value?.mrr.value, formatCurrency),
+);
 const mrrDeltaLabel = computed(() =>
   formatPctDelta(overview.value?.mrr.delta ?? null),
 );
@@ -163,10 +163,9 @@ const mrrDeltaTone = computed(() =>
   growthDeltaTone(overview.value?.mrr.delta ?? null),
 );
 
-const activeSubscribersValueLabel = computed(() => {
-  const value = overview.value?.activeSubscribers.value;
-  return value === null || value === undefined ? "—" : formatCount(value);
-});
+const activeSubscribersValueLabel = computed(() =>
+  formatOrDash(overview.value?.activeSubscribers.value, formatCount),
+);
 const activeSubscribersDeltaLabel = computed(() =>
   formatCountDelta(overview.value?.activeSubscribers.delta ?? null),
 );
@@ -174,12 +173,9 @@ const activeSubscribersDeltaTone = computed(() =>
   growthDeltaTone(overview.value?.activeSubscribers.delta ?? null),
 );
 
-const sessionsValueLabel = computed(() => {
-  const value = overview.value?.sessions30d.value;
-  return value === null || value === undefined
-    ? "—"
-    : formatCompactCount(value);
-});
+const sessionsValueLabel = computed(() =>
+  formatOrDash(overview.value?.sessions30d.value, formatCompactCount),
+);
 const sessionsDeltaLabel = computed(() =>
   formatPctDelta(overview.value?.sessions30d.delta ?? null),
 );
@@ -187,14 +183,14 @@ const sessionsDeltaTone = computed(() =>
   growthDeltaTone(overview.value?.sessions30d.delta ?? null),
 );
 
-const openIssuesValueLabel = computed(() => {
-  const value = overview.value?.openIssues.value;
-  return value === null || value === undefined ? "—" : formatCount(value);
-});
+const openIssuesValueLabel = computed(() =>
+  formatOrDash(overview.value?.openIssues.value, formatCount),
+);
 // "N new today" rather than an arrow — open issues never gets the ok/growth
-// tone treatment the other three tiles do (see the template: this one's
-// span is hardcoded to `.delta.muted`), since more issues is never the
-// "good" direction to celebrate in green.
+// tone treatment the other three tiles do: RollupIssuesTile never passes a
+// `delta-tone` prop to RollupValueRow, so its "muted" default always
+// applies, since more issues is never the "good" direction to celebrate in
+// green.
 const openIssuesDeltaLabel = computed(() =>
   formatNewToday(overview.value?.openIssues.delta ?? null),
 );

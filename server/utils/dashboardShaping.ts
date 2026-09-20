@@ -194,9 +194,15 @@ export function metricRollupWithSplit(
 // already used before this was wired to real data.
 export const ROLLUP_WINDOW_DAYS = 30;
 
+// Rounds down to the start of the UTC day `windowDays - 1` days before
+// `now`, so "windowDays=2" genuinely means "today and yesterday" (two whole
+// calendar days) rather than "the last 48 wall-clock hours" — the latter
+// would let a call made at 23:59 pull in a third calendar day's rows and
+// silently widen the window the caller asked for.
 function windowStart(windowDays: number, now: Date): Date {
   const start = new Date(now);
-  start.setUTCDate(start.getUTCDate() - windowDays);
+  start.setUTCDate(start.getUTCDate() - (windowDays - 1));
+  start.setUTCHours(0, 0, 0, 0);
   return start;
 }
 
@@ -204,12 +210,22 @@ function toUtcDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-// One rollup point per UTC calendar day, summing every row that landed that
-// day across every app — the studio-wide counterpart to a single app's
+function appDayKey(slug: string, date: Date): string {
+  return `${slug}::${toUtcDayKey(date)}`;
+}
+
+// One rollup point per UTC calendar day, summing every app's latest row for
+// that day — the studio-wide counterpart to a single app's
 // metricSeriesBySlug. A day where only some apps polled sums only what's
 // known for that day (never forward-filled or backfilled with a fabricated
 // number), matching the "no data" rule the rest of this module follows: a
 // day with zero rows across every app simply isn't a point in the series.
+//
+// Collapses to one row per (app, day) before summing: a "current"/"30d" row
+// is already that app's full total as of its own capturedAt, not an
+// increment, so a poller that runs more than once a day must contribute
+// its latest value for that day exactly once — summing every row it wrote
+// that day would double (or triple) count the same total.
 export function rollupSeriesAcrossApps(
   rows: MetricSnapshotRow[],
   slugs: string[],
@@ -227,8 +243,17 @@ export function rollupSeriesAcrossApps(
       row.capturedAt >= start,
   );
 
-  const totalsByDay = new Map<string, { capturedAt: Date; value: number }>();
+  const latestPerAppDay = new Map<string, MetricSnapshotRow>();
   matching.forEach((row) => {
+    const key = appDayKey(row.slug, row.capturedAt);
+    const existing = latestPerAppDay.get(key);
+    if (!existing || row.capturedAt > existing.capturedAt) {
+      latestPerAppDay.set(key, row);
+    }
+  });
+
+  const totalsByDay = new Map<string, { capturedAt: Date; value: number }>();
+  latestPerAppDay.forEach((row) => {
     const dayKey = toUtcDayKey(row.capturedAt);
     const existing = totalsByDay.get(dayKey);
     totalsByDay.set(dayKey, {
@@ -253,6 +278,17 @@ export function rollupSeriesAcrossApps(
 // Needs at least two points to describe a change; a single-point (or empty)
 // series has nothing to compare against, so it's null rather than a
 // fabricated zero.
+//
+// Known limitation, not yet worth the added complexity to fix: this
+// compares whichever apps happened to have data on the first vs. last day
+// of the window, not a fixed set. A brand-new app's first sync mid-window
+// (or one app dropping out) shifts the day-to-day *composition* of the sum,
+// which this reports as pure growth/decline — same tradeoff
+// metricRollupWithSplit's single-point total already carries, just visible
+// here as a delta instead of a jump between two independent requests.
+// Confining the comparison to apps present on both ends would need each
+// day's own per-app breakdown, not just its total — a bigger change than
+// this pass covers.
 export function rollupDelta(series: MetricPoint[]): RollupDelta | null {
   if (series.length < 2) {
     return null;

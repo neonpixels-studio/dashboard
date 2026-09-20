@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { H3Event } from "h3";
 import { APPS } from "../../../app/config/apps";
 import type { MetricSnapshotRow } from "../../../server/utils/dashboardQueries";
@@ -42,6 +42,14 @@ describe("GET /api/overview", () => {
     mockFetchMetricSnapshotSeries.mockResolvedValue([]);
     mockFetchLatestTrafficBreakdowns.mockResolvedValue([]);
     mockFetchSyncStatuses.mockResolvedValue([]);
+  });
+
+  // Two tests below pin `now` with vi.setSystemTime for deterministic
+  // date-window boundaries. Restoring real timers here (not in-body, after
+  // each assertion) means a failed assertion can't skip the restore and
+  // leak a frozen clock into every test that runs after it.
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("requires auth before touching the database", async () => {
@@ -152,8 +160,6 @@ describe("GET /api/overview", () => {
       { capturedAt: seriesRows[1].capturedAt.toISOString(), value: 1082 },
     ]);
     expect(result.mrr.delta).toEqual({ value: 82, pct: 8.2 });
-
-    vi.useRealTimers();
   });
 
   it("computes 'new today' for open issues from just the last two days of the series", async () => {
@@ -186,8 +192,6 @@ describe("GET /api/overview", () => {
     // window — the 08-01 point is excluded even though it's part of the same
     // metric/period series.
     expect(result.openIssues.delta).toEqual({ value: 2, pct: 33.33 });
-
-    vi.useRealTimers();
   });
 
   it("only sums sessions at the 30d period, ignoring a 7d row for the same metric", async () => {

@@ -6,14 +6,31 @@ import {
   formatCountDelta,
   formatCurrency,
   formatNewToday,
+  formatOrDash,
   formatPctDelta,
   growthDeltaTone,
+  NO_VALUE_LABEL,
 } from "../../app/utils/rollupFormat";
 import type { RollupDelta } from "../../shared/types/dashboard";
 
 describe("formatCurrency", () => {
   it("formats a whole-dollar USD amount with no decimals", () => {
     expect(formatCurrency(1284)).toBe("$1,284");
+  });
+});
+
+describe("formatOrDash", () => {
+  it("returns the dash placeholder for null", () => {
+    expect(formatOrDash(null, formatCurrency)).toBe(NO_VALUE_LABEL);
+  });
+
+  it("returns the dash placeholder for undefined", () => {
+    expect(formatOrDash(undefined, formatCurrency)).toBe(NO_VALUE_LABEL);
+  });
+
+  it("formats a real value (including zero) with the given formatter", () => {
+    expect(formatOrDash(1284, formatCurrency)).toBe("$1,284");
+    expect(formatOrDash(0, formatCount)).toBe("0");
   });
 });
 

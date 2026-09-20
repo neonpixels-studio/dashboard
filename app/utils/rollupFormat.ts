@@ -16,6 +16,11 @@ const COMPACT_COUNT_FORMATTER = new Intl.NumberFormat("en-US", {
 
 const COUNT_FORMATTER = new Intl.NumberFormat("en-US");
 
+// Every rollup tile's headline value is `null` until that metric's first
+// row ever syncs — this is the one placeholder they all share, so it's
+// named once here instead of each tile re-typing the em dash.
+export const NO_VALUE_LABEL = "—";
+
 export function formatCurrency(value: number): string {
   return CURRENCY_FORMATTER.format(value);
 }
@@ -26,6 +31,18 @@ export function formatCompactCount(value: number): string {
 
 export function formatCount(value: number): string {
   return COUNT_FORMATTER.format(value);
+}
+
+// Every rollup tile's headline value goes through this same "null/undefined
+// becomes the dash placeholder, otherwise format the real number" branch —
+// factored out once it was the same two-line ternary four times over in
+// index.vue (mrr/activeSubscribers/sessions30d/openIssues each format
+// differently, but never numbers).
+export function formatOrDash(
+  value: number | null | undefined,
+  format: (rawValue: number) => string,
+): string {
+  return value === null || value === undefined ? NO_VALUE_LABEL : format(value);
 }
 
 export type DeltaTone = "ok" | "muted";

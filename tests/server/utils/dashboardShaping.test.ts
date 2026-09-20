@@ -351,6 +351,62 @@ describe("rollupSeriesAcrossApps", () => {
     ]);
   });
 
+  it("collapses multiple same-day rows from one app to the latest instead of summing them", () => {
+    // A poller that runs twice in one day writes two rows that are each the
+    // app's FULL current total, not two amounts to add together — summing
+    // both would double the real number.
+    const rows = [
+      metricRow({
+        slug: "basin",
+        value: 1000,
+        capturedAt: new Date("2026-09-01T08:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        value: 1000,
+        capturedAt: new Date("2026-09-01T20:00:00Z"),
+      }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, now),
+    ).toEqual([
+      {
+        capturedAt: new Date("2026-09-01T20:00:00Z").toISOString(),
+        value: 1000,
+      },
+    ]);
+  });
+
+  it("treats windowDays as whole UTC calendar days, not the last N*24 wall-clock hours", () => {
+    const midday = new Date("2026-09-20T12:00:00Z");
+    const rows = [
+      // "Yesterday" evening — inside a genuine 2-calendar-day window (today
+      // + yesterday), even though it's less than 24 raw hours before a row
+      // from earlier the same day it belongs to.
+      metricRow({
+        value: 10,
+        capturedAt: new Date("2026-09-19T18:00:00Z"),
+      }),
+      // The day before yesterday — outside the window despite being under
+      // 48 raw hours before `midday`, which the old (unaligned) window
+      // would have wrongly included.
+      metricRow({
+        value: 999,
+        capturedAt: new Date("2026-09-18T18:00:00Z"),
+      }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 2, midday),
+    ).toEqual([
+      {
+        capturedAt: new Date("2026-09-19T18:00:00Z").toISOString(),
+        value: 10,
+      },
+    ]);
+  });
+
   it("excludes rows outside the comparison window", () => {
     const rows = [
       metricRow({ value: 999, capturedAt: new Date("2026-01-01T00:00:00Z") }),
