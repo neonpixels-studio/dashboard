@@ -17,6 +17,16 @@ import type { SearchSentryIssues } from "./types";
 // not a bigger number here.
 const MAX_ISSUE_SEARCH_PAGES = 20;
 
+// Bounds the WHOLE pagination walk's wall-clock time, not just each
+// individual request (sentryClient.ts's SENTRY_REQUEST_TIMEOUT_MS is
+// deliberately per-request, at 20s — longer than this). MAX_ISSUE_SEARCH_PAGES
+// alone doesn't bound elapsed time if pages are merely slow rather than
+// fully hung; this does. Kept comfortably under scheduled-sync.ts's 9s
+// /api/sync ceiling so a slow Sentry query fails loud on its own, specific
+// terms instead of just being one anonymous contributor to the whole sync
+// getting killed with no indication of which provider was slow.
+const MAX_ISSUE_SEARCH_DURATION_MS = 8_000;
+
 /**
  * Walks every page of `searchSentryIssues` for one (project, query) pair and
  * sums the issue count — Sentry's issue-search endpoints have no total-count
@@ -29,6 +39,7 @@ export async function countAllSentryIssues(
   projectSlug: string,
   query: string,
 ): Promise<number> {
+  const startedAt = Date.now();
   let totalIssues = 0;
   let cursor: string | undefined;
   let hasMore = true;
@@ -39,6 +50,13 @@ export async function countAllSentryIssues(
       throw new Error(
         `Sentry issue search for project "${projectSlug}" (query "${query}") ` +
           `exceeded ${MAX_ISSUE_SEARCH_PAGES} pages — refusing to loop indefinitely.`,
+      );
+    }
+    if (Date.now() - startedAt >= MAX_ISSUE_SEARCH_DURATION_MS) {
+      throw new Error(
+        `Sentry issue search for project "${projectSlug}" (query "${query}") ` +
+          `exceeded ${MAX_ISSUE_SEARCH_DURATION_MS}ms across ${pagesFetched} page(s) — ` +
+          "refusing to keep paginating past the sync's time budget.",
       );
     }
 

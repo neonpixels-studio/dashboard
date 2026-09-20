@@ -38,6 +38,35 @@ function buildIssueSearchUrl(
   return url;
 }
 
+async function fetchIssuesPage(
+  fetchImpl: FetchIssuesPage,
+  url: URL,
+  authToken: string,
+  abortController: AbortController,
+  projectSlug: string,
+): Promise<Response> {
+  try {
+    return await fetchImpl(url, {
+      headers: { Authorization: `Bearer ${authToken}` },
+      signal: abortController.signal,
+    });
+  } catch (cause) {
+    // `abortController.signal.aborted` distinguishes "our own timeout fired"
+    // from any other rejection (a DNS/network failure unrelated to the
+    // timeout) — only the former gets relabeled. Without this, a raw
+    // AbortError ("This operation was aborted") lands in sync_status.error
+    // with no project/query context, the same gap parseIssuesResponseBody
+    // closes for a non-JSON body below.
+    if (abortController.signal.aborted) {
+      throw new Error(
+        `Sentry issue search for project "${projectSlug}" timed out after ${SENTRY_REQUEST_TIMEOUT_MS}ms.`,
+        { cause },
+      );
+    }
+    throw cause;
+  }
+}
+
 async function parseIssuesResponseBody(
   response: Response,
   projectSlug: string,
@@ -92,10 +121,13 @@ export function createSentryIssueSearcher(
     // body parse stay inside this one try, and the timer only clears once
     // both are done.
     try {
-      const response = await fetchImpl(url, {
-        headers: { Authorization: `Bearer ${authToken}` },
-        signal: abortController.signal,
-      });
+      const response = await fetchIssuesPage(
+        fetchImpl,
+        url,
+        authToken,
+        abortController,
+        projectSlug,
+      );
 
       if (!response.ok) {
         throw new Error(

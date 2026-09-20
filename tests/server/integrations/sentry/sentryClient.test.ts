@@ -1,5 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSentryIssueSearcher } from "../../../../server/integrations/sentry/sentryClient";
+
+// A real Sentry response always carries a Link header with a "next" entry
+// (see mapping.ts's parseSentryNextCursor) — this is the default "last page,
+// no more results" shape so tests that don't care about pagination don't
+// have to spell it out every time. Pass an explicit `linkHeader` (including
+// `null`, to simulate a genuinely missing header) to override it.
+const DEFAULT_LAST_PAGE_LINK_HEADER =
+  '<url>; rel="next"; results="false"; cursor="0:0:1"';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function buildFetchStub(response: {
   ok: boolean;
@@ -12,8 +24,17 @@ function buildFetchStub(response: {
     status: response.status,
     json: async () => response.body,
     headers: {
-      get: (name: string) =>
-        name.toLowerCase() === "link" ? (response.linkHeader ?? null) : null,
+      get: (name: string) => {
+        if (name.toLowerCase() !== "link") {
+          return null;
+        }
+        // Distinguishes "not specified by this test" (use the default) from
+        // an explicit `linkHeader: null` (simulate a genuinely missing
+        // header) — `??` would collapse both to the default.
+        return response.linkHeader === undefined
+          ? DEFAULT_LAST_PAGE_LINK_HEADER
+          : response.linkHeader;
+      },
     },
   })) as unknown as typeof fetch;
 }
@@ -192,6 +213,24 @@ describe("createSentryIssueSearcher", () => {
     ).rejects.toThrow(/markpost.*non-JSON response body/);
   });
 
+  it("fails loud when a real (ok, array-body) response has no Link header at all", async () => {
+    const fetchStub = buildFetchStub({
+      ok: true,
+      status: 200,
+      body: [{ id: "issue_1" }],
+      linkHeader: null,
+    });
+    const searchSentryIssues = createSentryIssueSearcher(
+      "token_abc",
+      "acme",
+      fetchStub,
+    );
+
+    await expect(
+      searchSentryIssues({ projectSlug: "markpost", query: "is:unresolved" }),
+    ).rejects.toThrow(/no Link header/);
+  });
+
   it("aborts the request once the request timeout elapses, instead of hanging forever on a stalled response", async () => {
     vi.useFakeTimers();
     // Simulates a real fetch: never settles on its own, but rejects as soon
@@ -214,11 +253,10 @@ describe("createSentryIssueSearcher", () => {
       projectSlug: "markpost",
       query: "is:unresolved",
     });
-    const assertion = expect(resultPromise).rejects.toThrow(/aborted/i);
+    const assertion =
+      expect(resultPromise).rejects.toThrow(/markpost.*timed out/);
     // Matches sentryClient.ts's SENTRY_REQUEST_TIMEOUT_MS.
     await vi.advanceTimersByTimeAsync(20_000);
     await assertion;
-
-    vi.useRealTimers();
   });
 });

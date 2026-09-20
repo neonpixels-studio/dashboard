@@ -81,7 +81,15 @@ describe("sentryProvider", () => {
         ok: true,
         status: 200,
         json: async () => issues,
-        headers: { get: () => null },
+        // A real Sentry response always carries a Link header (see
+        // mapping.ts's parseSentryNextCursor) — this fixture is a single,
+        // final page, so results="false".
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === "link"
+              ? '<url>; rel="next"; results="false"; cursor="0:0:1"'
+              : null,
+        },
       };
     }) as unknown as typeof fetch;
     vi.stubGlobal("fetch", fetchStub);
@@ -270,16 +278,16 @@ describe("fetchSentryMetrics", () => {
       ["is:unresolved", "is:unresolved level:fatal"].sort(),
     );
 
-    pendingResolvers["is:unresolved"]({
-      issues: [],
-      hasMore: false,
-      nextCursor: null,
-    });
-    pendingResolvers["is:unresolved level:fatal"]({
-      issues: [],
-      hasMore: false,
-      nextCursor: null,
-    });
+    // Both resolvers are set synchronously inside the searchSentryIssues
+    // stub above, in the same call that pushes onto startedQueries — the
+    // assertion just above already proves both queries started, so both
+    // keys are guaranteed to be present here too.
+    const resolveOpenIssues = pendingResolvers["is:unresolved"];
+    const resolveFatalIssues = pendingResolvers["is:unresolved level:fatal"];
+    expect(resolveOpenIssues).toBeDefined();
+    expect(resolveFatalIssues).toBeDefined();
+    resolveOpenIssues?.({ issues: [], hasMore: false, nextCursor: null });
+    resolveFatalIssues?.({ issues: [], hasMore: false, nextCursor: null });
     await resultPromise;
   });
 });

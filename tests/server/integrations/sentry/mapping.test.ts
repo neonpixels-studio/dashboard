@@ -6,8 +6,11 @@ import {
 } from "../../../../server/integrations/sentry/mapping";
 
 describe("parseSentryNextCursor", () => {
-  it("returns null when the Link header is missing entirely", () => {
-    expect(parseSentryNextCursor(null)).toBeNull();
+  it('fails loud when the Link header is missing entirely, instead of reading that as "no more pages"', () => {
+    // This is only ever called after a response has already arrived (see
+    // sentryClient.ts) — a real Sentry response always carries a Link
+    // header, so a missing one is malformed, not "done paginating".
+    expect(() => parseSentryNextCursor(null)).toThrow(/no Link header/);
   });
 
   it("extracts the next cursor when results is true", () => {

@@ -31,16 +31,20 @@ const CURSOR_ATTRIBUTE_PATTERN = /cursor="([^"]+)"/;
  * failure mode than the extra requests below. The only documented way to
  * know how many issues matched a query is to walk every page and sum what
  * each one returns (issueCounts.ts's countAllSentryIssues). This parses the
- * "next" segment out of the raw
- * `Link` header string; returns null when there's no further page (either
- * the header is missing entirely — no page has been fetched yet to have
- * received one — or the "next" entry reports `results="false"`).
+ * "next" segment out of the raw `Link` header string; returns null only
+ * when that entry reports `results="false"` (a genuinely last page) —
+ * anything else that doesn't match Sentry's documented shape fails loud
+ * (see the guards below) rather than being read as "no more pages".
  */
 export function parseSentryNextCursor(
   linkHeader: string | null,
 ): string | null {
+  // Only ever called after a successful response has already arrived (see
+  // sentryClient.ts) — "no page has been fetched yet" never applies here,
+  // so a missing header is exactly as malformed as a header with no "next"
+  // entry below, not "no more pages".
   if (!linkHeader) {
-    return null;
+    throw new Error("Sentry issue search response has no Link header.");
   }
 
   const nextEntry = linkHeader

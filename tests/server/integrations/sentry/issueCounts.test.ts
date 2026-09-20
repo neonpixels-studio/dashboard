@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { countAllSentryIssues } from "../../../../server/integrations/sentry/issueCounts";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type {
@@ -18,6 +18,10 @@ function fakeSearchFromPages(
     return page;
   });
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("countAllSentryIssues", () => {
   it("sums a single page's issues when hasMore is false", async () => {
@@ -107,5 +111,25 @@ describe("countAllSentryIssues", () => {
     await expect(
       countAllSentryIssues(searchSentryIssues, "markpost", "is:unresolved"),
     ).rejects.toThrow(/exceeded \d+ pages/);
+  });
+
+  it("fails loud instead of running past its wall-clock budget, even when each individual page resolves quickly", async () => {
+    vi.useFakeTimers();
+    // Each page "takes" 1s of wall-clock time (simulating slow-but-not-hung
+    // requests) — the duration guard must trip well before the 20-page cap
+    // would (8 pages * 1s = 8s, the guard's threshold; 20 pages * 1s = 20s).
+    const searchSentryIssues = vi.fn(async () => {
+      vi.advanceTimersByTime(1_000);
+      return {
+        issues: [{ id: "issue_slow" }],
+        hasMore: true,
+        nextCursor: "next",
+      };
+    });
+
+    await expect(
+      countAllSentryIssues(searchSentryIssues, "markpost", "is:unresolved"),
+    ).rejects.toThrow(/exceeded 8000ms/);
+    expect(searchSentryIssues.mock.calls.length).toBeLessThan(20);
   });
 });
