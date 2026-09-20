@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RollupStatTile > matches its snapshot 1`] = `
+"<div class="card rollup-tile"><span class="metric-label">ACTIVE SUBSCRIBERS</span>
+  <div class="value-row"><span class="display-num rollup-value">401</span><span class="delta ok">▲ 22</span></div>
+  <ul data-v-5cd44a83="" class="stat-list rollup-list">
+    <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #FFB020;"></span><span data-v-5cd44a83="" class="label">basin.fm</span><span data-v-5cd44a83="" class="value">126</span>
+      <!--v-if-->
+    </li>
+  </ul>
+</div>"
+`;

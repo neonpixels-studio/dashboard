@@ -6,20 +6,35 @@ vi.stubGlobal("useFetch", vi.fn());
 const { useOverview } = await import("../../app/composables/useOverview");
 
 const OVERVIEW_RESPONSE: OverviewResponse = {
-  mrr: { value: 1284, period: "current", capturedAt: null, byApp: [] },
+  mrr: {
+    value: 1284,
+    period: "current",
+    capturedAt: null,
+    delta: { value: 97, pct: 8.2 },
+    byApp: [],
+    series: [],
+  },
   activeSubscribers: {
     value: 312,
     period: "current",
     capturedAt: null,
+    delta: { value: 14, pct: 4.7 },
     byApp: [],
   },
   sessions30d: {
     value: 48200,
     period: "30d",
     capturedAt: null,
+    delta: { value: 1449, pct: 3.1 },
     bySource: [],
   },
-  openIssues: { value: 7, period: "current", capturedAt: null, byApp: [] },
+  openIssues: {
+    value: 7,
+    period: "current",
+    capturedAt: null,
+    delta: { value: 2, pct: 40 },
+    byApp: [],
+  },
   lastSyncedAt: "2026-09-20T11:56:00.000Z",
 };
 

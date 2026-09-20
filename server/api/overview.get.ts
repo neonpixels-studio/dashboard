@@ -12,18 +12,56 @@ import {
 import {
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
+  fetchMetricSnapshotSeries,
   fetchSyncStatuses,
 } from "../utils/dashboardQueries";
 import {
   latestSyncedAt,
   metricRollupWithSplit,
+  rollupDelta,
+  rollupSeriesAcrossApps,
   trafficChannelSplitAcrossApps,
 } from "../utils/dashboardShaping";
 import type {
   MetricSnapshotRow,
   TrafficBreakdownRow,
 } from "../utils/dashboardQueries";
-import type { OverviewResponse } from "../../shared/types/dashboard";
+import type {
+  OverviewMetric,
+  OverviewResponse,
+  RollupTotal,
+} from "../../shared/types/dashboard";
+
+// Open issues' "since yesterday" copy compares just the last two UTC
+// calendar days of the series (rather than the default 30-day window every
+// other rollup delta uses) — the one tile whose copy names a specific
+// day-over-day comparison, not a rolling trend.
+const OPEN_ISSUES_DELTA_WINDOW_DAYS = 2;
+
+interface DeltaSeriesOptions {
+  seriesRows: MetricSnapshotRow[];
+  slugs: string[];
+  metric: string;
+  period: string;
+  windowDays?: number;
+}
+
+// An options object rather than five positional args — `metric` and
+// `period` are adjacent same-typed strings, easy to swap by accident at a
+// call site with no compiler error to catch it.
+function withDelta<Total extends RollupTotal>(
+  total: Total,
+  options: DeltaSeriesOptions,
+): Total & Pick<OverviewMetric, "delta"> {
+  const series = rollupSeriesAcrossApps(
+    options.seriesRows,
+    options.slugs,
+    options.metric,
+    options.period,
+    options.windowDays,
+  );
+  return { ...total, delta: rollupDelta(series) };
+}
 
 // Named field-by-field (not `...metricRollupWithSplit(...)`):
 // metricRollupWithSplit's `byApp` isn't part of `sessions30d` (that field is
@@ -31,6 +69,7 @@ import type { OverviewResponse } from "../../shared/types/dashboard";
 // into the response.
 function buildSessionsRollup(
   metricRows: MetricSnapshotRow[],
+  seriesRows: MetricSnapshotRow[],
   breakdownRows: TrafficBreakdownRow[],
   slugs: string[],
 ): OverviewResponse["sessions30d"] {
@@ -40,10 +79,12 @@ function buildSessionsRollup(
     METRIC_SESSIONS,
     PERIOD_30D,
   );
+  const { value, period, capturedAt } = sessionsRollup;
   return {
-    value: sessionsRollup.value,
-    period: sessionsRollup.period,
-    capturedAt: sessionsRollup.capturedAt,
+    ...withDelta(
+      { value, period, capturedAt },
+      { seriesRows, slugs, metric: METRIC_SESSIONS, period: PERIOD_30D },
+    ),
     bySource: trafficChannelSplitAcrossApps(
       breakdownRows,
       metricRows,
@@ -63,26 +104,66 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
   const db = useDb();
   const slugs = APPS.map((app) => app.slug);
 
-  const [metricRows, breakdownRows, syncRows] = await Promise.all([
+  const [metricRows, seriesRows, breakdownRows, syncRows] = await Promise.all([
     fetchLatestMetricSnapshots(db, slugs),
+    fetchMetricSnapshotSeries(db, slugs),
     fetchLatestTrafficBreakdowns(db, slugs),
     fetchSyncStatuses(db, slugs),
   ]);
 
+  const mrrRollup = metricRollupWithSplit(
+    metricRows,
+    slugs,
+    METRIC_MRR,
+    PERIOD_CURRENT,
+  );
+  const mrrSeries = rollupSeriesAcrossApps(
+    seriesRows,
+    slugs,
+    METRIC_MRR,
+    PERIOD_CURRENT,
+  );
+
   return {
-    mrr: metricRollupWithSplit(metricRows, slugs, METRIC_MRR, PERIOD_CURRENT),
-    activeSubscribers: metricRollupWithSplit(
-      metricRows,
-      slugs,
-      METRIC_ACTIVE_SUBSCRIBERS,
-      PERIOD_CURRENT,
+    mrr: {
+      ...mrrRollup,
+      delta: rollupDelta(mrrSeries),
+      series: mrrSeries,
+    },
+    activeSubscribers: withDelta(
+      metricRollupWithSplit(
+        metricRows,
+        slugs,
+        METRIC_ACTIVE_SUBSCRIBERS,
+        PERIOD_CURRENT,
+      ),
+      {
+        seriesRows,
+        slugs,
+        metric: METRIC_ACTIVE_SUBSCRIBERS,
+        period: PERIOD_CURRENT,
+      },
     ),
-    sessions30d: buildSessionsRollup(metricRows, breakdownRows, slugs),
-    openIssues: metricRollupWithSplit(
+    sessions30d: buildSessionsRollup(
       metricRows,
+      seriesRows,
+      breakdownRows,
       slugs,
-      METRIC_OPEN_ISSUES,
-      PERIOD_CURRENT,
+    ),
+    openIssues: withDelta(
+      metricRollupWithSplit(
+        metricRows,
+        slugs,
+        METRIC_OPEN_ISSUES,
+        PERIOD_CURRENT,
+      ),
+      {
+        seriesRows,
+        slugs,
+        metric: METRIC_OPEN_ISSUES,
+        period: PERIOD_CURRENT,
+        windowDays: OPEN_ISSUES_DELTA_WINDOW_DAYS,
+      },
     ),
     lastSyncedAt: latestSyncedAt(syncRows),
   };
