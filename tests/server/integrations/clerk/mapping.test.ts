@@ -45,4 +45,10 @@ describe("assertNonNegativeCount", () => {
       /must be a non-negative integer/,
     );
   });
+
+  it("throws on a missing count instead of silently passing it through (SDK shape drift, e.g. a totalCount field that stopped being returned)", () => {
+    expect(() =>
+      assertNonNegativeCount(undefined as unknown as number, "new users"),
+    ).toThrow(/must be a non-negative integer, got undefined/);
+  });
 });
