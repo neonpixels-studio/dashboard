@@ -15,19 +15,24 @@ import type {
 // fetchClerkMetrics) needs the real "@clerk/backend" package mocked — every
 // other test in this file exercises fetchClerkMetrics directly with an
 // injected GetClerkUserCount fake and never touches the network.
-const { mockGetCount, mockGetUserList } = vi.hoisted(() => ({
-  mockGetCount: vi.fn(),
-  mockGetUserList: vi.fn(),
-}));
-vi.mock("@clerk/backend", () => ({
-  createClerkClient: () => ({
-    users: { getCount: mockGetCount, getUserList: mockGetUserList },
+const { mockGetCount, mockGetUserList, mockCreateClerkClient } = vi.hoisted(
+  () => ({
+    mockGetCount: vi.fn(),
+    mockGetUserList: vi.fn(),
+    mockCreateClerkClient: vi.fn(),
   }),
+);
+vi.mock("@clerk/backend", () => ({
+  createClerkClient: (options: { secretKey: string }) => {
+    mockCreateClerkClient(options);
+    return { users: { getCount: mockGetCount, getUserList: mockGetUserList } };
+  },
 }));
 
 afterEach(() => {
   mockGetCount.mockReset();
   mockGetUserList.mockReset();
+  mockCreateClerkClient.mockReset();
 });
 
 function buildGetClerkUserCount(
@@ -57,6 +62,7 @@ describe("clerkProvider", () => {
       trafficBreakdown: [],
       syndicationPosts: [],
     });
+    expect(mockCreateClerkClient).not.toHaveBeenCalled();
     expect(mockGetCount).not.toHaveBeenCalled();
     expect(mockGetUserList).not.toHaveBeenCalled();
   });
@@ -98,6 +104,9 @@ describe("clerkProvider", () => {
 
     const result = await clerkProvider.fetch(config);
 
+    expect(mockCreateClerkClient).toHaveBeenCalledWith({
+      secretKey: "sk_test_e2e",
+    });
     expect(mockGetCount).toHaveBeenCalledWith();
     expect(mockGetUserList).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 1 }),
@@ -196,16 +205,17 @@ describe("fetchClerkMetrics", () => {
     const result = await fetchClerkMetrics(config, getClerkUserCount);
     const after = Date.now();
 
-    const newUsersRequest = (
-      getClerkUserCount as ReturnType<typeof vi.fn>
-    ).mock.calls.find(
-      ([request]: [ClerkUserCountRequest]) =>
-        request.createdAtAfter !== undefined,
-    )?.[0] as ClerkUserCountRequest;
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
     const capturedAtMs = (result.metrics[0].capturedAt as Date).getTime();
 
-    expect(newUsersRequest.createdAtAfter).toBe(capturedAtMs - thirtyDaysMs);
+    // Asserted directly against the call args (rather than searching
+    // getClerkUserCount.mock.calls for the createdAtAfter request) so a
+    // regression that drops the new-users call entirely fails on this
+    // assertion, with a clear diff, instead of on a later
+    // `.createdAtAfter` read off `undefined`.
+    expect(getClerkUserCount).toHaveBeenCalledWith({
+      createdAtAfter: capturedAtMs - thirtyDaysMs,
+    });
     expect(capturedAtMs).toBeGreaterThanOrEqual(before);
     expect(capturedAtMs).toBeLessThanOrEqual(after);
   });
