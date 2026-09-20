@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import { useDb } from "../db";
 import { users } from "../db/schema";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "../../shared/constants/errors";
+import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
 
 export type DbUser = InferSelectModel<typeof users>;
 

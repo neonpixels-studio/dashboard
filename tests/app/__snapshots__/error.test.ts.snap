@@ -1,57 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`error.vue > falls back to the error's statusMessage for a 401 1`] = `
-<div
-  class="err-wrap"
-  data-v-fa4da55a=""
->
-  <main
-    class="err"
-    data-v-fa4da55a=""
-  >
-    <div
-      class="err__inner"
-      data-v-fa4da55a=""
-    >
-      <div
-        class="eyebrow"
-        data-v-fa4da55a=""
-        style="justify-content: center;"
-      >
-         error 401
-      </div>
-      <div
-        class="err__code"
-        data-v-fa4da55a=""
-      >
-        401
-      </div>
-      <h1
-        data-v-fa4da55a=""
-      >
-        Something went wrong.
-      </h1>
-      <p
-        data-v-fa4da55a=""
-      >
-        Unauthorized
-      </p>
-      <div
-        class="err__cta"
-        data-v-fa4da55a=""
-      >
-        <button
-          class="btn btn-accent btn-lg"
-          data-v-fa4da55a=""
-        >
-           back to home 
-        </button>
-      </div>
-    </div>
-  </main>
-</div>
-`;
-
 exports[`error.vue > renders a specific message for the disabled-signups 403 1`] = `
 <div
   class="err-wrap"
@@ -87,6 +35,58 @@ exports[`error.vue > renders a specific message for the disabled-signups 403 1`]
         data-v-fa4da55a=""
       >
         This dashboard isn't accepting new accounts right now. If you think you should have access, reach out to whoever invited you.
+      </p>
+      <div
+        class="err__cta"
+        data-v-fa4da55a=""
+      >
+        <button
+          class="btn btn-accent btn-lg"
+          data-v-fa4da55a=""
+        >
+           back to home 
+        </button>
+      </div>
+    </div>
+  </main>
+</div>
+`;
+
+exports[`error.vue > renders the generic message for other non-404 errors, without echoing statusMessage 1`] = `
+<div
+  class="err-wrap"
+  data-v-fa4da55a=""
+>
+  <main
+    class="err"
+    data-v-fa4da55a=""
+  >
+    <div
+      class="err__inner"
+      data-v-fa4da55a=""
+    >
+      <div
+        class="eyebrow"
+        data-v-fa4da55a=""
+        style="justify-content: center;"
+      >
+         error 401
+      </div>
+      <div
+        class="err__code"
+        data-v-fa4da55a=""
+      >
+        401
+      </div>
+      <h1
+        data-v-fa4da55a=""
+      >
+        Something went wrong.
+      </h1>
+      <p
+        data-v-fa4da55a=""
+      >
+        An unexpected error occurred. Let's get you back on track.
       </p>
       <div
         class="err__cta"

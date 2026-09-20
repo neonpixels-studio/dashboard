@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import type { NuxtError } from "#app";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "../shared/constants/errors";
+import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
 
 interface ErrorContent {
   heading: string;
@@ -32,7 +32,6 @@ interface ErrorContent {
 // give each one a real message instead of the generic fallback.
 const NOT_FOUND_STATUS_CODE = 404;
 const SIGNUPS_DISABLED_STATUS_CODE = 403;
-const UNAUTHORIZED_STATUS_CODE = 401;
 // Falls back to a server-error status (rather than 404) for a missing or
 // statusless error, since presenting an unknown failure as "page not found"
 // would hide a real bug behind the wrong message.
@@ -50,9 +49,14 @@ const SIGNUPS_DISABLED_CONTENT: ErrorContent = {
     "This dashboard isn't accepting new accounts right now. If you think you should have access, reach out to whoever invited you.",
 };
 
-const GENERIC_HEADING = "Something went wrong.";
-const GENERIC_FALLBACK_MESSAGE =
-  "An unexpected error occurred. Let's get you back on track.";
+// Deliberately never surfaces error.statusMessage: the only other status this
+// app throws today (401 Unauthorized from requireUser()) isn't user-facing
+// copy, and any future/unrecognized error falls here too rather than
+// echoing an internal string.
+const GENERIC_CONTENT: ErrorContent = {
+  heading: "Something went wrong.",
+  message: "An unexpected error occurred. Let's get you back on track.",
+};
 
 const props = defineProps<{ error: NuxtError | null }>();
 
@@ -63,7 +67,10 @@ const statusCode = computed(
 // statusCode alone isn't a reliable discriminator — a future 403 from
 // somewhere else in the app shouldn't be told "sign-ups are closed" — so this
 // also checks the stable error code the server attaches for this specific
-// case (see shared/constants/errors.ts).
+// case (see shared/constants/errors.ts). Nuxt parses error.data back into an
+// object by default (experimental.parseErrorData), so `data` is only ever a
+// string here if that's explicitly turned off; the optional chaining below
+// degrades to the generic message rather than throwing if so.
 const isSignupsDisabled = computed(() => {
   if (statusCode.value !== SIGNUPS_DISABLED_STATUS_CODE) {
     return false;
@@ -72,10 +79,6 @@ const isSignupsDisabled = computed(() => {
   return data?.code === SIGNUPS_DISABLED_ERROR_CODE;
 });
 
-// error.statusMessage is only surfaced for statuses this app itself throws
-// via createError() — an allowlist, not a denylist, so a message from an
-// unrecognized source (a raw Nitro 500, an external fetch error, etc.) never
-// reaches the user verbatim.
 const content = computed<ErrorContent>(() => {
   if (statusCode.value === NOT_FOUND_STATUS_CODE) {
     return NOT_FOUND_CONTENT;
@@ -83,14 +86,7 @@ const content = computed<ErrorContent>(() => {
   if (isSignupsDisabled.value) {
     return SIGNUPS_DISABLED_CONTENT;
   }
-  if (statusCode.value === UNAUTHORIZED_STATUS_CODE) {
-    const statusMessage = props.error?.statusMessage?.trim();
-    return {
-      heading: GENERIC_HEADING,
-      message: statusMessage || GENERIC_FALLBACK_MESSAGE,
-    };
-  }
-  return { heading: GENERIC_HEADING, message: GENERIC_FALLBACK_MESSAGE };
+  return GENERIC_CONTENT;
 });
 
 function handleError() {

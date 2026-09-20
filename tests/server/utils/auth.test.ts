@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { H3Event } from "h3";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "../../../shared/constants/errors";
+import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
 
 const mockFindFirst = vi.fn();
 const mockReturning = vi.fn();

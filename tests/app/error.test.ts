@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import type { NuxtError } from "#app";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "../../shared/constants/errors";
+import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
 import ErrorPage from "~/error.vue";
 
 const NOT_FOUND_ERROR: NuxtError = {
@@ -76,25 +76,14 @@ describe("error.vue", () => {
     );
   });
 
-  it("falls back to the error's statusMessage for a 401", () => {
+  it("renders the generic message for other non-404 errors, without echoing statusMessage", () => {
     const wrapper = mount(ErrorPage, { props: { error: UNAUTHORIZED_ERROR } });
-
-    expect(wrapper.find("h1").text()).toBe("Something went wrong.");
-    expect(wrapper.find("p").text()).toBe("Unauthorized");
-    expect(wrapper.element).toMatchSnapshot();
-  });
-
-  it("falls back to a generic message when the error has no statusMessage", () => {
-    const wrapper = mount(ErrorPage, {
-      props: {
-        error: { ...UNAUTHORIZED_ERROR, statusMessage: "" },
-      },
-    });
 
     expect(wrapper.find("h1").text()).toBe("Something went wrong.");
     expect(wrapper.find("p").text()).toBe(
       "An unexpected error occurred. Let's get you back on track.",
     );
+    expect(wrapper.element).toMatchSnapshot();
   });
 
   it("treats a null error as an unknown server error rather than a 404", () => {
