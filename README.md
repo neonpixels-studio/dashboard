@@ -84,6 +84,98 @@ Two external services. `.env.example` documents every var and where to get it.
   with a 403 while existing users keep working. It is read through
   `runtimeConfig`, so it bakes in at build time — set it per environment.
 
+## Integrations
+
+Two layers of secrets:
+
+- **Shared studio keys** live encrypted in the committed dotenvx env files,
+  `NUXT_*` convention, read via `runtimeConfig` — same as Clerk/Neon above.
+  `.env.example` documents every var and where to get it.
+- **Per-app overrides** (e.g. a property using its own Stripe/Sentry account)
+  live encrypted in the database (`integration_config` table — added in a
+  later issue), encrypted/decrypted with `server/utils/integrationSecrets.ts`
+  and `NUXT_INTEGRATION_ENCRYPTION_KEY`. That module is deliberately isolated
+  from the DB/config layer so it can be unit-tested without touching real
+  secrets or a database (`tests/server/utils/integrationSecrets.test.ts`
+  covers round-trip, tamper-detection, and wrong-key failure).
+
+Only `NUXT_INTEGRATION_ENCRYPTION_KEY` is wired into `runtimeConfig` today,
+since it's what the helper above already consumes. The vendor vars below are
+documented here and in `.env.example` so they're ready to set, but each one's
+`runtimeConfig` entry and actual API client land with that vendor's provider
+issue (GA4/Stripe/Clerk/Sentry/blog-platform sync — separate issues).
+
+Set any of the vars below the same way as Clerk/Neon:
+
+```bash
+npx dotenvx set NUXT_STRIPE_SECRET_KEY "sk_live_…" -f .env
+```
+
+### Google Analytics 4
+
+Reports property traffic via the GA4 Data API using a service account.
+
+1. Create a service account at
+   <https://console.cloud.google.com> → IAM & Admin → Service Accounts.
+2. In each GA4 property, grant that service account "Viewer" access:
+   Admin → Property Access Management.
+3. Download the service account's JSON key and copy `client_email` and
+   `private_key` into `NUXT_GA4_SA_CLIENT_EMAIL` /
+   `NUXT_GA4_SA_PRIVATE_KEY`.
+4. Copy each property's numeric Property ID (Admin → Property Settings) into
+   the matching `NUXT_GA4_PROPERTY_ID_*` var.
+
+### Stripe
+
+Reports revenue/subscription stats. One Stripe account across properties,
+scoped per property by product ID.
+
+1. Secret key — <https://dashboard.stripe.com/apikeys>.
+2. Per-property product ID — <https://dashboard.stripe.com/products> → the
+   product → copy its `prod_...` ID → `NUXT_STRIPE_PRODUCT_ID_*`.
+
+### Per-app Clerk
+
+Reads user/session counts for each property's own Clerk app (separate from
+this dashboard's own Clerk app configured above). Each property's
+<https://dashboard.clerk.com> → API Keys → Secret key goes in the matching
+`NUXT_CLERK_SECRET_KEY_*` var.
+
+### Sentry
+
+Reports open issue counts per property.
+
+1. Auth token — <https://sentry.io/settings/account/api/auth-tokens/>, needs
+   `project:read` and `org:read` scopes.
+2. Org slug (`NUXT_SENTRY_ORG`) — the slug in your Sentry settings URL.
+3. Per-property project slug — that project's Settings page, in the URL as
+   `sentry.io/organizations/<org>/projects/<slug>/`.
+
+### Blog platforms (markpost publishing targets)
+
+- **Hashnode** — <https://hashnode.com/settings/developer> → generate a
+  Personal Access Token (`NUXT_HASHNODE_TOKEN`). Publication ID is on the
+  blog's dashboard → Settings → General.
+- **DEV.to** — <https://dev.to/settings/extensions> → DEV API Keys → Generate
+  API Key.
+- **Medium** — Medium retired its publish API, so stats read via RapidAPI's
+  unofficial Medium API. Subscribe at
+  <https://rapidapi.com/nishujain199719-vgIfuFHxLd0/api/medium2> for
+  `NUXT_MEDIUM_RAPIDAPI_KEY`; `NUXT_MEDIUM_USERNAME` is the plain `@handle`.
+
+### Cross-app sync trigger
+
+`NUXT_SYNC_TRIGGER_SECRET` — shared secret a sibling app presents to trigger
+an on-demand dashboard refresh instead of waiting for the next poll. Generate
+with `openssl rand -hex 32`; no external account needed.
+
+### Encrypting per-app secrets
+
+`NUXT_INTEGRATION_ENCRYPTION_KEY` — base64-encoded 32-byte AES-256-GCM key.
+Generate with `openssl rand -base64 32`. Rotating it orphans any secrets
+already encrypted with the old key, so any DB-stored per-app secret needs
+re-encrypting (or the integration needs re-authenticating) after a rotation.
+
 ## Scripts
 
 | Script             | What it does                                  |
@@ -128,7 +220,8 @@ server/
   api/                  me.get (pattern for authenticated routes)
   db/                   schema, useDb, migrations/
   middleware/           auth (Clerk session -> event.context.user)
-  utils/                auth (requireUser, getOrCreateUser)
+  utils/                auth (requireUser, getOrCreateUser),
+                        integrationSecrets (encrypt/decrypt per-app secrets)
 tests/                  Vitest, mirrors app/ and server/
 e2e/                    Playwright specs + Clerk sign-in setup
 drizzle.config.ts       drizzle-kit config (schema in, migrations out)
