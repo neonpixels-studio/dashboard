@@ -186,34 +186,28 @@ export function fetchSyndicationPosts(
     .orderBy(desc(syndicationPost.syncedAt), asc(syndicationPost.platform));
 }
 
-// Powers server/integrations/syndication/medium's rate-limit guard: the
-// most recent capturedAt a given (slug, vendor, metric) metric_snapshot row
-// was actually written with. Deliberately scoped to metric_snapshot (written
-// only when a provider's fetch genuinely ran against the real API) rather
-// than sync_status.last_success_at (written on every orchestrator tick that
-// didn't throw, including one the guard itself decided to skip) — using
-// sync_status here would make a skipped sync look like a fresh success and
-// reset the very clock the guard reads from, so it would never come due
-// again. See server/integrations/syndication/medium/mediumSyncGuard.ts.
-export function fetchLatestMetricCapturedAt(
+// Powers server/integrations/syndication/medium's rate-limit guard:
+// sync_status.last_run_at for one (slug, vendor) — deliberately the run
+// timestamp, not last_success_at. recordSyncStatus (persist.ts) writes
+// last_run_at on EVERY orchestrator tick, success or failure (and even a
+// tick the guard itself decided to skip, since a guard-skip isn't an
+// exception), so gating on it means a persistently *failing* Medium sync
+// still only gets attempted once per MEDIUM_MIN_SYNC_INTERVAL_HOURS window,
+// the same as a healthy one — gating on last_success_at instead would let a
+// stuck failure (bad key, a mapping bug, a 403) retry every single
+// orchestrator tick forever, burning the whole monthly quota in hours. See
+// server/integrations/syndication/medium/mediumSyncGuard.ts.
+export async function fetchLastSyncRunAt(
   db: DrizzleDb,
   slug: string,
   vendor: string,
-  metric: string,
 ): Promise<Date | null> {
-  return db
-    .select({ capturedAt: metricSnapshot.capturedAt })
-    .from(metricSnapshot)
-    .where(
-      and(
-        eq(metricSnapshot.slug, slug),
-        eq(metricSnapshot.vendor, vendor),
-        eq(metricSnapshot.metric, metric),
-      ),
-    )
-    .orderBy(desc(metricSnapshot.capturedAt))
-    .limit(1)
-    .then((rows) => rows[0]?.capturedAt ?? null);
+  const [row] = await db
+    .select({ lastRunAt: syncStatus.lastRunAt })
+    .from(syncStatus)
+    .where(and(eq(syncStatus.slug, slug), eq(syncStatus.vendor, vendor)))
+    .limit(1);
+  return row?.lastRunAt ?? null;
 }
 
 export function fetchSyncStatuses(

@@ -3,6 +3,7 @@ import type {
   IntegrationProvider,
   ProviderResult,
 } from "../../types";
+import { resolveExternalIdOrEnvVar } from "../configResolution";
 import { buildSyndicationResult } from "../normalize";
 import { emptySyndicationResult } from "../types";
 import { createHashnodePostsPageFetcher } from "./hashnodeClient";
@@ -16,19 +17,14 @@ const HASHNODE_VENDOR = "hashnode";
 const MAX_PAGES = 100;
 
 /**
- * Per config.ts's row-overrides-shared-default precedent (see
- * server/integrations/stripe/provider.ts's resolveProductIdsSource and
- * server/integrations/ga4/provider.ts's resolvePropertyId), the publication
- * id can live in either `integration_config.external_id` or the shared
- * studio env var `NUXT_HASHNODE_PUBLICATION_ID` — the DB row wins when set.
+ * The publication id can live in either `integration_config.external_id` or
+ * the shared studio env var `NUXT_HASHNODE_PUBLICATION_ID` — the DB row wins
+ * when set. See ../configResolution.ts for the shared row-overrides-default
+ * precedent this follows (same as Stripe's product ids / GA4's property
+ * ids).
  */
 export function resolvePublicationId(config: IntegrationConfig): string | null {
-  const externalId = config.externalId?.trim();
-  if (externalId) {
-    return externalId;
-  }
-  const fromEnv = process.env.NUXT_HASHNODE_PUBLICATION_ID?.trim();
-  return fromEnv || null;
+  return resolveExternalIdOrEnvVar(config, "NUXT_HASHNODE_PUBLICATION_ID");
 }
 
 async function drainAllPages(
@@ -42,6 +38,15 @@ async function drainAllPages(
     nodes.push(...result.nodes);
     if (!result.hasNextPage) {
       return nodes;
+    }
+    if (!result.endCursor) {
+      // hasNextPage=true with no endCursor would otherwise re-request `after:
+      // null` — the FIRST page — forever, duplicating its nodes on every
+      // loop until MAX_PAGES throws, rather than failing loud on the actual
+      // problem (a self-contradictory response).
+      throw new Error(
+        "Hashnode reported hasNextPage=true with no endCursor — refusing to re-request the first page.",
+      );
     }
     after = result.endCursor;
   }

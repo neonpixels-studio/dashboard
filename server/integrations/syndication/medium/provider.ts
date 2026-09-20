@@ -1,11 +1,11 @@
 import { useDb } from "../../../db";
-import { METRIC_POSTS } from "../../../utils/dashboardMetrics";
-import { fetchLatestMetricCapturedAt } from "../../../utils/dashboardQueries";
+import { fetchLastSyncRunAt } from "../../../utils/dashboardQueries";
 import type {
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
 } from "../../types";
+import { resolveExternalIdOrEnvVar } from "../configResolution";
 import { buildSyndicationResult } from "../normalize";
 import { emptySyndicationResult, type SyndicationSourcePost } from "../types";
 import {
@@ -31,20 +31,14 @@ const MEDIUM_VENDOR = "medium";
 export const MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC = 15;
 
 /**
- * Per config.ts's row-overrides-shared-default precedent (see
- * server/integrations/stripe/provider.ts's resolveProductIdsSource), the
- * Medium handle can live in either `integration_config.external_id` or the
- * shared studio env var `NUXT_MEDIUM_USERNAME` — the DB row wins when set.
- * Not a secret (a public @handle, not a credential) — read directly, same as
- * GA4's client email.
+ * The Medium handle can live in either `integration_config.external_id` or
+ * the shared studio env var `NUXT_MEDIUM_USERNAME` — the DB row wins when
+ * set. Not a secret (a public @handle, not a credential) — read directly,
+ * same as GA4's client email. See ../configResolution.ts for the shared
+ * row-overrides-default precedent this follows.
  */
 function resolveUsername(config: IntegrationConfig): string | null {
-  const externalId = config.externalId?.trim();
-  if (externalId) {
-    return externalId;
-  }
-  const fromEnv = process.env.NUXT_MEDIUM_USERNAME?.trim();
-  return fromEnv || null;
+  return resolveExternalIdOrEnvVar(config, "NUXT_MEDIUM_USERNAME");
 }
 
 async function fetchArticleDetails(
@@ -52,8 +46,19 @@ async function fetchArticleDetails(
   fetchArticleInfo: FetchMediumArticleInfo,
 ): Promise<SyndicationSourcePost[]> {
   const boundedIds = articleIds.slice(0, MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC);
-  const infos = await Promise.all(boundedIds.map(fetchArticleInfo));
-  return infos.map(toSyndicationSourcePost);
+  // Sequential, not Promise.all: mediumapi.com's plans are typically
+  // rate-limited per second as well as per month, and this provider has no
+  // visibility into that per-second ceiling — firing every detail request
+  // at once risks a burst of 429s (which would also still count against the
+  // monthly cap for no data in return). One at a time trades a slower sync
+  // (this runs in the background, on a schedule — latency isn't
+  // user-facing) for not needing to guess at a safe concurrency limit.
+  const posts: SyndicationSourcePost[] = [];
+  for (const articleId of boundedIds) {
+    const info = await fetchArticleInfo(articleId);
+    posts.push(toSyndicationSourcePost(info));
+  }
+  return posts;
 }
 
 /**
@@ -74,39 +79,31 @@ export async function fetchMediumSyndication(
   return buildSyndicationResult(MEDIUM_VENDOR, posts, articleIds.length);
 }
 
-async function defaultGetLastSuccessfulSyncAt(
-  slug: string,
-): Promise<Date | null> {
-  return fetchLatestMetricCapturedAt(
-    useDb(),
-    slug,
-    MEDIUM_VENDOR,
-    METRIC_POSTS,
-  );
+async function defaultGetLastAttemptAt(slug: string): Promise<Date | null> {
+  return fetchLastSyncRunAt(useDb(), slug, MEDIUM_VENDOR);
 }
 
 export interface CreateMediumProviderOptions {
   // Overridable for tests; production wiring defers to
-  // defaultGetLastSuccessfulSyncAt, which lazily calls useDb() only once
-  // fetch() actually runs (never at provider-construction/module-load time —
-  // see providers/index.ts, which builds every provider, including this one,
-  // at import time with no Nitro request context available yet).
-  getLastSuccessfulSyncAt?: (slug: string) => Promise<Date | null>;
+  // defaultGetLastAttemptAt, which lazily calls useDb() only once fetch()
+  // actually runs (never at provider-construction/module-load time — see
+  // providers/index.ts, which builds every provider, including this one, at
+  // import time with no Nitro request context available yet).
+  getLastAttemptAt?: (slug: string) => Promise<Date | null>;
   now?: () => Date;
 }
 
 /**
  * Builds the Medium IntegrationProvider. A factory (unlike stripeProvider/
  * ga4Provider's plain exported objects) because, uniquely among these three
- * platforms, it needs an injectable "when did this last actually sync"
- * lookup for its rate-limit guard — see mediumSyncGuard.ts and
- * server/utils/dashboardQueries.ts's fetchLatestMetricCapturedAt.
+ * platforms, it needs an injectable "when did this last actually attempt a
+ * sync" lookup for its rate-limit guard — see mediumSyncGuard.ts and
+ * server/utils/dashboardQueries.ts's fetchLastSyncRunAt.
  */
 export function createMediumProvider(
   options: CreateMediumProviderOptions = {},
 ): IntegrationProvider {
-  const getLastSuccessfulSyncAt =
-    options.getLastSuccessfulSyncAt ?? defaultGetLastSuccessfulSyncAt;
+  const getLastAttemptAt = options.getLastAttemptAt ?? defaultGetLastAttemptAt;
   const now = options.now ?? (() => new Date());
 
   return {
@@ -129,8 +126,8 @@ export function createMediumProvider(
         return emptySyndicationResult();
       }
 
-      const lastSuccessfulSyncAt = await getLastSuccessfulSyncAt(config.slug);
-      if (!isMediumSyncDue(now(), lastSuccessfulSyncAt)) {
+      const lastAttemptAt = await getLastAttemptAt(config.slug);
+      if (!isMediumSyncDue(now(), lastAttemptAt)) {
         return emptySyndicationResult();
       }
 

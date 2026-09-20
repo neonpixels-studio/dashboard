@@ -1,13 +1,10 @@
+import { fetchJson } from "../httpClient";
 import type {
   FetchHashnodePostsPage,
   HashnodePostNode,
   HashnodePostsPage,
 } from "./types";
 
-// A hung request would otherwise block a sync indefinitely (no independent
-// deadline on a Netlify function) — same reasoning as
-// server/integrations/stripe/stripeClient.ts's STRIPE_REQUEST_TIMEOUT_MS.
-const HASHNODE_REQUEST_TIMEOUT_MS = 20_000;
 // Hashnode's public GraphQL API — a single POST endpoint, per
 // https://apidocs.hashnode.com/ (the legacy REST-ish api.hashnode.com is
 // discontinued). Confirm against a live token before assuming this changes —
@@ -55,41 +52,6 @@ interface HashnodeGraphQlResponse {
   errors?: HashnodeGraphQlError[];
 }
 
-async function postGraphQl(
-  publicationId: string,
-  after: string | null,
-  token: string,
-  fetchImpl: typeof fetch,
-): Promise<HashnodeGraphQlResponse> {
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(
-    () => abortController.abort(),
-    HASHNODE_REQUEST_TIMEOUT_MS,
-  );
-  try {
-    const response = await fetchImpl(HASHNODE_GRAPHQL_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token,
-      },
-      body: JSON.stringify({
-        query: POSTS_QUERY,
-        variables: { publicationId, first: POSTS_PAGE_SIZE, after },
-      }),
-      signal: abortController.signal,
-    });
-    if (!response.ok) {
-      throw new Error(
-        `Hashnode API responded with ${response.status} ${response.statusText}.`,
-      );
-    }
-    return (await response.json()) as HashnodeGraphQlResponse;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
 function assertNoGraphQlErrors(body: HashnodeGraphQlResponse): void {
   if (body.errors?.length) {
     throw new Error(
@@ -100,10 +62,11 @@ function assertNoGraphQlErrors(body: HashnodeGraphQlResponse): void {
 
 /**
  * Builds the real, network-touching `FetchHashnodePostsPage`. `fetchImpl`
- * defaults to the global `fetch` but is injectable — this is the one
- * function in server/integrations/syndication/hashnode that would otherwise
- * make a live HTTP call with no seam, unlike mapping.ts/provider.ts, which
- * are tested against a fixture-backed fake with the same signature.
+ * defaults to the global `fetch` (via ../httpClient's fetchJson) but is
+ * injectable — this is the one function in
+ * server/integrations/syndication/hashnode that would otherwise make a live
+ * HTTP call with no seam, unlike mapping.ts/provider.ts, which are tested
+ * against a fixture-backed fake with the same signature.
  */
 export function createHashnodePostsPageFetcher(
   publicationId: string,
@@ -111,7 +74,22 @@ export function createHashnodePostsPageFetcher(
   fetchImpl: typeof fetch = fetch,
 ): FetchHashnodePostsPage {
   return async (after: string | null): Promise<HashnodePostsPage> => {
-    const body = await postGraphQl(publicationId, after, token, fetchImpl);
+    const body = await fetchJson<HashnodeGraphQlResponse>(
+      HASHNODE_GRAPHQL_ENDPOINT,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token,
+        },
+        body: JSON.stringify({
+          query: POSTS_QUERY,
+          variables: { publicationId, first: POSTS_PAGE_SIZE, after },
+        }),
+        fetchImpl,
+        vendorLabel: "Hashnode API",
+      },
+    );
     assertNoGraphQlErrors(body);
 
     const publication = body.data?.publication;

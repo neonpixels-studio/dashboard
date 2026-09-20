@@ -3,15 +3,18 @@ import type {
   IntegrationProvider,
   ProviderResult,
 } from "../../types";
+import {
+  ARTICLES_PAGE_SIZE,
+  createDevtoArticlesPageFetcher,
+} from "./devtoClient";
 import { buildSyndicationResult } from "../normalize";
-import { createDevtoArticlesPageFetcher } from "./devtoClient";
 import { toSyndicationSourcePost } from "./mapping";
 import type { DevtoArticle, FetchDevtoArticlesPage } from "./types";
 
 const DEVTO_VENDOR = "devto";
 // Defends against an infinite loop if a fetcher (real or, in a test, faked)
-// never returns a short/empty page — 100 pages is comfortably beyond any
-// personal blog's post count, whatever the actual per-page size.
+// never returns a short page — 100 pages is comfortably beyond any personal
+// blog's post count, whatever the actual per-page size.
 const MAX_PAGES = 100;
 const FIRST_PAGE = 1;
 
@@ -23,7 +26,11 @@ async function drainAllPages(
   for (let page = FIRST_PAGE; page <= MAX_PAGES; page += 1) {
     const pageArticles = await fetchArticlesPage(page);
     articles.push(...pageArticles);
-    if (!pageArticles.length) {
+    // A page shorter than the requested size is necessarily the last one —
+    // Forem has no separate "more pages" flag, so this (not "empty") is the
+    // real stopping condition; waiting for an empty page instead would cost
+    // one always-wasted trailing request every sync.
+    if (pageArticles.length < ARTICLES_PAGE_SIZE) {
       return articles;
     }
   }

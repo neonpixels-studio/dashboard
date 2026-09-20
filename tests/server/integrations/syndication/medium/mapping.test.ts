@@ -11,7 +11,11 @@ describe("toPostRef", () => {
     );
   });
 
-  it("falls back to the raw slug when it doesn't end in a 12-hex-char suffix", () => {
+  it("strips a shorter (8-hex-char) hash suffix too, not only a 12-char one", () => {
+    expect(toPostRef("an-older-post-1a2b3c4d")).toBe("an-older-post");
+  });
+
+  it("falls back to the raw slug when it doesn't end in a hex-only suffix", () => {
     expect(toPostRef("a-slug-with-no-hash-suffix")).toBe(
       "a-slug-with-no-hash-suffix",
     );
@@ -19,7 +23,7 @@ describe("toPostRef", () => {
 });
 
 describe("toSyndicationSourcePost (medium)", () => {
-  it("maps an article info response's unique_slug and published_at into a SyndicationSourcePost", () => {
+  it("maps an article info response's unique_slug and an epoch-milliseconds published_at into a SyndicationSourcePost", () => {
     const post = toSyndicationSourcePost({
       unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
       published_at: 1798108800000,
@@ -31,11 +35,29 @@ describe("toSyndicationSourcePost (medium)", () => {
     });
   });
 
+  it("also handles a 'YYYY-MM-DD HH:mm:ss' UTC string published_at (the other documented shape)", () => {
+    const post = toSyndicationSourcePost({
+      unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+      published_at: "2026-09-01 12:00:00",
+    });
+
+    expect(post.publishedAt).toEqual(new Date("2026-09-01T12:00:00Z"));
+  });
+
   it("throws instead of producing an Invalid Date for a non-finite published_at", () => {
     expect(() =>
       toSyndicationSourcePost({
         unique_slug: "broken-post-000000000000",
         published_at: Number.NaN,
+      }),
+    ).toThrow(/unparseable published_at/);
+  });
+
+  it("throws instead of producing an Invalid Date for an unparseable published_at string", () => {
+    expect(() =>
+      toSyndicationSourcePost({
+        unique_slug: "broken-post-000000000000",
+        published_at: "not-a-date",
       }),
     ).toThrow(/unparseable published_at/);
   });

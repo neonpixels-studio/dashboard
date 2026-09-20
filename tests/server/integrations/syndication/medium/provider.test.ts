@@ -15,6 +15,7 @@ import type {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("mediumProvider (the default, real-wiring export)", () => {
@@ -22,7 +23,7 @@ describe("mediumProvider (the default, real-wiring export)", () => {
     expect(mediumProvider.vendor).toBe("medium");
   });
 
-  it("returns no rows, without ever consulting the last-synced-at lookup (no DB/network touched), when config has no secret", async () => {
+  it("returns no rows, without ever consulting the last-attempt lookup (no DB/network touched), when config has no secret", async () => {
     const config = createTestIntegrationConfig({
       vendor: "medium",
       externalId: "dan-handle",
@@ -41,19 +42,15 @@ describe("mediumProvider (the default, real-wiring export)", () => {
 
 describe("createMediumProvider", () => {
   function buildProvider(overrides: {
-    lastSuccessfulSyncAt?: Date | null;
+    lastAttemptAt?: Date | null;
     now?: Date;
-    listArticleIds?: ListMediumArticleIds;
-    fetchArticleInfo?: FetchMediumArticleInfo;
   }) {
-    const getLastSuccessfulSyncAt = vi.fn(
-      async () => overrides.lastSuccessfulSyncAt ?? null,
-    );
+    const getLastAttemptAt = vi.fn(async () => overrides.lastAttemptAt ?? null);
     const provider = createMediumProvider({
-      getLastSuccessfulSyncAt,
+      getLastAttemptAt,
       now: () => overrides.now ?? new Date("2026-09-20T12:00:00Z"),
     });
-    return { provider, getLastSuccessfulSyncAt };
+    return { provider, getLastAttemptAt };
   }
 
   it("emits no rows, silently, when the key is absent — never throws (NAMED ASSUMPTION: unlike Hashnode/DEV.to)", async () => {
@@ -90,13 +87,10 @@ describe("createMediumProvider", () => {
     });
   });
 
-  it("falls back to NUXT_MEDIUM_USERNAME when external_id is unset", async () => {
+  it("falls back to NUXT_MEDIUM_USERNAME when external_id is unset, and actually uses it in the request", async () => {
     vi.stubEnv("NUXT_MEDIUM_USERNAME", "dan-from-env");
-    // Not due yet (1h since the last sync, well under the 8h guard) — the
-    // fetch never reaches the network, so this test can assert purely on
-    // username resolution without stubbing global fetch.
-    const { provider, getLastSuccessfulSyncAt } = buildProvider({
-      lastSuccessfulSyncAt: new Date("2026-09-20T11:00:00Z"),
+    const { provider } = buildProvider({
+      lastAttemptAt: new Date("2026-09-20T03:00:00Z"), // 9h ago -> due
     });
     const config = createTestIntegrationConfig({
       slug: "danholloran",
@@ -104,15 +98,25 @@ describe("createMediumProvider", () => {
       externalId: null,
       secret: "rapidapi_key",
     });
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ({ id: "user_123", associated_articles: [] }),
+    }));
+    vi.stubGlobal("fetch", fetchSpy);
 
     await provider.fetch(config);
 
-    expect(getLastSuccessfulSyncAt).toHaveBeenCalledWith("danholloran");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://medium2.p.rapidapi.com/user/id_for/dan-from-env",
+      expect.anything(),
+    );
   });
 
   it("skips the fetch — emits no rows, and never calls the Medium API — when the guard says it isn't due yet", async () => {
     const { provider } = buildProvider({
-      lastSuccessfulSyncAt: new Date("2026-09-20T11:00:00Z"), // 1h ago
+      lastAttemptAt: new Date("2026-09-20T11:00:00Z"), // 1h ago
       now: new Date("2026-09-20T12:00:00Z"),
     });
     const config = createTestIntegrationConfig({
@@ -121,7 +125,6 @@ describe("createMediumProvider", () => {
       externalId: "dan-handle",
       secret: "rapidapi_key",
     });
-    const originalFetch = globalThis.fetch;
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
@@ -133,12 +136,11 @@ describe("createMediumProvider", () => {
       syndicationPosts: [],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
-    vi.stubGlobal("fetch", originalFetch);
   });
 
-  it("proceeds when the guard says the last successful sync is stale enough", async () => {
+  it("proceeds when the guard says the last attempt is stale enough", async () => {
     const { provider } = buildProvider({
-      lastSuccessfulSyncAt: new Date("2026-09-20T03:00:00Z"), // 9h ago
+      lastAttemptAt: new Date("2026-09-20T03:00:00Z"), // 9h ago
       now: new Date("2026-09-20T12:00:00Z"),
     });
     const config = createTestIntegrationConfig({
@@ -161,7 +163,6 @@ describe("createMediumProvider", () => {
     await provider.fetch(config);
 
     expect(fetchSpy).toHaveBeenCalled();
-    vi.unstubAllGlobals();
   });
 });
 
@@ -214,6 +215,34 @@ describe("fetchMediumSyndication", () => {
         syncedAt: new Date(1786786500000),
       },
     ]);
+  });
+
+  it("fetches article detail sequentially, in id-list order, not concurrently", async () => {
+    const articleIds = ["a1", "a2", "a3"];
+    const listArticleIds: ListMediumArticleIds = vi
+      .fn()
+      .mockResolvedValue(articleIds);
+    const inFlightAtCallTime: number[] = [];
+    let inFlight = 0;
+    const fetchArticleInfo: FetchMediumArticleInfo = vi.fn(
+      async (articleId: string) => {
+        inFlight += 1;
+        inFlightAtCallTime.push(inFlight);
+        await Promise.resolve();
+        inFlight -= 1;
+        return {
+          unique_slug: `${articleId}-1a2b3c4d5e6f`,
+          published_at: 1798108800000,
+        };
+      },
+    );
+
+    await fetchMediumSyndication(listArticleIds, fetchArticleInfo);
+
+    expect(inFlightAtCallTime).toEqual([1, 1, 1]);
+    expect(fetchArticleInfo).toHaveBeenNthCalledWith(1, "a1");
+    expect(fetchArticleInfo).toHaveBeenNthCalledWith(2, "a2");
+    expect(fetchArticleInfo).toHaveBeenNthCalledWith(3, "a3");
   });
 
   it("bounds per-article detail fetches (and therefore matrix rows) to MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC, while still reporting the platform's TRUE posts count", async () => {

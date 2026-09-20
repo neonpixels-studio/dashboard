@@ -1,14 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHashnodePostsPageFetcher } from "../../../../../server/integrations/syndication/hashnode/hashnodeClient";
-
-function jsonResponse(body: unknown, ok = true, status = 200): Response {
-  return {
-    ok,
-    status,
-    statusText: ok ? "OK" : "Error",
-    json: async () => body,
-  } as unknown as Response;
-}
+import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 
 describe("createHashnodePostsPageFetcher", () => {
   it("POSTs the publication id, page size, and cursor to Hashnode's GraphQL endpoint with the token as Authorization", async () => {

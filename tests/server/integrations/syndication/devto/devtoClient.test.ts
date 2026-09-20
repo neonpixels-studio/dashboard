@@ -1,14 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDevtoArticlesPageFetcher } from "../../../../../server/integrations/syndication/devto/devtoClient";
-
-function jsonResponse(body: unknown, ok = true, status = 200): Response {
-  return {
-    ok,
-    status,
-    statusText: ok ? "OK" : "Error",
-    json: async () => body,
-  } as unknown as Response;
-}
+import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 
 describe("createDevtoArticlesPageFetcher", () => {
   it("requests /articles/me/published with the page number, per_page, and api-key header", async () => {
@@ -23,7 +15,7 @@ describe("createDevtoArticlesPageFetcher", () => {
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://dev.to/api/articles/me/published?page=2&per_page=100",
       expect.objectContaining({
-        headers: { "api-key": "key_abc" },
+        headers: expect.objectContaining({ "api-key": "key_abc" }),
       }),
     );
   });

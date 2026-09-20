@@ -3,15 +3,7 @@ import {
   createMediumArticleIdLister,
   createMediumArticleInfoFetcher,
 } from "../../../../../server/integrations/syndication/medium/mediumClient";
-
-function jsonResponse(body: unknown, ok = true, status = 200): Response {
-  return {
-    ok,
-    status,
-    statusText: ok ? "OK" : "Error",
-    json: async () => body,
-  } as unknown as Response;
-}
+import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 
 describe("createMediumArticleIdLister", () => {
   it("resolves the username to a user id, then flattens the paged article ids", async () => {

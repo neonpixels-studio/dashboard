@@ -24,10 +24,13 @@ export interface MediumUserArticlesResponse {
 
 export interface MediumArticleInfo {
   unique_slug: string;
-  // Epoch milliseconds, matching Medium's own internal API convention that
-  // mediumapi.com wraps (see the file comment above for why this can't be
-  // confirmed live yet).
-  published_at: number;
+  // Either epoch milliseconds (Medium's own internal API convention, which
+  // mediumapi.com is documented elsewhere as wrapping) OR a
+  // "YYYY-MM-DD HH:mm:ss" UTC string (the shape shown in some published
+  // mediumapi.com examples) — genuinely unverified which one a live account
+  // returns (see the file comment above), so mapping.ts's toSyndicationSourcePost
+  // handles both rather than betting on either.
+  published_at: number | string;
 }
 
 // The seams provider.ts's core logic is tested against instead of real

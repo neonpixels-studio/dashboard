@@ -131,10 +131,7 @@ describe("fetchHashnodeSyndication", () => {
     ...pages: HashnodePostsPage[]
   ): FetchHashnodePostsPage {
     const fetchPage = vi.fn();
-    pages.forEach((page, index) => {
-      fetchPage.mockResolvedValueOnce(page);
-      void index;
-    });
+    pages.forEach((page) => fetchPage.mockResolvedValueOnce(page));
     return fetchPage;
   }
 
@@ -220,5 +217,21 @@ describe("fetchHashnodeSyndication", () => {
     await expect(fetchHashnodeSyndication(fetchPostsPage)).rejects.toThrow(
       /did not terminate within/,
     );
+  });
+
+  it("fails loud instead of re-requesting the first page forever when hasNextPage is true with no endCursor", async () => {
+    const selfContradictoryPage: HashnodePostsPage = {
+      nodes: [
+        { id: "hn_1", slug: "post-one", publishedAt: "2026-09-01T00:00:00Z" },
+      ],
+      hasNextPage: true,
+      endCursor: null,
+    };
+    const fetchPostsPage = vi.fn(async () => selfContradictoryPage);
+
+    await expect(fetchHashnodeSyndication(fetchPostsPage)).rejects.toThrow(
+      /no endCursor/,
+    );
+    expect(fetchPostsPage).toHaveBeenCalledTimes(1);
   });
 });
