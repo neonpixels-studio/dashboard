@@ -24,6 +24,26 @@ function assertProductId(product: Stripe.Price["product"]): string {
   return product;
 }
 
+// `subscription.items` is itself a paginated Stripe list (`ApiList`, with
+// its own `has_more`), separate from `subscriptions.list`'s own top-level
+// pagination that fetchAllActiveSubscriptions (mrr.ts) already guards.
+// Stripe subscriptions can carry more items than fit on that inline page, in
+// which case `items.data` here is silently truncated. Unlike the interval
+// check (deliberately deferred to mrr.ts, scoped to one app — see
+// StripeRecurring["interval"]'s comment in ./types.ts), this can't be scoped
+// the same way: a truncated item list might be hiding the very item that
+// would have matched a given app's product ids, so under-counting MRR is
+// possible for ANY app, not just one identifiable one. Failing loud here,
+// for every subscription, is the only safe option.
+function assertNoTruncatedItems(subscription: Stripe.Subscription): void {
+  if (subscription.items.has_more) {
+    throw new Error(
+      `Stripe subscription "${subscription.id}" has more items than fit on ` +
+        "one page — refusing to compute MRR from a truncated item list.",
+    );
+  }
+}
+
 // `recurring.interval` is deliberately NOT validated here against Stripe's
 // known interval set — see the comment on StripeRecurring["interval"]
 // (./types.ts) for why that check belongs in mrr.ts's
@@ -70,6 +90,7 @@ function toSubscriptionItem(
 export function toStripeSubscription(
   subscription: Stripe.Subscription,
 ): StripeSubscription {
+  assertNoTruncatedItems(subscription);
   return {
     id: subscription.id,
     status: subscription.status,

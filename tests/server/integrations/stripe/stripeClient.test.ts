@@ -23,6 +23,7 @@ function buildStripeSubscription(
           },
         },
       ],
+      has_more: false,
     },
     ...overrides,
   } as Stripe.Subscription;

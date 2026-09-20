@@ -22,6 +22,7 @@ function buildStripeSubscription(
           },
         },
       ],
+      has_more: false,
     },
     ...overrides,
   } as Stripe.Subscription;
@@ -152,5 +153,34 @@ describe("toStripeSubscription", () => {
     expect(
       toStripeSubscription(subscription).items.data[0]?.price.recurring,
     ).toEqual({ interval: "fortnight", intervalCount: 1 });
+  });
+
+  it("fails loud rather than computing MRR from a subscription whose inline item list is truncated", () => {
+    // `subscription.items` is itself a paginated Stripe list — a
+    // subscription with more items than fit on that inline page would
+    // otherwise silently drop items 11+, some of which might be the very
+    // item that matches an app's product ids.
+    const subscription = buildStripeSubscription({
+      items: {
+        data: [
+          {
+            id: "si_visible",
+            quantity: 1,
+            price: {
+              id: "price_visible",
+              unit_amount: 100,
+              currency: "usd",
+              product: "prod_123",
+              recurring: { interval: "month", interval_count: 1 },
+            },
+          },
+        ],
+        has_more: true,
+      } as Stripe.Subscription["items"],
+    });
+
+    expect(() => toStripeSubscription(subscription)).toThrow(
+      /has more items than fit on one page/,
+    );
   });
 });

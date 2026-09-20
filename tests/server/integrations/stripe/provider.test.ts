@@ -7,8 +7,23 @@ import { createTestIntegrationConfig } from "../../../../server/integrations/tes
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type { StripeSubscriptionPage } from "../../../../server/integrations/stripe/types";
 
+// Only stripeProvider.fetch's own two-line wiring (guard + delegate to
+// fetchStripeMetrics) needs the real "stripe" package mocked — every other
+// test in this file exercises fetchStripeMetrics directly with an injected
+// ListActiveSubscriptions fake and never touches the module.
+const { mockSubscriptionsList } = vi.hoisted(() => ({
+  mockSubscriptionsList: vi.fn(),
+}));
+vi.mock("stripe", () => ({
+  default: class MockStripe {
+    static API_VERSION = "mock-api-version";
+    subscriptions = { list: mockSubscriptionsList };
+  },
+}));
+
 afterEach(() => {
   vi.unstubAllEnvs();
+  mockSubscriptionsList.mockReset();
 });
 
 describe("stripeProvider", () => {
@@ -26,6 +41,49 @@ describe("stripeProvider", () => {
     await expect(stripeProvider.fetch(config)).rejects.toThrow(
       /no secret key configured/,
     );
+    expect(mockSubscriptionsList).not.toHaveBeenCalled();
+  });
+
+  it("end-to-end: builds a real Stripe client from config.secret and returns its computed metrics", async () => {
+    mockSubscriptionsList.mockResolvedValue({
+      data: [
+        {
+          id: "sub_e2e",
+          status: "active",
+          items: {
+            data: [
+              {
+                id: "si_e2e",
+                quantity: 1,
+                price: {
+                  id: "price_e2e",
+                  unit_amount: 1500,
+                  currency: "usd",
+                  product: "prod_basin_core",
+                  recurring: { interval: "month", interval_count: 1 },
+                },
+              },
+            ],
+            has_more: false,
+          },
+        },
+      ],
+      has_more: false,
+    });
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "stripe",
+      externalId: "prod_basin_core",
+      secret: "sk_test_e2e",
+    });
+
+    const result = await stripeProvider.fetch(config);
+
+    expect(mockSubscriptionsList).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "active" }),
+    );
+    const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");
+    expect(mrrMetric?.value).toBe(15);
   });
 });
 

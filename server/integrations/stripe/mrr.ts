@@ -3,6 +3,7 @@ import type {
   StripeRecurring,
   StripeSubscription,
   StripeSubscriptionItem,
+  StripeSubscriptionPage,
 } from "./types";
 
 // Stripe amounts are in the currency's smallest unit (cents for USD); the
@@ -17,10 +18,7 @@ const CENTS_PER_DOLLAR = 100;
 const MONTHS_PER_YEAR = 12;
 const WEEKS_PER_MONTH = 52 / MONTHS_PER_YEAR;
 const DAYS_PER_MONTH = 30;
-// Stripe's default page size for list endpoints; also this provider's
-// explicit `limit` (stripeClient.ts), so pagination behavior doesn't depend
-// on Stripe's implicit default changing.
-export const SUBSCRIPTIONS_PAGE_SIZE = 100;
+const MINIMUM_INTERVAL_COUNT = 1;
 
 /**
  * `integration_config.external_id` for a Stripe row is a comma-separated
@@ -41,14 +39,18 @@ export function parseProductIds(externalId: string | null): string[] {
 // How many months one billing cycle spans, so `amountPerCycle / divisor`
 // spreads that cycle's revenue evenly across each of its months (e.g. a
 // yearly, once-a-year charge spans 12 months, so dividing by 12 gives its
-// monthly-equivalent share). Exhaustive over StripeRecurring["interval"]
-// with an explicit throw rather than a silent fallthrough — mapping.ts's
-// assertKnownInterval already guards real Stripe responses, but this
-// function is also called directly from provider/test code against
-// hand-built or fixture data that bypasses that guard, so it needs its own
-// defense against an interval it has no formula for.
+// monthly-equivalent share). This is the only place `interval` is validated
+// against Stripe's known set — deliberately deferred here rather than at
+// mapping time (see StripeRecurring["interval"]'s comment in ./types.ts) so
+// an unrecognized interval fails only the app whose product ids actually
+// matched the item carrying it.
 function monthlyIntervalDivisor(recurring: StripeRecurring): number {
   const { interval, intervalCount } = recurring;
+  if (intervalCount < MINIMUM_INTERVAL_COUNT) {
+    throw new Error(
+      `Stripe recurring.interval_count must be at least ${MINIMUM_INTERVAL_COUNT}, got ${intervalCount}.`,
+    );
+  }
   if (interval === "year") {
     return intervalCount * MONTHS_PER_YEAR;
   }
@@ -133,37 +135,56 @@ export function computeMrrForProducts(
   subscriptions: StripeSubscription[],
   productIds: Set<string>,
 ): StripeMrrResult {
-  const matchedSubscriptions = subscriptions
-    .map((subscription) => ({
-      subscription,
-      matchingItems: subscription.items.data.filter((item) =>
+  const matchingItemsPerSubscription = subscriptions
+    .map((subscription) =>
+      subscription.items.data.filter((item) =>
         productIds.has(item.price.product),
       ),
-    }))
-    .filter((entry) => entry.matchingItems.length > 0);
+    )
+    .filter((matchingItems) => matchingItems.length > 0);
 
-  const mrr = matchedSubscriptions.reduce(
-    (sum, entry) => sum + sumMonthlyDollars(entry.matchingItems),
+  const mrr = matchingItemsPerSubscription.reduce(
+    (sum, matchingItems) => sum + sumMonthlyDollars(matchingItems),
     0,
   );
 
   return {
     mrr: roundToCents(mrr),
-    activeSubscribers: matchedSubscriptions.length,
+    activeSubscribers: matchingItemsPerSubscription.length,
   };
+}
+
+// Two ways a misbehaving `listActiveSubscriptions` (a stub, a proxy, a
+// Stripe-side bug — never real Stripe under normal operation) could
+// otherwise under-report MRR instead of spinning forever: an empty page
+// still claiming `hasMore` (silently truncating every subscription past
+// that point, whether it's the first page or the fifth), and a non-empty
+// page whose cursor doesn't advance (the same page returned twice in a
+// row). Both fail loud rather than letting fetchAllActiveSubscriptions
+// return a partial, plausible-looking subscription list.
+function assertPageAdvanced(
+  page: StripeSubscriptionPage,
+  lastSubscription: StripeSubscription | undefined,
+  previousStartingAfter: string | undefined,
+): void {
+  if (page.hasMore && !lastSubscription) {
+    throw new Error(
+      "Stripe subscription pagination returned an empty page while " +
+        "still claiming has_more — refusing to silently truncate the list.",
+    );
+  }
+  if (page.hasMore && lastSubscription?.id === previousStartingAfter) {
+    throw new Error(
+      "Stripe subscription pagination did not advance — " +
+        `listActiveSubscriptions returned the same cursor ("${lastSubscription?.id}") twice in a row.`,
+    );
+  }
 }
 
 /**
  * Walks every page of `listActiveSubscriptions`, following Stripe's
  * cursor-pagination convention (next page starts after the last row's id).
- * Guards against two ways a misbehaving `listActiveSubscriptions` (a stub,
- * a proxy, a Stripe-side bug — never real Stripe under normal operation)
- * could otherwise under-report MRR instead of spinning forever: an empty
- * page still claiming `hasMore` (silently truncating every subscription
- * past that point, whether it's the first page or the fifth), and a
- * non-empty page whose cursor doesn't advance (the same page returned twice
- * in a row). Both fail loud rather than returning a partial, plausible-
- * looking subscription list.
+ * See assertPageAdvanced for the two failure modes guarded against.
  */
 export async function fetchAllActiveSubscriptions(
   listActiveSubscriptions: ListActiveSubscriptions,
@@ -176,23 +197,7 @@ export async function fetchAllActiveSubscriptions(
     const previousStartingAfter = startingAfter;
     const page = await listActiveSubscriptions(startingAfter);
     const lastSubscription = page.data.at(-1);
-
-    if (page.hasMore && !lastSubscription) {
-      throw new Error(
-        "Stripe subscription pagination returned an empty page while " +
-          "still claiming has_more — refusing to silently truncate the list.",
-      );
-    }
-    if (
-      page.hasMore &&
-      lastSubscription &&
-      lastSubscription.id === previousStartingAfter
-    ) {
-      throw new Error(
-        "Stripe subscription pagination did not advance — " +
-          `listActiveSubscriptions returned the same cursor ("${lastSubscription.id}") twice in a row.`,
-      );
-    }
+    assertPageAdvanced(page, lastSubscription, previousStartingAfter);
 
     allSubscriptions.push(...page.data);
     startingAfter = lastSubscription?.id;

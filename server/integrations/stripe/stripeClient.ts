@@ -1,6 +1,5 @@
 import Stripe from "stripe";
 import { toStripeSubscription } from "./mapping";
-import { SUBSCRIPTIONS_PAGE_SIZE } from "./mrr";
 import type { ListActiveSubscriptions } from "./types";
 
 // A hung Stripe request would otherwise block a sync indefinitely (no
@@ -10,6 +9,9 @@ import type { ListActiveSubscriptions } from "./types";
 // transient 429/5xx failing the whole run.
 const STRIPE_REQUEST_TIMEOUT_MS = 20_000;
 const STRIPE_MAX_NETWORK_RETRIES = 2;
+// Stripe's maximum page size for list endpoints (the default, if omitted,
+// is 10) — set explicitly so pagination doesn't depend on that default.
+const SUBSCRIPTIONS_PAGE_SIZE = 100;
 
 // Only the subset of the real Stripe client this package calls — narrowing
 // the parameter type (rather than the full `Stripe` class) is what makes
