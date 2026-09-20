@@ -19,3 +19,10 @@ paths = [
   '''(^|/)__fixtures__/''',
   '''(^|/)test-fixtures?/''',
 ]
+# Obvious ellipsis placeholders that stand in for a PEM key in test source
+# (e.g. the GA4 provider test's "-----BEGIN PRIVATE KEY-----\n...\n-----END..."
+# stub). The literal "\n..." can never appear in a real key, so this matches
+# only the stand-in and never allowlists a genuine leaked key.
+regexes = [
+  '''-----BEGIN[ A-Z]*PRIVATE KEY-----\\n\.\.\.''',
+]

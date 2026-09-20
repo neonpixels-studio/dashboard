@@ -38,6 +38,13 @@ export default defineNuxtConfig({
     stripeProductIdMarkpost: process.env.NUXT_STRIPE_PRODUCT_ID_MARKPOST || "",
     stripeProductIdWanderist:
       process.env.NUXT_STRIPE_PRODUCT_ID_WANDERIST || "",
+    // Shared secret POST /api/sync (server/api/sync.post.ts) requires on the
+    // Authorization: Bearer header — see server/utils/syncTrigger.ts. Read
+    // via useRuntimeConfig() (not process.env directly) since, unlike
+    // secretRef/stripeProductId* above, this is one static studio-wide value
+    // rather than a row- or app-scoped key name, matching disableSignups'
+    // pattern in server/utils/auth.ts.
+    syncTriggerSecret: process.env.NUXT_SYNC_TRIGGER_SECRET || "",
     // The GA4 provider's shared studio-wide service account credentials
     // (server/integrations/ga4). Same reasoning as the Stripe entries above:
     // declared here purely so the Netlify preset forwards these into the
