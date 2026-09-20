@@ -170,14 +170,7 @@ describe("fetchGa4Metrics", () => {
 
   it("prefers integration_config.external_id over the env var when both are set", async () => {
     vi.stubEnv("NUXT_GA4_PROPERTY_ID_BASIN", "999999");
-    const dailyRows = await loadFixture<Ga4ReportRow[]>(
-      "ga4",
-      "daily-sessions-30d",
-    );
-    const runGa4Report = vi.fn(async ({ propertyId, dimension }) => {
-      expect(propertyId).toBe("123456");
-      return dimension === "date" ? dailyRows : [];
-    });
+    const runGa4Report = vi.fn(async () => []);
     const config = createTestIntegrationConfig({
       slug: "basin",
       vendor: "ga4",
@@ -187,7 +180,12 @@ describe("fetchGa4Metrics", () => {
 
     await fetchGa4Metrics(config, runGa4Report);
 
-    expect(runGa4Report).toHaveBeenCalled();
+    expect(runGa4Report).toHaveBeenCalledWith(
+      expect.objectContaining({ propertyId: "123456" }),
+    );
+    expect(runGa4Report).not.toHaveBeenCalledWith(
+      expect.objectContaining({ propertyId: "999999" }),
+    );
   });
 
   it("emits a 30d sessions total, a daily series, and a bucketed traffic breakdown for a configured app", async () => {
@@ -225,6 +223,10 @@ describe("fetchGa4Metrics", () => {
       (metric) => metric.period === "daily",
     );
     expect(dailyMetrics).toHaveLength(dailyRows.length);
+    // These fixtures were deliberately built so the daily series sums to
+    // the same total as the channel-derived total above — that's a fixture
+    // choice, not a guarantee the code makes (the two are independently
+    // scoped; see provider.ts's REPORT_START_DATE comment for why).
     expect(
       dailyMetrics.reduce((sum, metric) => sum + Number(metric.value), 0),
     ).toBe(3320);
@@ -251,11 +253,11 @@ describe("fetchGa4Metrics", () => {
 
     await fetchGa4Metrics(config, runGa4Report);
 
-    // Both reports must share one window — if the total/split (channel
-    // report) and the sparkline (date report) ever drifted onto different
-    // windows again, the stored 30d total wouldn't match what the daily
-    // series sums to. "yesterday", not "today", so the series' last point
-    // is never a still-accumulating partial day.
+    // Both reports must share one window — if the channel report (the
+    // total/split source) and the date report (the sparkline source) ever
+    // drifted onto different windows again, they'd cover different sets of
+    // days entirely. "yesterday", not "today", so the series' last point is
+    // never a still-accumulating partial day.
     expect(runGa4Report).toHaveBeenCalledWith({
       propertyId: "123456",
       dimension: "date",
@@ -290,6 +292,24 @@ describe("fetchGa4Metrics", () => {
       result.metrics.filter((metric) => metric.period === "daily"),
     ).toEqual([]);
     expect(result.trafficBreakdown).toEqual([]);
+  });
+
+  it("throws instead of reporting a 0 sessions total when the channel report is empty but the date report isn't", async () => {
+    const dailyRows = await loadFixture<Ga4ReportRow[]>(
+      "ga4",
+      "daily-sessions-30d",
+    );
+    const runGa4Report = buildRunGa4Report(dailyRows, []);
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "ga4",
+      externalId: "123456",
+      secret: "unused",
+    });
+
+    await expect(fetchGa4Metrics(config, runGa4Report)).rejects.toThrow(
+      /channel report for "basin" returned no rows/,
+    );
   });
 
   it("starts the daily and channel-split requests together (Promise.all), not one after the other", async () => {

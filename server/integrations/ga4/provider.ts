@@ -19,16 +19,26 @@ import type { RunGa4Report } from "./types";
 const GA4_VENDOR = "ga4";
 // GA4's own relative-date syntax, resolved server-side — one shared,
 // complete-days-only 30-day window ("30daysAgo".."yesterday") for every
-// report this provider runs. All three outputs (the 30d total, the channel
-// split, and the daily series) use the SAME window so they stay internally
-// consistent: the total and the breakdown pcts already have to share one
-// denominator (see sumReportSessions), and the daily series has to sum to
-// that same total for the sparkline to visually match its own tile. Using
-// "today" for any one of them (a live, still-accumulating day) would break
-// that agreement every time this runs later in the day.
+// report this provider runs, so the 30d total and the channel split (which
+// share one denominator — see sumReportSessions) are always scoped to the
+// same days as the daily series sitting in the same sparkline. This does
+// NOT guarantee the daily series sums to exactly the stored 30d total: the
+// total is deliberately taken from the channel report, not summed from the
+// date report, because the date dimension can double-count a
+// midnight-spanning session (see sumReportSessions's comment) — the two
+// numbers are independently-scoped and normally close, not identical by
+// construction. Using "today" for any one of these reports (a live,
+// still-accumulating day) would additionally make that gap change every
+// time this runs later in the day, which is why all three stick to
+// complete days only.
 const REPORT_START_DATE = "30daysAgo";
 const REPORT_END_DATE = "yesterday";
 const DATE_DIMENSION_NAME = "date";
+// GA4 has since renamed this dimension's UI label to "Session default
+// channel group" and added a newer `sessionDefaultChannelGroup` alias, but
+// `sessionDefaultChannelGrouping` remains the long-standing, documented API
+// dimension name — confirm against a live property (this environment has no
+// network access to verify) before assuming it needs to change.
 const CHANNEL_DIMENSION_NAME = "sessionDefaultChannelGrouping";
 const NO_SESSIONS = 0;
 
@@ -93,6 +103,21 @@ export async function fetchGa4Metrics(
       endDate: REPORT_END_DATE,
     }),
   ]);
+
+  // GA4 can withhold rows from one dimensioned report (e.g. data
+  // thresholding) without withholding them from another over the same
+  // window — if the channel report came back empty while the date report
+  // didn't, deriving totalSessions from channelRows below would silently
+  // store a 0 (or understated) sessions total for a property GA4 says had
+  // real traffic, rather than surfacing the mismatch. A missing metric
+  // isn't a real zero (server/utils/dashboardShaping.ts's own precedent).
+  if (!channelRows.length && dailyRows.length) {
+    throw new Error(
+      `GA4 channel report for "${config.slug}" returned no rows while the ` +
+        `date report returned ${dailyRows.length} — refusing to report a ` +
+        "sessions total of 0.",
+    );
+  }
 
   const dailySessionPoints = toDailySessionPoints(dailyRows);
   // Derived from channelRows, not summed from the daily series — see

@@ -30,6 +30,14 @@ function toYyyymmdd(date: Date): string {
  * otherwise silently roll over into the following month via `Date.UTC`), so
  * the parsed date is round-tripped back through the same format and compared
  * against the input.
+ *
+ * GA4's `date` value is a calendar day in the property's own reporting
+ * timezone, not a UTC instant — "UTC midnight" here is a stable, sortable
+ * label for that day (consistent across every row, which is all a
+ * sparkline needs), not a claim that the day began at that literal UTC
+ * moment. A property outside UTC will have its label offset from the real
+ * start of its reporting day; don't use these Dates for cross-vendor or
+ * "is this today" comparisons without accounting for that.
  */
 export function parseGa4Date(dateDimensionValue: string): Date {
   const match = YYYYMMDD_PATTERN.exec(dateDimensionValue);

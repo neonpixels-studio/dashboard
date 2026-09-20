@@ -150,4 +150,19 @@ describe("createGa4ReportRunner", () => {
 
     expect(ga4ClientConstructor).toHaveBeenCalledTimes(1);
   });
+
+  it("builds a fresh client when the private key for the same email changes (a rotated key isn't served stale)", () => {
+    ga4ClientConstructor.mockClear();
+
+    createGa4ReportRunner({
+      clientEmail: "rotated-sa@example.com",
+      privateKey: "key-before-rotation",
+    });
+    createGa4ReportRunner({
+      clientEmail: "rotated-sa@example.com",
+      privateKey: "key-after-rotation",
+    });
+
+    expect(ga4ClientConstructor).toHaveBeenCalledTimes(2);
+  });
 });

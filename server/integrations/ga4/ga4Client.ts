@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
 import type {
   Ga4ReportRequest,
@@ -35,14 +36,28 @@ export function normalizeServiceAccountPrivateKey(privateKey: string): string {
 // properties — see .env.example), so every `createGa4ReportRunner` call
 // within the same warm function instance can share one gRPC client instead
 // of opening a new channel + re-authenticating per property per sync. Keyed
-// by clientEmail (the credential that identifies the service account) so a
-// changed key/account doesn't keep serving a stale client.
-const sharedGa4ClientsByEmail = new Map<string, Ga4DataClient>();
+// on both credential fields (a hash of the private key, not the raw key
+// itself, since this key stays in memory only) rather than clientEmail
+// alone — a rotated private key for the same service account email would
+// otherwise keep being served the client built from the old, since-revoked
+// key until the function instance recycles.
+const sharedGa4ClientsByCredentialHash = new Map<string, Ga4DataClient>();
+
+function credentialCacheKey(credentials: Ga4ServiceAccountCredentials): string {
+  const normalizedPrivateKey = normalizeServiceAccountPrivateKey(
+    credentials.privateKey,
+  );
+  const privateKeyHash = createHash("sha256")
+    .update(normalizedPrivateKey)
+    .digest("hex");
+  return `${credentials.clientEmail}::${privateKeyHash}`;
+}
 
 function getSharedGa4Client(
   credentials: Ga4ServiceAccountCredentials,
 ): Ga4DataClient {
-  const existingClient = sharedGa4ClientsByEmail.get(credentials.clientEmail);
+  const cacheKey = credentialCacheKey(credentials);
+  const existingClient = sharedGa4ClientsByCredentialHash.get(cacheKey);
   if (existingClient) {
     return existingClient;
   }
@@ -53,7 +68,7 @@ function getSharedGa4Client(
       private_key: normalizeServiceAccountPrivateKey(credentials.privateKey),
     },
   });
-  sharedGa4ClientsByEmail.set(credentials.clientEmail, client);
+  sharedGa4ClientsByCredentialHash.set(cacheKey, client);
   return client;
 }
 
