@@ -52,15 +52,18 @@ export function parseGa4Date(dateDimensionValue: string): Date {
 
 /**
  * Parses a GA4 metric value (always a numeric string, regardless of the
- * metric's underlying type) into a number. Fails loud on a non-numeric value
- * rather than silently reporting 0 sessions for a row GA4 actually returned
- * data for.
+ * metric's underlying type) into a number. Fails loud on a non-numeric,
+ * blank, or negative value rather than silently reporting 0 (or fewer than
+ * zero) sessions for a row GA4 actually returned data for — `Number("")`
+ * and `Number("  ")` both evaluate to the finite number `0`, so blankness is
+ * checked explicitly rather than relying on `Number.isFinite` alone.
  */
 export function parseGa4MetricValue(metricValue: string): number {
   const parsed = Number(metricValue);
-  if (!Number.isFinite(parsed)) {
+  const isBlank = metricValue.trim() === "";
+  if (isBlank || !Number.isFinite(parsed) || parsed < 0) {
     throw new Error(
-      `GA4 metric value "${metricValue}" is not a finite number.`,
+      `GA4 metric value "${metricValue}" is not a non-negative finite number.`,
     );
   }
   return parsed;
@@ -83,20 +86,16 @@ export function toDailySessionPoints(
     .sort((first, second) => first.date.getTime() - second.date.getTime());
 }
 
-export function sumSessions(points: { sessions: number }[]): number {
-  return points.reduce((sum, point) => sum + point.sessions, 0);
-}
-
 /**
  * Sums the `sessions` metric straight across a report's rows, regardless of
- * dimension. Used for the report-level total rather than
- * `sumSessions(toDailySessionPoints(...))`: GA4's `date` dimension can
- * double-count a session that spans midnight (once on each of the two
- * calendar days it touches), while `sessionDefaultChannelGrouping` is
- * session-scoped and doesn't have that failure mode — so the 30d total this
- * provider reports is derived from the channel-split report, not the daily
- * one, and the two therefore always share the same denominator (see
- * provider.ts's fetchGa4Metrics).
+ * dimension. Used for the report-level total rather than summing the
+ * `date`-dimensioned daily series: GA4's `date` dimension can double-count a
+ * session that spans midnight (once on each of the two calendar days it
+ * touches), while `sessionDefaultChannelGrouping` is session-scoped and
+ * doesn't have that failure mode — so the 30d total this provider reports is
+ * derived from the channel-split report, not the daily one, and the two
+ * therefore always share the same denominator (see provider.ts's
+ * fetchGa4Metrics).
  */
 export function sumReportSessions(rows: Ga4ReportRow[]): number {
   return rows.reduce(
@@ -119,17 +118,23 @@ export const CHANNEL_BUCKET_ORGANIC = "organic";
 export const CHANNEL_BUCKET_REFERRAL = "referral";
 export const CHANNEL_BUCKET_OTHER = "other";
 
-const CHANNEL_GROUPING_TO_BUCKET: Record<string, string> = {
-  Direct: CHANNEL_BUCKET_DIRECT,
-  "Organic Search": CHANNEL_BUCKET_ORGANIC,
-  "Organic Shopping": CHANNEL_BUCKET_ORGANIC,
-  Referral: CHANNEL_BUCKET_REFERRAL,
-  "Organic Social": CHANNEL_BUCKET_REFERRAL,
-  "Paid Social": CHANNEL_BUCKET_REFERRAL,
-};
+// A Map, not a plain object literal — GA4's grouping names are external,
+// server-supplied strings, and a plain object would resolve a lookup like
+// "constructor" or "toString" through Object.prototype to a function value
+// instead of falling through to `?? CHANNEL_BUCKET_OTHER`.
+const CHANNEL_GROUPING_TO_BUCKET = new Map<string, string>([
+  ["Direct", CHANNEL_BUCKET_DIRECT],
+  ["Organic Search", CHANNEL_BUCKET_ORGANIC],
+  ["Organic Shopping", CHANNEL_BUCKET_ORGANIC],
+  ["Referral", CHANNEL_BUCKET_REFERRAL],
+  ["Organic Social", CHANNEL_BUCKET_REFERRAL],
+  ["Paid Social", CHANNEL_BUCKET_REFERRAL],
+]);
 
 export function toChannelBucket(channelGrouping: string): string {
-  return CHANNEL_GROUPING_TO_BUCKET[channelGrouping] ?? CHANNEL_BUCKET_OTHER;
+  return (
+    CHANNEL_GROUPING_TO_BUCKET.get(channelGrouping) ?? CHANNEL_BUCKET_OTHER
+  );
 }
 
 function roundToPct(value: number): number {

@@ -7,7 +7,6 @@ import {
   parseGa4Date,
   parseGa4MetricValue,
   sumReportSessions,
-  sumSessions,
   toChannelBreakdown,
   toChannelBucket,
   toDailySessionPoints,
@@ -39,7 +38,22 @@ describe("parseGa4MetricValue", () => {
   });
 
   it("throws on a non-numeric value instead of silently returning 0", () => {
-    expect(() => parseGa4MetricValue("not-a-number")).toThrow(/finite number/);
+    expect(() => parseGa4MetricValue("not-a-number")).toThrow(
+      /non-negative finite number/,
+    );
+  });
+
+  it("throws on a blank value — Number('') is 0, which would otherwise pass silently", () => {
+    expect(() => parseGa4MetricValue("")).toThrow(/non-negative finite number/);
+    expect(() => parseGa4MetricValue("   ")).toThrow(
+      /non-negative finite number/,
+    );
+  });
+
+  it("throws on a negative value", () => {
+    expect(() => parseGa4MetricValue("-5")).toThrow(
+      /non-negative finite number/,
+    );
   });
 });
 
@@ -59,18 +73,6 @@ describe("toDailySessionPoints", () => {
 
   it("returns an empty list for an empty report (no fabricated zero days)", () => {
     expect(toDailySessionPoints([])).toEqual([]);
-  });
-});
-
-describe("sumSessions", () => {
-  it("sums the sessions across every point", () => {
-    expect(
-      sumSessions([{ sessions: 10 }, { sessions: 5 }, { sessions: 0 }]),
-    ).toBe(15);
-  });
-
-  it("returns 0 for an empty list", () => {
-    expect(sumSessions([])).toBe(0);
   });
 });
 

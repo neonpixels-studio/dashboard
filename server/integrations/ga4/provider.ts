@@ -17,16 +17,17 @@ import {
 import type { RunGa4Report } from "./types";
 
 const GA4_VENDOR = "ga4";
-// GA4's own relative-date syntax, resolved server-side. The 30d total and
-// channel split use a live rolling window through "today", matching the
-// issue's "sessions for the reporting window (30d)" scope. The daily series
-// uses a separate, complete-days-only window ("30daysAgo".."yesterday") so
-// the sparkline's most recent point is never a partial, still-accumulating
-// day that would shrink every time this runs later in the same day.
-const REPORT_START_DATE = "29daysAgo";
-const REPORT_END_DATE = "today";
-const DAILY_SERIES_START_DATE = "30daysAgo";
-const DAILY_SERIES_END_DATE = "yesterday";
+// GA4's own relative-date syntax, resolved server-side — one shared,
+// complete-days-only 30-day window ("30daysAgo".."yesterday") for every
+// report this provider runs. All three outputs (the 30d total, the channel
+// split, and the daily series) use the SAME window so they stay internally
+// consistent: the total and the breakdown pcts already have to share one
+// denominator (see sumReportSessions), and the daily series has to sum to
+// that same total for the sparkline to visually match its own tile. Using
+// "today" for any one of them (a live, still-accumulating day) would break
+// that agreement every time this runs later in the day.
+const REPORT_START_DATE = "30daysAgo";
+const REPORT_END_DATE = "yesterday";
 const DATE_DIMENSION_NAME = "date";
 const CHANNEL_DIMENSION_NAME = "sessionDefaultChannelGrouping";
 const NO_SESSIONS = 0;
@@ -82,8 +83,8 @@ export async function fetchGa4Metrics(
     runGa4Report({
       propertyId,
       dimension: DATE_DIMENSION_NAME,
-      startDate: DAILY_SERIES_START_DATE,
-      endDate: DAILY_SERIES_END_DATE,
+      startDate: REPORT_START_DATE,
+      endDate: REPORT_END_DATE,
     }),
     runGa4Report({
       propertyId,

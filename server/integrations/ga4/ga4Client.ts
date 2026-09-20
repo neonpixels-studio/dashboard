@@ -31,22 +31,55 @@ export function normalizeServiceAccountPrivateKey(privateKey: string): string {
   return privateKey.replace(/\\n/g, "\n");
 }
 
-/**
- * Builds the real, network-touching `RunGa4Report`. `ga4Client` defaults to a
- * real GA4 Data API client instance but is injectable — this is the one
- * function in server/integrations/ga4 that would otherwise construct a live
- * client with no seam, unlike every other function in this package
- * (mapping.ts, provider.ts), which already takes a `RunGa4Report` as a
- * parameter and is tested against a fixture-backed fake.
- */
-export function createGa4ReportRunner(
+// The credentials are studio-wide (one service account for all six
+// properties — see .env.example), so every `createGa4ReportRunner` call
+// within the same warm function instance can share one gRPC client instead
+// of opening a new channel + re-authenticating per property per sync. Keyed
+// by clientEmail (the credential that identifies the service account) so a
+// changed key/account doesn't keep serving a stale client.
+const sharedGa4ClientsByEmail = new Map<string, Ga4DataClient>();
+
+function getSharedGa4Client(
   credentials: Ga4ServiceAccountCredentials,
-  ga4Client: Ga4DataClient = new BetaAnalyticsDataClient({
+): Ga4DataClient {
+  const existingClient = sharedGa4ClientsByEmail.get(credentials.clientEmail);
+  if (existingClient) {
+    return existingClient;
+  }
+
+  const client = new BetaAnalyticsDataClient({
     credentials: {
       client_email: credentials.clientEmail,
       private_key: normalizeServiceAccountPrivateKey(credentials.privateKey),
     },
-  }),
+  });
+  sharedGa4ClientsByEmail.set(credentials.clientEmail, client);
+  return client;
+}
+
+function assertMetricValue(row: {
+  metricValues?: { value?: string | null }[] | null;
+}): string {
+  const metricValue = row.metricValues?.[0]?.value;
+  if (metricValue === undefined || metricValue === null) {
+    throw new Error(
+      `GA4 report row is missing a "${SESSIONS_METRIC_NAME}" metric value.`,
+    );
+  }
+  return metricValue;
+}
+
+/**
+ * Builds the real, network-touching `RunGa4Report`. `ga4Client` defaults to
+ * the shared real GA4 Data API client (see getSharedGa4Client above) but is
+ * injectable — this is the one function in server/integrations/ga4 that
+ * would otherwise construct a live client with no seam, unlike every other
+ * function in this package (mapping.ts, provider.ts), which already takes a
+ * `RunGa4Report` as a parameter and is tested against a fixture-backed fake.
+ */
+export function createGa4ReportRunner(
+  credentials: Ga4ServiceAccountCredentials,
+  ga4Client: Ga4DataClient = getSharedGa4Client(credentials),
 ): RunGa4Report {
   return async ({
     propertyId,
@@ -64,9 +97,16 @@ export function createGa4ReportRunner(
       { timeout: GA4_REQUEST_TIMEOUT_MS },
     );
 
+    // A missing dimensionValue is tolerated as "" (it only ever becomes a
+    // Map key — toChannelBucket's ?? CHANNEL_BUCKET_OTHER or
+    // parseGa4Date's format check already fail loud downstream on an empty
+    // one). A missing metricValue is not: it feeds straight into sessions
+    // arithmetic, so silently defaulting it to "0" would understate
+    // totalSessions (and, in turn, every traffic_breakdown pct) with no
+    // error — see assertMetricValue.
     return (response.rows ?? []).map((row) => ({
       dimensionValue: row.dimensionValues?.[0]?.value ?? "",
-      metricValue: row.metricValues?.[0]?.value ?? "0",
+      metricValue: assertMetricValue(row),
     }));
   };
 }

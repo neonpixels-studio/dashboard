@@ -240,6 +240,36 @@ describe("fetchGa4Metrics", () => {
     }
   });
 
+  it("requests the daily and channel reports over the same complete-days window", async () => {
+    const runGa4Report = vi.fn(async () => []);
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "ga4",
+      externalId: "123456",
+      secret: "unused",
+    });
+
+    await fetchGa4Metrics(config, runGa4Report);
+
+    // Both reports must share one window — if the total/split (channel
+    // report) and the sparkline (date report) ever drifted onto different
+    // windows again, the stored 30d total wouldn't match what the daily
+    // series sums to. "yesterday", not "today", so the series' last point
+    // is never a still-accumulating partial day.
+    expect(runGa4Report).toHaveBeenCalledWith({
+      propertyId: "123456",
+      dimension: "date",
+      startDate: "30daysAgo",
+      endDate: "yesterday",
+    });
+    expect(runGa4Report).toHaveBeenCalledWith({
+      propertyId: "123456",
+      dimension: "sessionDefaultChannelGrouping",
+      startDate: "30daysAgo",
+      endDate: "yesterday",
+    });
+  });
+
   it("skips the traffic breakdown entirely when there are zero sessions", async () => {
     const noSessions = await loadFixture<Ga4ReportRow[]>("ga4", "no-sessions");
     const runGa4Report = buildRunGa4Report(noSessions, noSessions);

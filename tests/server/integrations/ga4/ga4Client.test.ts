@@ -5,6 +5,22 @@ import {
   normalizeServiceAccountPrivateKey,
 } from "../../../../server/integrations/ga4/ga4Client";
 
+// Only the memoization test below needs the real "@google-analytics/data"
+// module mocked (it deliberately doesn't pass a stub client, to exercise
+// createGa4ReportRunner's default parameter) — every other test in this file
+// passes an explicit stub client and never touches this.
+const { ga4ClientConstructor } = vi.hoisted(() => ({
+  ga4ClientConstructor: vi.fn(),
+}));
+vi.mock("@google-analytics/data", () => ({
+  BetaAnalyticsDataClient: class MockBetaAnalyticsDataClient {
+    constructor(options: unknown) {
+      ga4ClientConstructor(options);
+    }
+    runReport = vi.fn(async () => [{ rows: [] }]);
+  },
+}));
+
 function buildStubGa4Client(
   runReport: BetaAnalyticsDataClient["runReport"],
 ): Pick<BetaAnalyticsDataClient, "runReport"> {
@@ -99,5 +115,39 @@ describe("createGa4ReportRunner", () => {
     });
 
     expect(rows).toEqual([]);
+  });
+
+  it("throws when a row is missing its sessions metric value, instead of defaulting to 0", async () => {
+    const runReport = vi.fn(async () => [
+      { rows: [{ dimensionValues: [{ value: "Direct" }], metricValues: [] }] },
+    ]);
+    const runGa4Report = createGa4ReportRunner(
+      { clientEmail: "sa@example.com", privateKey: "unused" },
+      buildStubGa4Client(runReport as never),
+    );
+
+    await expect(
+      runGa4Report({
+        propertyId: "123456",
+        dimension: "sessionDefaultChannelGrouping",
+        startDate: "30daysAgo",
+        endDate: "yesterday",
+      }),
+    ).rejects.toThrow(/missing a "sessions" metric value/);
+  });
+
+  it("reuses one real GA4 client across calls for the same credentials (module-level memoization)", () => {
+    ga4ClientConstructor.mockClear();
+
+    createGa4ReportRunner({
+      clientEmail: "shared-sa@example.com",
+      privateKey: "key-one",
+    });
+    createGa4ReportRunner({
+      clientEmail: "shared-sa@example.com",
+      privateKey: "key-one",
+    });
+
+    expect(ga4ClientConstructor).toHaveBeenCalledTimes(1);
   });
 });
