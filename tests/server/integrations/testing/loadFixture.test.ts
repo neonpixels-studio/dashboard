@@ -20,9 +20,9 @@ describe("loadFixture", () => {
     );
   });
 
-  it("wraps a missing-fixture error with the resolved path", async () => {
+  it("wraps a missing-fixture error with a read-specific message", async () => {
     await expect(loadFixture("mock", "does-not-exist")).rejects.toThrow(
-      /Failed to load fixture/,
+      /Failed to read fixture/,
     );
   });
 });

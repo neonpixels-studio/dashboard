@@ -4,7 +4,10 @@ import {
   IntegrationConfigError,
   resolveIntegrationConfig,
 } from "../../../server/integrations/config";
-import { encryptSecret } from "../../../server/utils/integrationSecrets";
+import {
+  encryptSecret,
+  IntegrationSecretError,
+} from "../../../server/utils/integrationSecrets";
 import type { IntegrationConfigRow } from "../../../server/integrations/types";
 
 function buildRow(
@@ -46,10 +49,13 @@ describe("resolveIntegrationConfig", () => {
     expect(loadDecryptionKey).not.toHaveBeenCalled();
   });
 
-  it("throws when secretRef names an env var that isn't set", () => {
+  it("throws an IntegrationConfigError when secretRef names an env var that isn't set", () => {
     vi.stubEnv("NUXT_SENTRY_UNSET_TOKEN", undefined);
     const row = buildRow({ secretRef: "NUXT_SENTRY_UNSET_TOKEN" });
 
+    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
+      IntegrationConfigError,
+    );
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
       /NUXT_SENTRY_UNSET_TOKEN/,
     );
@@ -68,6 +74,9 @@ describe("resolveIntegrationConfig", () => {
     const row = buildRow({ vendor: "sentry", secretRef: "NUXT_STRIPE_TOKEN" });
 
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
+      IntegrationConfigError,
+    );
+    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
       /must start with "NUXT_SENTRY_"/,
     );
   });
@@ -81,6 +90,22 @@ describe("resolveIntegrationConfig", () => {
 
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
       /must start with "NUXT_SENTRY_"/,
+    );
+  });
+
+  it("throws when a vendor-scoped secretRef's trailing segment belongs to a different app", () => {
+    vi.stubEnv("NUXT_CLERK_SECRET_KEY_BASIN", "basins-secret");
+    const row = buildRow({
+      slug: "wanderist",
+      vendor: "clerk",
+      secretRef: "NUXT_CLERK_SECRET_KEY_BASIN",
+    });
+
+    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
+      IntegrationConfigError,
+    );
+    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
+      /belongs to app "basin", not "wanderist"/,
     );
   });
 
@@ -110,7 +135,7 @@ describe("resolveIntegrationConfig", () => {
     expect(config.secret).toBe("per-app-secret");
   });
 
-  it("wraps a decrypt failure with the row's slug:vendor identity", () => {
+  it("wraps a decrypt failure in an IntegrationSecretError carrying the row's slug:vendor identity", () => {
     const key = randomBytes(32);
     const wrongKey = randomBytes(32);
     const row = buildRow({
@@ -120,7 +145,29 @@ describe("resolveIntegrationConfig", () => {
     });
 
     expect(() => resolveIntegrationConfig(row, () => wrongKey)).toThrow(
+      IntegrationSecretError,
+    );
+    expect(() => resolveIntegrationConfig(row, () => wrongKey)).toThrow(
       /wanderist:clerk/,
+    );
+  });
+
+  it("propagates a broken decryption-key loader without relabeling it as a decrypt failure", () => {
+    const row = buildRow({
+      encryptedSecret: encryptSecret(
+        "per-app-secret",
+        randomBytes(32),
+        "basin:sentry",
+      ),
+    });
+    const loadDecryptionKey = () => {
+      throw new IntegrationSecretError(
+        "Integration encryption key is missing.",
+      );
+    };
+
+    expect(() => resolveIntegrationConfig(row, loadDecryptionKey)).toThrow(
+      "Integration encryption key is missing.",
     );
   });
 
@@ -141,11 +188,14 @@ describe("resolveIntegrationConfig", () => {
     });
 
     expect(() => resolveIntegrationConfig(row, () => key)).toThrow(
+      IntegrationConfigError,
+    );
+    expect(() => resolveIntegrationConfig(row, () => key)).toThrow(
       /has both secret_ref and encrypted_secret set/,
     );
   });
 
-  it("throws an IntegrationConfigError (not a secret error) when the row is not enabled", () => {
+  it("throws an IntegrationConfigError when the row is not enabled", () => {
     const row = buildRow({ enabled: false });
 
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(

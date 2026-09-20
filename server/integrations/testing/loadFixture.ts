@@ -35,10 +35,19 @@ export async function loadFixture<FixtureShape>(
   assertSafeFixtureSegment(fixtureName, "fixtureName");
 
   const fixturePath = join(FIXTURES_DIRECTORY, vendor, `${fixtureName}.json`);
+
+  let fileContents: string;
   try {
-    const fileContents = await readFile(fixturePath, "utf8");
+    fileContents = await readFile(fixturePath, "utf8");
+  } catch (cause) {
+    throw new Error(`Failed to read fixture at ${fixturePath}`, { cause });
+  }
+
+  try {
     return JSON.parse(fileContents) as FixtureShape;
   } catch (cause) {
-    throw new Error(`Failed to load fixture at ${fixturePath}`, { cause });
+    throw new Error(`Failed to parse fixture at ${fixturePath} as JSON`, {
+      cause,
+    });
   }
 }
