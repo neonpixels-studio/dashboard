@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "id": "sub_page2",
+      "status": "active",
+      "items": {
+        "data": [
+          {
+            "id": "si_page2",
+            "quantity": 1,
+            "price": {
+              "id": "price_basin_core_monthly",
+              "unitAmount": 2000,
+              "currency": "usd",
+              "product": "prod_basin_core",
+              "recurring": { "interval": "month", "intervalCount": 1 }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "hasMore": false
+}
