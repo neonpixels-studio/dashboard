@@ -300,9 +300,9 @@ describe("trafficChannelSplitForApp", () => {
 });
 
 describe("trafficChannelSplitAcrossApps", () => {
-  it("returns an empty array when no app has both a breakdown and a sessions metric", () => {
+  it("returns an empty array when the total sessions figure is zero (no app has a sessions metric yet)", () => {
     expect(
-      trafficChannelSplitAcrossApps([], [], ["basin", "markpost"]),
+      trafficChannelSplitAcrossApps([], [], ["basin", "markpost"], 0),
     ).toEqual([]);
   });
 
@@ -316,28 +316,56 @@ describe("trafficChannelSplitAcrossApps", () => {
       sessionsRow({ slug: "neonpixels", value: 6100 }),
     ];
 
-    const result = trafficChannelSplitAcrossApps(breakdownRows, metricRows, [
-      "danholloran",
-      "neonpixels",
-    ]);
+    const result = trafficChannelSplitAcrossApps(
+      breakdownRows,
+      metricRows,
+      ["danholloran", "neonpixels"],
+      18500,
+    );
 
     // (12400*0.8 + 6100*0.2) / 18500 = 60.22%
     expect(result).toEqual([{ channel: "organic", pct: 60.22 }]);
   });
 
-  it("excludes an app with a breakdown but no sessions metric, rather than weighting it at zero", () => {
+  it("excludes an app with a breakdown but no sessions metric at all, rather than weighting it at zero", () => {
     const breakdownRows = [
       breakdownRow({ slug: "basin", channel: "organic", pct: 100 }),
       breakdownRow({ slug: "markpost", channel: "direct", pct: 100 }),
     ];
     const metricRows = [sessionsRow({ slug: "basin", value: 500 })];
 
-    const result = trafficChannelSplitAcrossApps(breakdownRows, metricRows, [
-      "basin",
-      "markpost",
-    ]);
+    // markpost never reported a sessions metric, so it's excluded from the
+    // rollup total too — the total here is basin's 500 alone.
+    const result = trafficChannelSplitAcrossApps(
+      breakdownRows,
+      metricRows,
+      ["basin", "markpost"],
+      500,
+    );
 
     expect(result).toEqual([{ channel: "organic", pct: 100 }]);
+  });
+
+  it("doesn't inflate percentages to 100% when some apps' sessions aren't attributed to any channel yet", () => {
+    const breakdownRows = [
+      breakdownRow({ slug: "basin", channel: "organic", pct: 100 }),
+    ];
+    const metricRows = [
+      sessionsRow({ slug: "basin", value: 1000 }),
+      // markpost has a sessions metric (it's part of the rollup total) but
+      // its GA4 breakdown hasn't synced yet.
+      sessionsRow({ slug: "markpost", value: 9000 }),
+    ];
+
+    // Matches sessions30d.value for these two apps: 1000 + 9000.
+    const result = trafficChannelSplitAcrossApps(
+      breakdownRows,
+      metricRows,
+      ["basin", "markpost"],
+      10000,
+    );
+
+    expect(result).toEqual([{ channel: "organic", pct: 10 }]);
   });
 });
 
@@ -405,7 +433,7 @@ describe("integrationHealthForApp", () => {
     const configRows = [
       integrationConfigRow({ vendor: "stripe", enabled: true }),
     ];
-    expect(integrationHealthForApp(configRows, [], "basin")).toEqual([
+    expect(integrationHealthForApp([], configRows, "basin")).toEqual([
       {
         vendor: "stripe",
         enabled: true,
@@ -424,7 +452,7 @@ describe("integrationHealthForApp", () => {
       syncRow({ slug: "markpost", vendor: "ga4", ok: true }),
     ];
 
-    expect(integrationHealthForApp(configRows, syncRows, "basin")).toEqual([
+    expect(integrationHealthForApp(syncRows, configRows, "basin")).toEqual([
       {
         vendor: "ga4",
         enabled: true,

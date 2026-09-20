@@ -44,7 +44,12 @@ function buildSessionsRollup(
     value: sessionsRollup.value,
     period: sessionsRollup.period,
     capturedAt: sessionsRollup.capturedAt,
-    bySource: trafficChannelSplitAcrossApps(breakdownRows, metricRows, slugs),
+    bySource: trafficChannelSplitAcrossApps(
+      breakdownRows,
+      metricRows,
+      slugs,
+      sessionsRollup.value ?? 0,
+    ),
   };
 }
 

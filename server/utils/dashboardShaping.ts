@@ -196,15 +196,27 @@ export function trafficChannelSplitForApp(
 // Studio-wide channel split for the overview page, weighted by each app's
 // latest 30d sessions — a 12,000-session app should move the split far more
 // than a 300-session one. A flat average of percentages would let a small
-// property's mix count exactly as much as the studio's biggest, and would
-// silently misdescribe the `sessions30d.value` total it ships next to.
-// Apps with a breakdown but no sessions metric yet are excluded entirely
-// (not treated as zero weight, which reads as "reported zero sessions").
+// property's mix count exactly as much as the studio's biggest.
+// Apps with a breakdown but no sessions metric yet are excluded from the
+// numerator entirely (not treated as zero weight, which reads as "reported
+// zero sessions"). `totalSessions` — the SAME total `sessions30d.value`
+// ships — is the denominator, not just the sessions of apps that happen to
+// have a breakdown too: an app whose sessions are known but whose GA4
+// breakdown hasn't synced yet is real, unattributed traffic, and excluding
+// it from the denominator would inflate the covered channels' percentages
+// to imply full attribution. Percentages therefore sum to less than 100
+// whenever some sessions aren't yet attributed to any channel — that's
+// intentional, not a bug.
 export function trafficChannelSplitAcrossApps(
   breakdownRows: TrafficBreakdownRow[],
   metricRows: MetricSnapshotRow[],
   slugs: string[],
+  totalSessions: number,
 ): TrafficChannelSplit[] {
+  if (!totalSessions) {
+    return [];
+  }
+
   const weightedApps = slugs.flatMap((slug) => {
     const sessionsRow = latestRowForMetric(
       metricRows,
@@ -218,14 +230,6 @@ export function trafficChannelSplitAcrossApps(
     }
     return [{ sessions: sessionsRow.value, breakdownForApp }];
   });
-
-  const totalSessions = weightedApps.reduce(
-    (sum, app) => sum + app.sessions,
-    0,
-  );
-  if (!totalSessions) {
-    return [];
-  }
 
   const weightedTotalsByChannel = new Map<string, number>();
   weightedApps
@@ -298,8 +302,8 @@ export function computeAppStatus(
 // sync_status row when one exists. `ok`/timestamps/`error` are all null for
 // a vendor that's configured but has never been polled.
 export function integrationHealthForApp(
-  configRows: IntegrationConfigRow[],
   syncRows: SyncStatusRow[],
+  configRows: IntegrationConfigRow[],
   slug: string,
 ): IntegrationHealth[] {
   return configRows

@@ -114,6 +114,29 @@ export function fetchMetricSnapshotSeries(
 // the rollup once it ages past a fixed window.
 const BREAKDOWN_BATCH_TOLERANCE_MS = 5 * 60 * 1000;
 
+export function breakdownBatchStart(capturedAt: Date): Date {
+  return new Date(capturedAt.getTime() - BREAKDOWN_BATCH_TOLERANCE_MS);
+}
+
+// The tolerance window can legitimately return more than one row for the
+// same (slug, channel) — e.g. a retried or overlapping poll run landing
+// within the same window as the original. There's no unique index on
+// (slug, channel) to rule that out at the schema level, and the shaping
+// layer (trafficChannelSplitForApp/trafficChannelSplitAcrossApps) assumes
+// exactly one row per channel, so this keeps only the newest per channel
+// before returning.
+function dedupeByChannel(rows: TrafficBreakdownRow[]): TrafficBreakdownRow[] {
+  const newestByChannel = new Map<string, TrafficBreakdownRow>();
+  rows.forEach((row) => {
+    const key = `${row.slug}::${row.channel}`;
+    const existing = newestByChannel.get(key);
+    if (!existing || row.capturedAt > existing.capturedAt) {
+      newestByChannel.set(key, row);
+    }
+  });
+  return [...newestByChannel.values()];
+}
+
 export async function fetchLatestTrafficBreakdowns(
   db: DrizzleDb,
   slugs: string[],
@@ -132,13 +155,10 @@ export async function fetchLatestTrafficBreakdowns(
       if (!row.capturedAt) {
         return [];
       }
-      const batchStart = new Date(
-        row.capturedAt.getTime() - BREAKDOWN_BATCH_TOLERANCE_MS,
-      );
       return [
         and(
           eq(trafficBreakdown.slug, row.slug),
-          gte(trafficBreakdown.capturedAt, batchStart),
+          gte(trafficBreakdown.capturedAt, breakdownBatchStart(row.capturedAt)),
         ),
       ];
     });
@@ -147,10 +167,11 @@ export async function fetchLatestTrafficBreakdowns(
       return [];
     }
 
-    return db
+    const rows = await db
       .select()
       .from(trafficBreakdown)
       .where(or(...batchConditions));
+    return dedupeByChannel(rows);
   });
 }
 

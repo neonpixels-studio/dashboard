@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  breakdownBatchStart,
   fetchIntegrationConfigs,
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
@@ -126,6 +127,15 @@ describe("fetchMetricSnapshotSeries", () => {
   });
 });
 
+describe("breakdownBatchStart", () => {
+  it("is exactly 5 minutes before the given capture", () => {
+    const capturedAt = new Date("2026-09-19T10:02:00Z");
+    expect(breakdownBatchStart(capturedAt).toISOString()).toBe(
+      new Date("2026-09-19T09:57:00Z").toISOString(),
+    );
+  });
+});
+
 describe("fetchLatestTrafficBreakdowns", () => {
   it("never touches the db for an empty slug list", async () => {
     const { db, select } = createTrafficBreakdownFakeDb([], []);
@@ -139,8 +149,24 @@ describe("fetchLatestTrafficBreakdowns", () => {
     expect(select).toHaveBeenCalledTimes(1);
   });
 
+  it("skips a slug whose grouped max capturedAt comes back null, without a second query", async () => {
+    const { db, select } = createTrafficBreakdownFakeDb(
+      [{ slug: "basin", capturedAt: null }],
+      [],
+    );
+    expect(await fetchLatestTrafficBreakdowns(db, ["basin"])).toEqual([]);
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
   it("returns the batch of rows near each slug's own most recent capture", async () => {
-    const detailRows = [{ id: 1, slug: "basin", channel: "organic" }];
+    const detailRows = [
+      {
+        id: 1,
+        slug: "basin",
+        channel: "organic",
+        capturedAt: new Date("2026-09-19T00:00:00Z"),
+      },
+    ];
     const { db, select } = createTrafficBreakdownFakeDb(
       [{ slug: "basin", capturedAt: new Date("2026-09-19T00:00:00Z") }],
       detailRows,
@@ -150,6 +176,31 @@ describe("fetchLatestTrafficBreakdowns", () => {
       detailRows,
     );
     expect(select).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps only the newest row per channel when the batch contains a duplicate (e.g. a retried poll)", async () => {
+    const staleRow = {
+      id: 1,
+      slug: "basin",
+      channel: "organic",
+      pct: 60,
+      capturedAt: new Date("2026-09-19T10:00:00Z"),
+    };
+    const freshRow = {
+      id: 2,
+      slug: "basin",
+      channel: "organic",
+      pct: 62,
+      capturedAt: new Date("2026-09-19T10:02:00Z"),
+    };
+    const { db } = createTrafficBreakdownFakeDb(
+      [{ slug: "basin", capturedAt: new Date("2026-09-19T10:02:00Z") }],
+      [staleRow, freshRow],
+    );
+
+    await expect(fetchLatestTrafficBreakdowns(db, ["basin"])).resolves.toEqual([
+      freshRow,
+    ]);
   });
 });
 
