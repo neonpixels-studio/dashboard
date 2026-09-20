@@ -110,8 +110,14 @@ export const metricSnapshot = pgTable(
     // `mode: "number"` — otherwise Drizzle returns numeric columns as
     // strings, and every downstream comparison/aggregation over `value`
     // silently does the wrong thing (string concatenation, lexicographic
-    // ordering) instead of throwing.
-    value: numeric("value", { mode: "number" }).notNull(),
+    // ordering) instead of throwing. precision/scale keeps every stored
+    // value inside JS's safe-integer range so `mode: "number"` never
+    // rounds silently.
+    value: numeric("value", {
+      precision: 18,
+      scale: 4,
+      mode: "number",
+    }).notNull(),
     // e.g. "30d", "current".
     period: text("period").notNull(),
     capturedAt: timestamp("captured_at", { withTimezone: true })

@@ -1,16 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { seedIntegrationConfig } from "../../../server/db/seed";
+import { integrationConfig } from "../../../server/db/schema";
 import type { IntegrationConfigSeedRow } from "../../../server/db/seedData";
 
 type FakeDb = Parameters<typeof seedIntegrationConfig>[0];
 
 // Stubs just the chain `seedIntegrationConfig` calls
 // (insert -> values -> onConflictDoNothing -> returning), so the insert path
-// is exercised without a live database.
-function createFakeDb(insertedRowCount: number): {
-  db: FakeDb;
-  insert: ReturnType<typeof vi.fn>;
-} {
+// is exercised without a live database, while still letting tests assert on
+// what was actually passed to each step.
+function createFakeDb(insertedRowCount: number) {
   const returning = vi
     .fn()
     .mockResolvedValue(
@@ -19,7 +18,12 @@ function createFakeDb(insertedRowCount: number): {
   const onConflictDoNothing = vi.fn().mockReturnValue({ returning });
   const values = vi.fn().mockReturnValue({ onConflictDoNothing });
   const insert = vi.fn().mockReturnValue({ values });
-  return { db: { insert } as unknown as FakeDb, insert };
+  return {
+    db: { insert } as unknown as FakeDb,
+    insert,
+    values,
+    onConflictDoNothing,
+  };
 }
 
 const SAMPLE_ROWS: IntegrationConfigSeedRow[] = [
@@ -45,5 +49,16 @@ describe("seedIntegrationConfig", () => {
     const { db } = createFakeDb(1);
     const result = await seedIntegrationConfig(db, SAMPLE_ROWS);
     expect(result).toEqual({ attempted: 2, inserted: 1 });
+  });
+
+  it("inserts exactly the given rows, skipping conflicts on (slug, vendor)", async () => {
+    const { db, values, onConflictDoNothing } = createFakeDb(
+      SAMPLE_ROWS.length,
+    );
+    await seedIntegrationConfig(db, SAMPLE_ROWS);
+    expect(values).toHaveBeenCalledWith(SAMPLE_ROWS);
+    expect(onConflictDoNothing).toHaveBeenCalledWith({
+      target: [integrationConfig.slug, integrationConfig.vendor],
+    });
   });
 });

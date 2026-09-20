@@ -2,7 +2,6 @@
 // runs outside the Nuxt runtime, so it builds its own DB client from
 // `process.env.DATABASE_URL` rather than the `useDb()`/`useRuntimeConfig()`
 // helpers those handlers use.
-import { fileURLToPath } from "node:url";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { APPS } from "../../app/config/apps";
@@ -60,10 +59,12 @@ async function main(): Promise<void> {
 }
 
 // Only auto-run when executed directly (`npm run db:seed`), not when a test
-// imports `seedIntegrationConfig` from this module — the JS/ESM equivalent
-// of PHP's `realpath(__FILE__) === realpath($argv[0])` guard.
-const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
-if (isMainModule) {
+// imports `seedIntegrationConfig` from this module — `import.meta.main` is
+// the JS/ESM equivalent of PHP's `realpath(__FILE__) === realpath($argv[0])`
+// guard. (A manual `process.argv[1] === fileURLToPath(import.meta.url)`
+// comparison looks equivalent but breaks under a symlinked cwd — e.g. macOS
+// `/tmp` -> `/private/tmp` — because only one side gets realpath'd.)
+if (import.meta.main) {
   main().catch((error: unknown) => {
     console.error("Seed failed:", error);
     process.exitCode = 1;
