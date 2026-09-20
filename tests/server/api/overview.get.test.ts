@@ -9,10 +9,12 @@ vi.mock("../../../server/utils/auth", () => ({ requireUser: mockRequireUser }));
 vi.mock("../../../server/db", () => ({ useDb: () => ({}) }));
 
 const mockFetchLatestMetricSnapshots = vi.fn();
+const mockFetchMetricSnapshotSeries = vi.fn();
 const mockFetchLatestTrafficBreakdowns = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
 vi.mock("../../../server/utils/dashboardQueries", () => ({
   fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
+  fetchMetricSnapshotSeries: mockFetchMetricSnapshotSeries,
   fetchLatestTrafficBreakdowns: mockFetchLatestTrafficBreakdowns,
   fetchSyncStatuses: mockFetchSyncStatuses,
 }));
@@ -37,6 +39,7 @@ describe("GET /api/overview", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockFetchLatestMetricSnapshots.mockResolvedValue([]);
+    mockFetchMetricSnapshotSeries.mockResolvedValue([]);
     mockFetchLatestTrafficBreakdowns.mockResolvedValue([]);
     mockFetchSyncStatuses.mockResolvedValue([]);
   });
@@ -56,20 +59,35 @@ describe("GET /api/overview", () => {
     const result = await overviewHandler({} as H3Event);
 
     expect(result).toEqual({
-      mrr: { value: null, period: null, capturedAt: null, byApp: [] },
+      mrr: {
+        value: null,
+        period: null,
+        capturedAt: null,
+        delta: null,
+        byApp: [],
+        series: [],
+      },
       activeSubscribers: {
         value: null,
         period: null,
         capturedAt: null,
+        delta: null,
         byApp: [],
       },
       sessions30d: {
         value: null,
         period: null,
         capturedAt: null,
+        delta: null,
         bySource: [],
       },
-      openIssues: { value: null, period: null, capturedAt: null, byApp: [] },
+      openIssues: {
+        value: null,
+        period: null,
+        capturedAt: null,
+        delta: null,
+        byApp: [],
+      },
       lastSyncedAt: null,
     });
   });
@@ -96,11 +114,80 @@ describe("GET /api/overview", () => {
       value: 1003,
       period: "current",
       capturedAt: markpostRow.capturedAt.toISOString(),
+      delta: null,
       byApp: [
         { slug: "basin", value: 412 },
         { slug: "markpost", value: 591 },
       ],
+      series: [],
     });
+  });
+
+  it("builds the mrr sparkline and delta from the windowed series fetch, not the latest-only fetch", async () => {
+    // Both rollupSeriesAcrossApps window checks default to `new Date()`, so
+    // this pins "now" to keep the fixture's dates inside/outside the window
+    // deterministically regardless of the day the suite actually runs.
+    vi.setSystemTime(new Date("2026-09-20T12:00:00Z"));
+
+    const seriesRows = [
+      metricRow({
+        slug: "basin",
+        metric: "mrr",
+        value: 1000,
+        capturedAt: new Date("2026-08-25T00:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        metric: "mrr",
+        value: 1082,
+        capturedAt: new Date("2026-09-19T00:00:00Z"),
+      }),
+    ];
+    mockFetchMetricSnapshotSeries.mockResolvedValue(seriesRows);
+
+    const result = await overviewHandler({} as H3Event);
+
+    expect(result.mrr.series).toEqual([
+      { capturedAt: seriesRows[0].capturedAt.toISOString(), value: 1000 },
+      { capturedAt: seriesRows[1].capturedAt.toISOString(), value: 1082 },
+    ]);
+    expect(result.mrr.delta).toEqual({ value: 82, pct: 8.2 });
+
+    vi.useRealTimers();
+  });
+
+  it("computes 'new today' for open issues from just the last two days of the series", async () => {
+    vi.setSystemTime(new Date("2026-09-20T12:00:00Z"));
+
+    mockFetchMetricSnapshotSeries.mockResolvedValue([
+      metricRow({
+        slug: "basin",
+        metric: "open_issues",
+        value: 5,
+        capturedAt: new Date("2026-08-01T00:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        metric: "open_issues",
+        value: 6,
+        capturedAt: new Date("2026-09-19T00:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        metric: "open_issues",
+        value: 8,
+        capturedAt: new Date("2026-09-20T00:00:00Z"),
+      }),
+    ]);
+
+    const result = await overviewHandler({} as H3Event);
+
+    // Only the last two calendar days (6, then 8) are in the comparison
+    // window — the 08-01 point is excluded even though it's part of the same
+    // metric/period series.
+    expect(result.openIssues.delta).toEqual({ value: 2, pct: 33.33 });
+
+    vi.useRealTimers();
   });
 
   it("only sums sessions at the 30d period, ignoring a 7d row for the same metric", async () => {
@@ -171,6 +258,10 @@ describe("GET /api/overview", () => {
 
     const expectedSlugs = APPS.map((app) => app.slug);
     expect(mockFetchLatestMetricSnapshots).toHaveBeenCalledWith(
+      {},
+      expectedSlugs,
+    );
+    expect(mockFetchMetricSnapshotSeries).toHaveBeenCalledWith(
       {},
       expectedSlugs,
     );

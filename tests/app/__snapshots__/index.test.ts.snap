@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`index.vue rollup tiles > matches its rollup-grid snapshot with live data 1`] = `
+"<div data-v-16d9afef="" class="rollup-grid">
+  <div data-v-16d9afef="" class="card rollup-tile"><span class="metric-label">MRR · ALL APPS</span>
+    <div class="value-row"><span class="display-num rollup-value">$2,145</span><span class="delta ok">▲ 8.2%</span></div><svg width="100%" height="46" viewBox="0 0 320 72" preserveAspectRatio="none" role="img" aria-label="Monthly recurring revenue across all apps over the last 30 days" class="rollup-spark">
+      <path d="M0.00 68.00 L320.00 4.00 L320 72 L0 72 Z" fill="color-mix(in srgb, #f2f2f5 8%, transparent)"></path>
+      <path d="M0.00 68.00 L320.00 4.00" fill="none" stroke="var(--ink)" stroke-width="2.6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </div>
+  <div data-v-16d9afef="" class="card rollup-tile"><span class="metric-label">ACTIVE SUBSCRIBERS</span>
+    <div class="value-row"><span class="display-num rollup-value">401</span><span class="delta ok">▲ 22</span></div>
+    <ul data-v-5cd44a83="" class="stat-list rollup-list">
+      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #FFB020;"></span><span data-v-5cd44a83="" class="label">basin.fm</span><span data-v-5cd44a83="" class="value">126</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #FF3EA5;"></span><span data-v-5cd44a83="" class="label">markpost.io</span><span data-v-5cd44a83="" class="value">220</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #22D3EE;"></span><span data-v-5cd44a83="" class="label">wanderist.io</span><span data-v-5cd44a83="" class="value">55</span>
+        <!--v-if-->
+      </li>
+    </ul>
+  </div>
+  <div data-v-16d9afef="" class="card rollup-tile"><span class="metric-label">SESSIONS · 30 DAYS</span>
+    <div class="value-row"><span class="display-num rollup-value">61.3K</span><span class="delta muted">▼ 1.4%</span></div>
+    <ul data-v-5cd44a83="" class="stat-list rollup-list">
+      <li data-v-5cd44a83="" class="stat-row">
+        <!--v-if--><span data-v-5cd44a83="" class="label">Organic search</span><span data-v-5cd44a83="" class="value">51%</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row">
+        <!--v-if--><span data-v-5cd44a83="" class="label">Direct</span><span data-v-5cd44a83="" class="value">28%</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row">
+        <!--v-if--><span data-v-5cd44a83="" class="label">Referral &amp; social</span><span data-v-5cd44a83="" class="value">15%</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row">
+        <!--v-if--><span data-v-5cd44a83="" class="label">Other</span><span data-v-5cd44a83="" class="value">6%</span>
+        <!--v-if-->
+      </li>
+    </ul>
+  </div>
+  <div data-v-a655d826="" data-v-16d9afef="" id="alerts" class="card rollup-tile issues-tile">
+    <div data-v-a655d826="" class="issues-head"><svg data-v-a655d826="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg><span data-v-a655d826="" class="issues-label">OPEN ISSUES</span></div>
+    <div data-v-a655d826="" class="value-row"><span class="display-num rollup-value">11</span><span class="delta muted">3 new today</span></div>
+    <ul data-v-5cd44a83="" data-v-a655d826="" class="stat-list rollup-list">
+      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #FFB020;"></span><span data-v-5cd44a83="" class="label">basin.fm</span><span data-v-5cd44a83="" class="value">6</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #FF3EA5;"></span><span data-v-5cd44a83="" class="label">markpost.io</span><span data-v-5cd44a83="" class="value">4</span>
+        <!--v-if-->
+      </li>
+      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #A78BFA;"></span><span data-v-5cd44a83="" class="label">danholloran.me</span><span data-v-5cd44a83="" class="value">1</span>
+        <!--v-if-->
+      </li>
+    </ul>
+  </div>
+</div>"
+`;

@@ -4,101 +4,59 @@
     <ControlTopBar />
 
     <main class="overview-body">
-      <SectionLabel label="ALL PROPERTIES" meta="SYNCED 4M AGO · 19 SEP 2026" />
+      <SectionLabel label="ALL PROPERTIES" :meta="syncMeta" />
 
-      <!-- @todo #18: wire these four rollup tiles (and the meta above) to
-           useOverview(); swap the loading branch to MetricTileSkeleton and
-           the error branch to DataErrorState instead of these hardcoded
-           values. Left as-is here — out of scope for the seam this issue
-           builds (composables/view-model/loading-error primitives). -->
       <div class="rollup-grid">
-        <div class="card rollup-tile">
-          <span class="metric-label">MRR · ALL APPS</span>
-          <div class="value-row">
-            <span class="display-num rollup-value">$1,284</span>
-            <span class="delta ok">▲ 8.2%</span>
-          </div>
-          <SparkLine
-            class="rollup-spark"
-            :path="MRR_ROLLUP_PATH"
-            width="100%"
-            :height="46"
-            view-box="0 0 320 72"
-            color="var(--ink)"
-            :stroke-width="2.6"
-            filled
-            fill-color="color-mix(in srgb, #f2f2f5 8%, transparent)"
-            aria-label="Monthly recurring revenue across all apps over the last 30 days"
-          />
-        </div>
+        <template v-if="overviewPending">
+          <MetricTileSkeleton v-for="index in ROLLUP_TILE_COUNT" :key="index" />
+        </template>
 
-        <div class="card rollup-tile">
-          <span class="metric-label">ACTIVE SUBSCRIBERS</span>
-          <div class="value-row">
-            <span class="display-num rollup-value">312</span>
-            <span class="delta ok">▲ 14</span>
-          </div>
-          <StatList
-            class="rollup-list"
-            :divided="false"
-            :items="[
-              { label: 'basin.fm', value: '96', swatch: '#FFB020' },
-              { label: 'markpost.io', value: '141', swatch: '#FF3EA5' },
-              { label: 'wanderist.io', value: '75', swatch: '#22D3EE' },
-            ]"
-          />
-        </div>
+        <DataErrorState
+          v-else-if="overviewError"
+          class="rollup-error"
+          message="Couldn't load the studio rollups."
+          :last-synced-at="overview?.lastSyncedAt ?? null"
+          @retry="refreshOverview"
+        />
 
-        <div class="card rollup-tile">
-          <span class="metric-label">SESSIONS · 30 DAYS</span>
-          <div class="value-row">
-            <span class="display-num rollup-value">48.2K</span>
-            <span class="delta ok">▲ 3.1%</span>
-          </div>
-          <StatList
-            class="rollup-list"
-            :divided="false"
-            :items="[
-              { label: 'Organic search', value: '44%' },
-              { label: 'Direct', value: '31%' },
-              { label: 'Referral & social', value: '25%' },
-            ]"
+        <template v-else>
+          <RollupMrrTile
+            :value-label="mrrValueLabel"
+            :delta-label="mrrDeltaLabel"
+            :delta-tone="mrrDeltaTone"
+            :has-sparkline="hasMrrSparkline"
+            :sparkline-path="mrrSparklinePath"
           />
-        </div>
-
-        <div id="alerts" class="card rollup-tile issues-tile">
-          <div class="issues-head">
-            <AppIcon name="triangle" :size="12" :stroke-width="1.5" />
-            <span class="issues-label">OPEN ISSUES</span>
-          </div>
-          <div class="value-row">
-            <span class="display-num rollup-value">7</span>
-            <span class="delta muted">2 new today</span>
-          </div>
-          <StatList
-            class="rollup-list"
-            :divided="false"
-            :items="[
-              {
-                label: 'markpost.io',
-                value: '1',
-                chip: { label: 'FATAL', color: '#FF6B6B' },
-              },
-              {
-                label: 'basin.fm · wanderist.io',
-                value: '5',
-                chip: { label: 'ERROR', color: '#D6A419' },
-              },
-              {
-                label: 'danholloran.me',
-                value: '1',
-                chip: { label: 'WARN', color: '#9A9AA8' },
-              },
-            ]"
+          <RollupStatTile
+            label="ACTIVE SUBSCRIBERS"
+            :value-label="activeSubscribersValueLabel"
+            :delta-label="activeSubscribersDeltaLabel"
+            :delta-tone="activeSubscribersDeltaTone"
+            :items="activeSubscriberStats"
+            empty-message="No subscriber data synced yet."
           />
-        </div>
+          <RollupStatTile
+            label="SESSIONS · 30 DAYS"
+            :value-label="sessionsValueLabel"
+            :delta-label="sessionsDeltaLabel"
+            :delta-tone="sessionsDeltaTone"
+            :items="sessionSourceStats"
+            empty-message="No session data synced yet."
+          />
+          <RollupIssuesTile
+            :value-label="openIssuesValueLabel"
+            :delta-label="openIssuesDeltaLabel"
+            :items="openIssueStats"
+            empty-message="No issue data synced yet."
+          />
+        </template>
       </div>
 
+      <!-- @todo: this panel (per-property sessions chart + 30-day totals)
+           needs its own studio-wide, per-app historical sessions endpoint —
+           OverviewResponse only carries the studio rollup, not a series per
+           property. Out of scope for #18 (the four top rollup tiles); no
+           tracking issue exists for it yet. -->
       <div class="card sessions-panel">
         <div class="sessions-chart">
           <div class="panel-head">
@@ -134,10 +92,32 @@
 </template>
 
 <script setup lang="ts">
-import { APPS } from "~/config/apps";
+import { APPS, sortByAppOrder } from "~/config/apps";
 import { toAppCardViewModel } from "~/utils/appViewModel";
+import { useOverview } from "~/composables/useOverview";
+import { formatRelativeTime } from "~/utils/relativeTime";
+import { buildSparklinePath } from "~/utils/sparklinePath";
+import {
+  channelLabel,
+  formatCompactCount,
+  formatCount,
+  formatCountDelta,
+  formatCurrency,
+  formatNewToday,
+  formatPctDelta,
+  growthDeltaTone,
+} from "~/utils/rollupFormat";
+import type { AppMetricSplit } from "#shared/types/dashboard";
 
 useHead({ title: "Overview · Neon Pixels Control" });
+
+const ROLLUP_TILE_COUNT = 4;
+const MRR_SPARKLINE_VIEW_BOX_WIDTH = 320;
+const MRR_SPARKLINE_VIEW_BOX_HEIGHT = 72;
+// A single point can't be told apart from "not enough data" (nothing to draw
+// a trend between), so the sparkline (and its paired delta, computed the
+// same way server-side) only appears once there are at least two.
+const MIN_SPARKLINE_POINTS = 2;
 
 const propertyCount = String(APPS.length).padStart(2, "0");
 
@@ -150,8 +130,170 @@ function accentFor(slug: string): string {
   return APPS.find((app) => app.slug === slug)?.accent ?? "var(--ink-3)";
 }
 
-const MRR_ROLLUP_PATH =
-  "M0 64 C1.8 63.4 7.3 61.4 11 60.5 C14.7 59.6 18.4 59.4 22.1 58.4 C25.8 57.4 29.4 55.2 33.1 54.7 C36.8 54.2 40.4 55.9 44.1 55.5 C47.8 55.1 51.5 52.9 55.2 52.2 C58.9 51.5 62.5 51.3 66.2 51.3 C69.9 51.3 73.5 51.8 77.2 52 C80.9 52.2 84.6 53.2 88.3 52.6 C92 52 95.6 49.9 99.3 48.6 C103 47.3 106.6 45.6 110.3 44.6 C114 43.6 117.7 43.4 121.4 42.9 C125.1 42.4 128.7 42 132.4 41.5 C136.1 41 139.7 40.3 143.4 39.6 C147.1 38.9 150.8 38.3 154.5 37.4 C158.2 36.5 161.8 35.3 165.5 34.3 C169.2 33.3 172.9 31.9 176.6 31.2 C180.3 30.4 183.9 30.3 187.6 29.8 C191.3 29.3 194.9 29.1 198.6 28.2 C202.3 27.3 206 25.5 209.7 24.7 C213.4 23.9 217 24.1 220.7 23.6 C224.4 23.1 228 22.1 231.7 21.8 C235.4 21.6 239.1 22.6 242.8 22.1 C246.5 21.6 250.1 20.1 253.8 19 C257.5 17.9 261.1 16.3 264.8 15.5 C268.5 14.7 272.2 14.6 275.9 14.3 C279.6 14.1 283.2 14.8 286.9 14 C290.6 13.2 294.2 10.4 297.9 9.7 C301.6 9 305.3 10 309 9.7 C312.7 9.4 318.2 8.3 320 8";
+function nameFor(slug: string): string {
+  return APPS.find((app) => app.slug === slug)?.name ?? slug;
+}
+
+const {
+  data: overview,
+  pending: overviewPending,
+  error: overviewError,
+  refresh: refreshOverview,
+} = useOverview();
+
+const hasMrrSparkline = computed(
+  () => (overview.value?.mrr.series.length ?? 0) >= MIN_SPARKLINE_POINTS,
+);
+const mrrSparklinePath = computed(() =>
+  buildSparklinePath(
+    overview.value?.mrr.series ?? [],
+    MRR_SPARKLINE_VIEW_BOX_WIDTH,
+    MRR_SPARKLINE_VIEW_BOX_HEIGHT,
+  ),
+);
+
+const mrrValueLabel = computed(() => {
+  const value = overview.value?.mrr.value;
+  return value === null || value === undefined ? "—" : formatCurrency(value);
+});
+const mrrDeltaLabel = computed(() =>
+  formatPctDelta(overview.value?.mrr.delta ?? null),
+);
+const mrrDeltaTone = computed(() =>
+  growthDeltaTone(overview.value?.mrr.delta ?? null),
+);
+
+const activeSubscribersValueLabel = computed(() => {
+  const value = overview.value?.activeSubscribers.value;
+  return value === null || value === undefined ? "—" : formatCount(value);
+});
+const activeSubscribersDeltaLabel = computed(() =>
+  formatCountDelta(overview.value?.activeSubscribers.delta ?? null),
+);
+const activeSubscribersDeltaTone = computed(() =>
+  growthDeltaTone(overview.value?.activeSubscribers.delta ?? null),
+);
+
+const sessionsValueLabel = computed(() => {
+  const value = overview.value?.sessions30d.value;
+  return value === null || value === undefined
+    ? "—"
+    : formatCompactCount(value);
+});
+const sessionsDeltaLabel = computed(() =>
+  formatPctDelta(overview.value?.sessions30d.delta ?? null),
+);
+const sessionsDeltaTone = computed(() =>
+  growthDeltaTone(overview.value?.sessions30d.delta ?? null),
+);
+
+const openIssuesValueLabel = computed(() => {
+  const value = overview.value?.openIssues.value;
+  return value === null || value === undefined ? "—" : formatCount(value);
+});
+// "N new today" rather than an arrow — open issues never gets the ok/growth
+// tone treatment the other three tiles do (see the template: this one's
+// span is hardcoded to `.delta.muted`), since more issues is never the
+// "good" direction to celebrate in green.
+const openIssuesDeltaLabel = computed(() =>
+  formatNewToday(overview.value?.openIssues.delta ?? null),
+);
+
+// Shared by the two `byApp`-shaped tiles (active subscribers, open issues) —
+// sessions' `bySource` split has its own shape (channel, not slug) and its
+// own sort order (by share of traffic, not property order), so it isn't
+// routed through this.
+function statListFromAppSplit(
+  byApp: AppMetricSplit[],
+  formatValue: (_value: number) => string,
+) {
+  return sortByAppOrder(byApp).map((entry) => ({
+    label: nameFor(entry.slug),
+    value: formatValue(entry.value),
+    swatch: accentFor(entry.slug),
+  }));
+}
+
+const activeSubscriberStats = computed(() =>
+  statListFromAppSplit(
+    overview.value?.activeSubscribers.byApp ?? [],
+    formatCount,
+  ),
+);
+// No severity field exists on this row yet (metric_snapshot has no severity
+// column, and the Sentry provider that would populate one is #16) — the
+// mock's FATAL/ERROR/WARN chips aren't real data, so they're dropped rather
+// than fabricated. See this PR's follow-up suggestions.
+const openIssueStats = computed(() =>
+  statListFromAppSplit(overview.value?.openIssues.byApp ?? [], formatCount),
+);
+
+const sessionSourceStats = computed(() =>
+  [...(overview.value?.sessions30d.bySource ?? [])]
+    .sort((a, b) => b.pct - a.pct)
+    .map((source) => ({
+      label: channelLabel(source.channel),
+      value: `${source.pct}%`,
+    })),
+);
+
+// SSR and the initial client render can't know how long ago "now" is without
+// mismatching each other (see DataErrorState.vue's identical reasoning), so
+// the relative half of the sync label only fills in after mount; the
+// absolute date half is pure data (derived from lastSyncedAt, not from wall
+// clock) and safe to compute eagerly.
+const relativeSyncLabel = ref<string | null>(null);
+onMounted(() => {
+  watch(
+    () => overview.value?.lastSyncedAt ?? null,
+    (lastSyncedAt) => {
+      relativeSyncLabel.value = lastSyncedAt
+        ? formatRelativeTime(lastSyncedAt)
+        : null;
+    },
+    { immediate: true },
+  );
+});
+
+// Built by hand (not Intl.DateTimeFormat) so the month abbreviation is
+// always exactly 3 letters — ICU's "en-GB" short month format renders
+// "Sept", not "Sep", on some Node/ICU versions, which would silently drift
+// from the "19 SEP 2026" style the rest of this design uses.
+const MONTH_ABBREVIATIONS = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
+
+const syncedDateLabel = computed(() => {
+  const lastSyncedAt = overview.value?.lastSyncedAt;
+  if (!lastSyncedAt) {
+    return null;
+  }
+  const date = new Date(lastSyncedAt);
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = MONTH_ABBREVIATIONS[date.getUTCMonth()];
+  return `${day} ${month} ${date.getUTCFullYear()}`;
+});
+
+// Both halves must be ready before showing anything — a meta reading just
+// "SYNCED · 19 SEP 2026" (missing its relative half because it hasn't
+// mounted yet) would flash on every load.
+const syncMeta = computed(() => {
+  if (!relativeSyncLabel.value || !syncedDateLabel.value) {
+    return undefined;
+  }
+  return `SYNCED ${relativeSyncLabel.value.toUpperCase()} · ${syncedDateLabel.value}`;
+});
 
 // One series per property, colored with that property's accent. The final y of
 // each path positions its endpoint dot.
@@ -238,42 +380,8 @@ const totals = [
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
-.rollup-tile {
-  padding: 18px 20px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.value-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-}
-.rollup-value {
-  font-size: 40px;
-}
-.value-row .delta {
-  padding-bottom: 5px;
-}
-.rollup-spark {
-  margin-top: 8px;
-}
-.rollup-list {
-  margin-top: 12px;
-}
-.issues-tile {
-  border-color: color-mix(in srgb, var(--err) 25%, transparent);
-}
-.issues-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--err);
-}
-.issues-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
+.rollup-error {
+  grid-column: 1 / -1;
 }
 .sessions-panel {
   padding: 20px 24px 18px;

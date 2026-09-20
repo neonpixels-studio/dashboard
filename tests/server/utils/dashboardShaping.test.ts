@@ -7,6 +7,8 @@ import {
   latestSyncedAt,
   metricRollupWithSplit,
   metricSeriesBySlug,
+  rollupDelta,
+  rollupSeriesAcrossApps,
   syncSourcesForApp,
   syndicationMatrixForApp,
   trafficChannelSplitAcrossApps,
@@ -299,6 +301,120 @@ describe("metricRollupWithSplit", () => {
       capturedAt: rows[1].capturedAt.toISOString(),
       byApp: [{ slug: "markpost", value: 12400 }],
     });
+  });
+});
+
+describe("rollupSeriesAcrossApps", () => {
+  const now = new Date("2026-09-20T00:00:00Z");
+
+  it("returns an empty series when no app has any data", () => {
+    expect(rollupSeriesAcrossApps([], ["basin"], "mrr", "current")).toEqual([]);
+  });
+
+  it("sums same-day rows across apps into one point per UTC calendar day", () => {
+    const rows = [
+      metricRow({
+        slug: "basin",
+        value: 100,
+        capturedAt: new Date("2026-09-01T08:00:00Z"),
+      }),
+      metricRow({
+        slug: "markpost",
+        value: 50,
+        capturedAt: new Date("2026-09-01T20:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        value: 120,
+        capturedAt: new Date("2026-09-02T08:00:00Z"),
+      }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(
+        rows,
+        ["basin", "markpost"],
+        "mrr",
+        "current",
+        30,
+        now,
+      ),
+    ).toEqual([
+      {
+        capturedAt: new Date("2026-09-01T20:00:00Z").toISOString(),
+        value: 150,
+      },
+      {
+        capturedAt: new Date("2026-09-02T08:00:00Z").toISOString(),
+        value: 120,
+      },
+    ]);
+  });
+
+  it("excludes rows outside the comparison window", () => {
+    const rows = [
+      metricRow({ value: 999, capturedAt: new Date("2026-01-01T00:00:00Z") }),
+      metricRow({ value: 100, capturedAt: new Date("2026-09-19T00:00:00Z") }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, now),
+    ).toEqual([
+      {
+        capturedAt: new Date("2026-09-19T00:00:00Z").toISOString(),
+        value: 100,
+      },
+    ]);
+  });
+
+  it("never mixes two different periods of the same metric into one series", () => {
+    const rows = [
+      sessionsRow({ period: "7d", value: 900, capturedAt: now }),
+      sessionsRow({ period: "30d", value: 12400, capturedAt: now }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "sessions", "30d", 30, now),
+    ).toEqual([{ capturedAt: now.toISOString(), value: 12400 }]);
+  });
+
+  it("ignores an app outside the requested slug list", () => {
+    const rows = [metricRow({ slug: "unlisted", value: 500, capturedAt: now })];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, now),
+    ).toEqual([]);
+  });
+});
+
+describe("rollupDelta", () => {
+  it("returns null for an empty series", () => {
+    expect(rollupDelta([])).toBeNull();
+  });
+
+  it("returns null for a single-point series — nothing to compare against", () => {
+    expect(
+      rollupDelta([{ capturedAt: "2026-09-01T00:00:00Z", value: 100 }]),
+    ).toBeNull();
+  });
+
+  it("computes the absolute and percentage change from first to last point", () => {
+    const series = [
+      { capturedAt: "2026-09-01T00:00:00Z", value: 1000 },
+      { capturedAt: "2026-09-10T00:00:00Z", value: 900 },
+      { capturedAt: "2026-09-20T00:00:00Z", value: 1082 },
+    ];
+
+    expect(rollupDelta(series)).toEqual({ value: 82, pct: 8.2 });
+  });
+
+  it("returns a null pct when the first point is zero — no baseline to divide by", () => {
+    const series = [
+      { capturedAt: "2026-09-01T00:00:00Z", value: 0 },
+      { capturedAt: "2026-09-20T00:00:00Z", value: 40 },
+    ];
+
+    expect(rollupDelta(series)).toEqual({ value: 40, pct: null });
   });
 });
 

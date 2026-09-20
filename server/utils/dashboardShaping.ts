@@ -15,8 +15,10 @@ import type {
   AppStatus,
   CurrentMetric,
   IntegrationHealth,
+  MetricPoint,
   MetricSeries,
-  OverviewMetric,
+  RollupDelta,
+  RollupTotal,
   SyncSource,
   SyndicationMatrixRow,
   TrafficChannelSplit,
@@ -156,7 +158,7 @@ export function metricRollupWithSplit(
   slugs: string[],
   metric: string,
   period: string,
-): OverviewMetric & { byApp: AppMetricSplit[] } {
+): RollupTotal & { byApp: AppMetricSplit[] } {
   const latestPerApp = slugs.flatMap((slug) => {
     const row = latestRowForMetric(rows, slug, metric, period);
     if (!row) {
@@ -184,6 +186,83 @@ export function metricRollupWithSplit(
     period: mostRecent.period,
     capturedAt: toIso(mostRecent.capturedAt),
     byApp,
+  };
+}
+
+// Default comparison window for the overview rollup sparkline/deltas —
+// matches the "over the last 30 days" framing the MRR sparkline's aria-label
+// already used before this was wired to real data.
+export const ROLLUP_WINDOW_DAYS = 30;
+
+function windowStart(windowDays: number, now: Date): Date {
+  const start = new Date(now);
+  start.setUTCDate(start.getUTCDate() - windowDays);
+  return start;
+}
+
+function toUtcDayKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+// One rollup point per UTC calendar day, summing every row that landed that
+// day across every app — the studio-wide counterpart to a single app's
+// metricSeriesBySlug. A day where only some apps polled sums only what's
+// known for that day (never forward-filled or backfilled with a fabricated
+// number), matching the "no data" rule the rest of this module follows: a
+// day with zero rows across every app simply isn't a point in the series.
+export function rollupSeriesAcrossApps(
+  rows: MetricSnapshotRow[],
+  slugs: string[],
+  metric: string,
+  period: string,
+  windowDays: number = ROLLUP_WINDOW_DAYS,
+  now: Date = new Date(),
+): MetricPoint[] {
+  const start = windowStart(windowDays, now);
+  const matching = rows.filter(
+    (row) =>
+      slugs.includes(row.slug) &&
+      row.metric === metric &&
+      row.period === period &&
+      row.capturedAt >= start,
+  );
+
+  const totalsByDay = new Map<string, { capturedAt: Date; value: number }>();
+  matching.forEach((row) => {
+    const dayKey = toUtcDayKey(row.capturedAt);
+    const existing = totalsByDay.get(dayKey);
+    totalsByDay.set(dayKey, {
+      capturedAt:
+        existing && existing.capturedAt > row.capturedAt
+          ? existing.capturedAt
+          : row.capturedAt,
+      value: (existing?.value ?? 0) + row.value,
+    });
+  });
+
+  return [...totalsByDay.entries()]
+    .sort(([dayKeyA], [dayKeyB]) => (dayKeyA < dayKeyB ? -1 : 1))
+    .map(([, day]) => ({
+      capturedAt: toIso(day.capturedAt),
+      value: day.value,
+    }));
+}
+
+// Change from the earliest to the latest point of a rollup series — the
+// "▲ 8.2%"/"▲ 14" pairing next to every overview tile's headline value.
+// Needs at least two points to describe a change; a single-point (or empty)
+// series has nothing to compare against, so it's null rather than a
+// fabricated zero.
+export function rollupDelta(series: MetricPoint[]): RollupDelta | null {
+  if (series.length < 2) {
+    return null;
+  }
+  const first = firstOf(series).value;
+  const last = lastOf(series).value;
+  const value = roundTo2(last - first);
+  return {
+    value,
+    pct: first !== 0 ? roundTo2((value / first) * 100) : null,
   };
 }
 
