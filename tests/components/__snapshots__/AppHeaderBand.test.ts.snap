@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`AppHeaderBand > matches its snapshot once status has loaded 1`] = `
-"<div data-v-aecea9a4="" class="header-band">
+"<div data-v-aecea9a4="" class="header-band" aria-busy="false">
   <div data-v-aecea9a4="" class="accent-bar" style="background: #FFB020;" aria-hidden="true"></div>
   <div data-v-aecea9a4="" class="title-wrap">
     <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1>
@@ -13,7 +13,7 @@ exports[`AppHeaderBand > matches its snapshot once status has loaded 1`] = `
 `;
 
 exports[`AppHeaderBand > matches its snapshot while status is loading 1`] = `
-"<div data-v-aecea9a4="" class="header-band">
+"<div data-v-aecea9a4="" class="header-band" aria-busy="true">
   <div data-v-aecea9a4="" class="accent-bar" style="background: #FFB020;" aria-hidden="true"></div>
   <div data-v-aecea9a4="" class="title-wrap">
     <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1>

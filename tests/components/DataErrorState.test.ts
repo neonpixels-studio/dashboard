@@ -20,8 +20,10 @@ describe("DataErrorState", () => {
     expect(wrapper.text()).toContain("Sync failed for basin.fm.");
   });
 
-  it("shows never synced when lastSyncedAt is null", () => {
-    expect(mountState().text()).toContain("never synced");
+  it("says no data has synced yet when lastSyncedAt is null, not a contradictory 'synced never synced'", () => {
+    const text = mountState().text();
+    expect(text).toContain("No data has synced yet.");
+    expect(text).not.toContain("synced never synced");
   });
 
   it("shows a relative sync note when lastSyncedAt is given", () => {

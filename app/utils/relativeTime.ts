@@ -17,10 +17,12 @@ export function formatRelativeTime(
   }
 
   const elapsedMs = now.getTime() - new Date(isoTimestamp).getTime();
-  if (elapsedMs < 0 || Number.isNaN(elapsedMs)) {
-    return "just now";
+  if (Number.isNaN(elapsedMs)) {
+    return "sync time unknown";
   }
   if (elapsedMs < MINUTE_IN_MS) {
+    // Covers both "just synced" and a clock-skewed timestamp slightly in
+    // the future — either way it's too recent to report a unit.
     return "just now";
   }
   if (elapsedMs < HOUR_IN_MS) {

@@ -1,5 +1,5 @@
 <template>
-  <div class="header-band">
+  <div class="header-band" :aria-busy="!status">
     <BrandMark v-if="app.isStudioSite" :size="26" />
     <div
       v-else
@@ -19,10 +19,7 @@
     <span
       v-if="status"
       class="status-chip"
-      :style="{
-        color: statusColor(status.tone),
-        background: `color-mix(in srgb, ${statusColor(status.tone)} 15%, transparent)`,
-      }"
+      :style="healthToneChipStyle(status.tone)"
     >
       {{ status.label }}
     </span>
@@ -69,7 +66,7 @@
 <script setup lang="ts">
 import type { AppStatus } from "#shared/types/dashboard";
 import type { DashboardApp } from "~/config/apps";
-import { healthToneColor as statusColor } from "~/utils/statusColor";
+import { healthToneChipStyle } from "~/utils/statusColor";
 
 // `status` is a separate optional prop rather than folded into a view model
 // because the detail-page read API (`GET /api/apps/[slug]`, used by #20)

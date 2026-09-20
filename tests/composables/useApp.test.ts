@@ -62,6 +62,25 @@ describe("useApp", () => {
     expect(options.key()).toBe("app-detail-markpost");
   });
 
+  it("URL-encodes a slug so it can't change the request path or inject a query string", () => {
+    const mockUseFetch = vi.fn(() => ({
+      data: ref(DETAIL_RESPONSE),
+      pending: ref(false),
+      error: ref(null),
+      refresh: vi.fn(),
+    }));
+    vi.stubGlobal("useFetch", mockUseFetch);
+
+    useApp("a/b?c=d");
+
+    const [urlGetter, options] = mockUseFetch.mock.calls[0] as [
+      () => string,
+      { key: () => string },
+    ];
+    expect(urlGetter()).toBe("/api/apps/a%2Fb%3Fc%3Dd");
+    expect(options.key()).toBe("app-detail-a%2Fb%3Fc%3Dd");
+  });
+
   it("returns typed data, pending, error, and refresh", () => {
     const refresh = vi.fn();
     vi.stubGlobal("useFetch", () => ({

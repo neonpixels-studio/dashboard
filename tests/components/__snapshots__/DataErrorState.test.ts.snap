@@ -7,6 +7,6 @@ exports[`DataErrorState > matches its snapshot 1`] = `
       <line x1="12" y1="9" x2="12" y2="13"></line>
       <line x1="12" y1="17" x2="12.01" y2="17"></line>
     </svg><span data-v-7e80a450="" class="message">Sync failed for basin.fm.</span></div>
-  <p data-v-7e80a450="" class="sync-note">Showing the last known state — synced never synced.</p>
+  <p data-v-7e80a450="" class="sync-note">No data has synced yet.</p>
 </div>"
 `;

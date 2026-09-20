@@ -3,15 +3,13 @@
     :to="`/apps/${app.slug}`"
     class="card prop-card"
     :style="{ borderTopColor: app.accent }"
+    :aria-busy="!app.card"
   >
     <div class="head-row">
       <span
         v-if="app.card"
         class="status-chip"
-        :style="{
-          color: statusColor(app.card.status.tone),
-          background: `color-mix(in srgb, ${statusColor(app.card.status.tone)} 15%, transparent)`,
-        }"
+        :style="healthToneChipStyle(app.card.status.tone)"
       >
         {{ app.card.status.label }}
       </span>
@@ -42,13 +40,14 @@
     <p class="description">{{ app.description }}</p>
 
     <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
-         tone) and draw a real sparkline path from app.card.sparklines. -->
+         tone) and draw a real sparkline path from app.card.sparklines. This
+         generic list/label render is a placeholder, not the final design. -->
     <PropertyCardMetricsSkeleton v-if="!app.card" />
     <div v-else class="stats-row">
       <ul class="stats">
         <li
           v-for="metric in app.card.metrics"
-          :key="metric.metric"
+          :key="`${metric.metric}-${metric.period}`"
           class="stat"
         >
           <span class="micro-label">{{ metric.metric }}</span>
@@ -56,7 +55,6 @@
         </li>
       </ul>
       <span class="grow"></span>
-      <SkeletonBlock width="120px" height="34px" radius="var(--r-sm)" />
     </div>
 
     <ul v-if="app.card" class="chips">
@@ -64,7 +62,7 @@
         v-for="integration in app.card.integrations"
         :key="integration.vendor"
         class="chip-tag"
-        :class="{ danger: integration.ok === false }"
+        :class="integrationHealthTone(integration)"
       >
         {{ integration.vendor }}
       </li>
@@ -74,7 +72,10 @@
 
 <script setup lang="ts">
 import type { AppCardViewModel } from "~/utils/appViewModel";
-import { healthToneColor as statusColor } from "~/utils/statusColor";
+import {
+  healthToneChipStyle,
+  integrationHealthTone,
+} from "~/utils/statusColor";
 
 defineProps<{ app: AppCardViewModel }>();
 </script>
@@ -165,7 +166,7 @@ defineProps<{ app: AppCardViewModel }>();
   border-color: color-mix(in srgb, var(--warn) 25%, transparent);
   color: var(--warn);
 }
-.chip-tag.planned {
+.chip-tag.muted {
   border-style: dashed;
   color: var(--ink-3);
 }

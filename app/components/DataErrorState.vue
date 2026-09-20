@@ -29,10 +29,12 @@ const props = withDefaults(
   },
 );
 
-const syncNote = computed(
-  () =>
-    `Showing the last known state — synced ${formatRelativeTime(props.lastSyncedAt)}.`,
-);
+const syncNote = computed(() => {
+  if (!props.lastSyncedAt) {
+    return "No data has synced yet.";
+  }
+  return `Showing the last known state — synced ${formatRelativeTime(props.lastSyncedAt)}.`;
+});
 </script>
 
 <style scoped>

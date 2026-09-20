@@ -31,4 +31,10 @@ describe("formatRelativeTime", () => {
       "just now",
     );
   });
+
+  it("reports sync time unknown for an unparseable timestamp, never a false just now", () => {
+    expect(formatRelativeTime("not-a-real-timestamp", NOW)).toBe(
+      "sync time unknown",
+    );
+  });
 });

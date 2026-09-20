@@ -6,6 +6,11 @@
     <main class="overview-body">
       <SectionLabel label="ALL PROPERTIES" meta="SYNCED 4M AGO · 19 SEP 2026" />
 
+      <!-- @todo #18: wire these four rollup tiles (and the meta above) to
+           useOverview(); swap the loading branch to MetricTileSkeleton and
+           the error branch to DataErrorState instead of these hardcoded
+           values. Left as-is here — out of scope for the seam this issue
+           builds (composables/view-model/loading-error primitives). -->
       <div class="rollup-grid">
         <div class="card rollup-tile">
           <span class="metric-label">MRR · ALL APPS</span>

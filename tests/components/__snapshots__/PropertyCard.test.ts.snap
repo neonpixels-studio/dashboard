@@ -1,14 +1,15 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`PropertyCard > matches its snapshot in the loading state 1`] = `
-"<a data-v-feb2cf09="" to="/apps/basin" class="card prop-card" style="border-top-color: #FFB020;">
+"<a data-v-feb2cf09="" href="/apps/basin" class="card prop-card" style="border-top-color: #FFB020;" aria-busy="true">
   <div data-v-feb2cf09="" class="head-row"><span data-v-bf48201a="" data-v-feb2cf09="" class="skeleton-block" style="width: 52px; height: 16px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-feb2cf09="" class="category">01 — SYNDICATION</span><svg data-v-feb2cf09="" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path data-v-feb2cf09="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="#82828F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
     </svg></div>
   <div data-v-feb2cf09="" class="name display-num">basin<span data-v-feb2cf09="" style="color: #FFB020;">.fm</span></div>
   <p data-v-feb2cf09="" class="description">RSS, podcasts, YouTube and Bluesky in one stream.</p>
   <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
-         tone) and draw a real sparkline path from app.card.sparklines. -->
+         tone) and draw a real sparkline path from app.card.sparklines. This
+         generic list/label render is a placeholder, not the final design. -->
   <div data-v-8da57ad3="" data-v-feb2cf09="" class="metrics-skeleton">
     <ul data-v-8da57ad3="" class="stats-skeleton">
       <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
@@ -21,21 +22,26 @@ exports[`PropertyCard > matches its snapshot in the loading state 1`] = `
 `;
 
 exports[`PropertyCard > matches its snapshot with card data 1`] = `
-"<a data-v-feb2cf09="" to="/apps/basin" class="card prop-card" style="border-top-color: #FFB020;">
+"<a data-v-feb2cf09="" href="/apps/basin" class="card prop-card" style="border-top-color: #FFB020;" aria-busy="false">
   <div data-v-feb2cf09="" class="head-row"><span data-v-feb2cf09="" class="status-chip" style="color: var(--ok);">LIVE</span><span data-v-feb2cf09="" class="category">01 — SYNDICATION</span><svg data-v-feb2cf09="" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path data-v-feb2cf09="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="#82828F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
     </svg></div>
   <div data-v-feb2cf09="" class="name display-num">basin<span data-v-feb2cf09="" style="color: #FFB020;">.fm</span></div>
   <p data-v-feb2cf09="" class="description">RSS, podcasts, YouTube and Bluesky in one stream.</p>
   <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
-         tone) and draw a real sparkline path from app.card.sparklines. -->
+         tone) and draw a real sparkline path from app.card.sparklines. This
+         generic list/label render is a placeholder, not the final design. -->
   <div data-v-feb2cf09="" class="stats-row">
     <ul data-v-feb2cf09="" class="stats">
-      <li data-v-feb2cf09="" class="stat"><span data-v-feb2cf09="" class="micro-label">mrr</span><span data-v-feb2cf09="" class="stat-value">412</span></li>
-    </ul><span data-v-feb2cf09="" class="grow"></span><span data-v-bf48201a="" data-v-feb2cf09="" class="skeleton-block" style="width: 120px; height: 34px; border-radius: var(--r-sm);" aria-hidden="true"></span>
+      <li data-v-feb2cf09="" class="stat"><span data-v-feb2cf09="" class="micro-label">sessions</span><span data-v-feb2cf09="" class="stat-value">900</span></li>
+      <li data-v-feb2cf09="" class="stat"><span data-v-feb2cf09="" class="micro-label">sessions</span><span data-v-feb2cf09="" class="stat-value">3600</span></li>
+    </ul><span data-v-feb2cf09="" class="grow"></span>
   </div>
   <ul data-v-feb2cf09="" class="chips">
+    <li data-v-feb2cf09="" class="chip-tag ok">stripe</li>
     <li data-v-feb2cf09="" class="chip-tag danger">sentry</li>
+    <li data-v-feb2cf09="" class="chip-tag warn">clerk</li>
+    <li data-v-feb2cf09="" class="chip-tag muted">medium</li>
   </ul>
 </a>"
 `;

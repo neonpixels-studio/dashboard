@@ -5,31 +5,51 @@ import SkeletonBlock from "../../app/components/SkeletonBlock.vue";
 import PropertyCardMetricsSkeleton from "../../app/components/PropertyCardMetricsSkeleton.vue";
 import { toAppCardViewModel } from "../../app/utils/appViewModel";
 import { findAppBySlug } from "../../app/config/apps";
-import type { AppCard } from "../../shared/types/dashboard";
+import type { AppCard, IntegrationHealth } from "../../shared/types/dashboard";
 
 const config = findAppBySlug("basin")!;
 
+function buildIntegration(
+  overrides: Partial<IntegrationHealth>,
+): IntegrationHealth {
+  return {
+    vendor: "sentry",
+    enabled: true,
+    ok: true,
+    lastRunAt: null,
+    lastSuccessAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+// Two metrics sharing a name across periods (e.g. `sessions` at 7d and 30d,
+// per shared/types/dashboard.ts's MetricSeries doc comment) — the render key
+// must include period or Vue warns about duplicate keys and can reuse the
+// wrong DOM node on update.
 const card: AppCard = {
   slug: "basin",
   status: { label: "LIVE", tone: "ok" },
   metrics: [
     {
-      metric: "mrr",
-      period: "current",
-      value: 412,
+      metric: "sessions",
+      period: "7d",
+      value: 900,
+      capturedAt: "2026-09-20T00:00:00.000Z",
+    },
+    {
+      metric: "sessions",
+      period: "30d",
+      value: 3600,
       capturedAt: "2026-09-20T00:00:00.000Z",
     },
   ],
   sparklines: [],
   integrations: [
-    {
-      vendor: "sentry",
-      enabled: true,
-      ok: false,
-      lastRunAt: null,
-      lastSuccessAt: null,
-      error: "timeout",
-    },
+    buildIntegration({ vendor: "stripe", ok: true }),
+    buildIntegration({ vendor: "sentry", ok: false, error: "timeout" }),
+    buildIntegration({ vendor: "clerk", ok: null }),
+    buildIntegration({ vendor: "medium", enabled: false }),
   ],
 };
 
@@ -38,16 +58,27 @@ function mountCard(appCard: AppCard | null) {
     props: { app: toAppCardViewModel(config, appCard) },
     global: {
       components: { SkeletonBlock, PropertyCardMetricsSkeleton },
-      stubs: { NuxtLink: { template: "<a><slot /></a>" } },
+      stubs: {
+        NuxtLink: { props: ["to"], template: "<a :href='to'><slot /></a>" },
+      },
     },
   });
 }
 
 describe("PropertyCard", () => {
+  it("links to the property's detail page", () => {
+    expect(mountCard(null).attributes("href")).toBe("/apps/basin");
+  });
+
   it("renders identity fields regardless of whether metrics have loaded", () => {
     const wrapper = mountCard(null);
     expect(wrapper.text()).toContain("basin");
     expect(wrapper.text()).toContain(config.description);
+  });
+
+  it("marks the card aria-busy until metrics have loaded", () => {
+    expect(mountCard(null).attributes("aria-busy")).toBe("true");
+    expect(mountCard(card).attributes("aria-busy")).toBe("false");
   });
 
   it("renders skeleton placeholders instead of fabricated metrics when card is null", () => {
@@ -62,18 +93,33 @@ describe("PropertyCard", () => {
   it("renders real status and metrics once card data is available", () => {
     const wrapper = mountCard(card);
     expect(wrapper.text()).toContain("LIVE");
-    expect(wrapper.text()).toContain("mrr");
-    expect(wrapper.text()).toContain("412");
+    expect(wrapper.text()).toContain("900");
+    expect(wrapper.text()).toContain("3600");
     expect(wrapper.findComponent(PropertyCardMetricsSkeleton).exists()).toBe(
       false,
     );
   });
 
-  it("marks a failed integration with the danger tone", () => {
+  it("keys each metric row by metric+period so same-named metrics at different periods don't collide", () => {
     const wrapper = mountCard(card);
-    const chip = wrapper.find(".chip-tag");
-    expect(chip.classes()).toContain("danger");
+    expect(wrapper.findAll(".stat")).toHaveLength(2);
   });
+
+  it.each<[string, string]>([
+    ["stripe", "ok"],
+    ["sentry", "danger"],
+    ["clerk", "warn"],
+    ["medium", "muted"],
+  ])(
+    "renders the %s integration chip with the %s tone",
+    (vendor, expectedClass) => {
+      const wrapper = mountCard(card);
+      const chip = wrapper
+        .findAll(".chip-tag")
+        .find((node) => node.text() === vendor)!;
+      expect(chip.classes()).toContain(expectedClass);
+    },
+  );
 
   it("matches its snapshot in the loading state", () => {
     expect(mountCard(null).html()).toMatchSnapshot();
