@@ -4,13 +4,14 @@ import PropertyCardMetricsSkeleton from "../../app/components/PropertyCardMetric
 import SkeletonBlock from "../../app/components/SkeletonBlock.vue";
 
 describe("PropertyCardMetricsSkeleton", () => {
-  it("renders three placeholder stats plus a sparkline placeholder", () => {
+  it("renders three placeholder stats and nothing beyond them", () => {
     const wrapper = mount(PropertyCardMetricsSkeleton, {
       global: { components: { SkeletonBlock } },
     });
     expect(wrapper.findAll(".stat-skeleton")).toHaveLength(3);
-    // 2 blocks per stat (label + value) + 1 sparkline placeholder.
-    expect(wrapper.findAllComponents(SkeletonBlock)).toHaveLength(7);
+    // 2 blocks per stat (label + value) — no sparkline placeholder, since
+    // PropertyCard's loaded state doesn't render one either (issue #19).
+    expect(wrapper.findAllComponents(SkeletonBlock)).toHaveLength(6);
   });
 
   it("matches its snapshot", () => {

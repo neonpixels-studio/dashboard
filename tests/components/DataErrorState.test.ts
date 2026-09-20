@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import DataErrorState from "../../app/components/DataErrorState.vue";
 import AppIcon from "../../app/components/AppIcon.vue";
 
@@ -26,11 +27,28 @@ describe("DataErrorState", () => {
     expect(text).not.toContain("synced never synced");
   });
 
-  it("shows a relative sync note when lastSyncedAt is given", () => {
+  it("renders a mount-independent sync note before the relative time fills in, to avoid an SSR/client hydration mismatch", () => {
     const wrapper = mountState({
       lastSyncedAt: new Date(Date.now() - 4 * 60_000).toISOString(),
     });
+    // Read synchronously, before the post-mount reactive update has been
+    // flushed to the DOM — this is what SSR + the client's first paint show.
+    expect(wrapper.text()).toContain("Showing the last known state.");
+    expect(wrapper.text()).not.toMatch(/synced \d+m ago/);
+  });
+
+  it("fills in the relative sync note once mounted", async () => {
+    const wrapper = mountState({
+      lastSyncedAt: new Date(Date.now() - 4 * 60_000).toISOString(),
+    });
+    await nextTick();
     expect(wrapper.text()).toMatch(/synced \d+m ago/);
+  });
+
+  it("emits retry when the retry button is clicked", async () => {
+    const wrapper = mountState();
+    await wrapper.find(".retry-btn").trigger("click");
+    expect(wrapper.emitted("retry")).toHaveLength(1);
   });
 
   it("exposes role=alert for assistive tech", () => {

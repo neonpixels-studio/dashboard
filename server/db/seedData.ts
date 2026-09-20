@@ -26,12 +26,10 @@ export interface IntegrationConfigSeedRow {
  *
  * Every app gets a GA4 row (every property shows a "GA" pill). Product apps
  * additionally get Stripe/Clerk/Sentry and the writing app gets its
- * cross-posting targets — today that grouping matches each app's
- * `integrations` list exactly, but it's derived from `template`, not read
- * from `integrations` directly, so editing one app's integrations pills
- * won't automatically update its seeded vendor set. A vendor pill with no
- * matching `integrationVendor` value (e.g. danholloran's "ZYVOP") is
- * intentionally left out rather than inventing a vendor.
+ * cross-posting targets. This grouping is derived from `template`, not from
+ * live integration health — `AppCard.integrations`/`IntegrationHealth`
+ * (`shared/types/dashboard.ts`) reflect what's actually configured and
+ * synced, and are computed separately in `server/utils/dashboardShaping.ts`.
  *
  * Every row seeds `enabled: false` — no row has a `secretRef` or
  * `externalId` yet, so nothing here is actually wired up to poll. Enabling

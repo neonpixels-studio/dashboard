@@ -6,7 +6,7 @@ exports[`DataErrorState > matches its snapshot 1`] = `
       <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
       <line x1="12" y1="9" x2="12" y2="13"></line>
       <line x1="12" y1="17" x2="12.01" y2="17"></line>
-    </svg><span data-v-7e80a450="" class="message">Sync failed for basin.fm.</span></div>
+    </svg><span data-v-7e80a450="" class="message">Sync failed for basin.fm.</span><span data-v-7e80a450="" class="grow"></span><button data-v-7e80a450="" type="button" class="retry-btn"> Retry </button></div>
   <p data-v-7e80a450="" class="sync-note">No data has synced yet.</p>
 </div>"
 `;

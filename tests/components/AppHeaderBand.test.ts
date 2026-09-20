@@ -3,10 +3,11 @@ import { mount } from "@vue/test-utils";
 import AppHeaderBand from "../../app/components/AppHeaderBand.vue";
 import SkeletonBlock from "../../app/components/SkeletonBlock.vue";
 import { findAppBySlug } from "../../app/config/apps";
+import type { AppStatus } from "../../shared/types/dashboard";
 
 const app = findAppBySlug("basin")!;
 
-function mountBand(status: { label: string; tone: string } | null = null) {
+function mountBand(status: AppStatus | null = null) {
   return mount(AppHeaderBand, {
     props: { app, status },
     global: { components: { SkeletonBlock } },

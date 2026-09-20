@@ -15,6 +15,15 @@ export interface AppCardViewModel extends DashboardApp {
   card: AppCard | null;
 }
 
+// `AppCard.metrics` is generic — "every metric found for the app, not a
+// fixed list" per its doc comment in shared/types/dashboard.ts — but
+// PropertyCard's stats row is a fixed-height, non-wrapping flex row. Both
+// PropertyCard.vue and its PropertyCardMetricsSkeleton.vue counterpart cap
+// their rendered stat count at this shared constant so the loading state
+// and the loaded state always reserve/use the same amount of space. Issue
+// #19 owns curating *which* metrics fill these slots.
+export const PROPERTY_CARD_STAT_COUNT = 3;
+
 export interface AppDetailViewModel extends DashboardApp {
   detail: AppDetailResponse | null;
 }

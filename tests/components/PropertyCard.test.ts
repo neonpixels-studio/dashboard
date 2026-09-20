@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import PropertyCard from "../../app/components/PropertyCard.vue";
 import SkeletonBlock from "../../app/components/SkeletonBlock.vue";
@@ -101,8 +101,29 @@ describe("PropertyCard", () => {
   });
 
   it("keys each metric row by metric+period so same-named metrics at different periods don't collide", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const wrapper = mountCard(card);
     expect(wrapper.findAll(".stat")).toHaveLength(2);
+    const duplicateKeyWarning = warnSpy.mock.calls.some((call) =>
+      String(call[0]).includes("Duplicate keys"),
+    );
+    expect(duplicateKeyWarning).toBe(false);
+    warnSpy.mockRestore();
+  });
+
+  it("caps the rendered stats at PROPERTY_CARD_STAT_COUNT so a property with many metrics can't overflow the fixed-height card", () => {
+    const capturedAt = "2026-09-20T00:00:00.000Z";
+    const manyMetricsCard: AppCard = {
+      ...card,
+      metrics: [
+        { metric: "mrr", period: "current", value: 1, capturedAt },
+        { metric: "users", period: "current", value: 2, capturedAt },
+        { metric: "issues", period: "current", value: 3, capturedAt },
+        { metric: "sessions", period: "30d", value: 4, capturedAt },
+      ],
+    };
+    const wrapper = mountCard(manyMetricsCard);
+    expect(wrapper.findAll(".stat")).toHaveLength(3);
   });
 
   it.each<[string, string]>([

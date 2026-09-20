@@ -81,6 +81,24 @@ describe("useApp", () => {
     expect(options.key()).toBe("app-detail-a%2Fb%3Fc%3Dd");
   });
 
+  it("disables the fetch for an empty slug instead of requesting the collection endpoint", () => {
+    const mockUseFetch = vi.fn(() => ({
+      data: ref(DETAIL_RESPONSE),
+      pending: ref(false),
+      error: ref(null),
+      refresh: vi.fn(),
+    }));
+    vi.stubGlobal("useFetch", mockUseFetch);
+
+    useApp("");
+
+    const [, options] = mockUseFetch.mock.calls[0] as [
+      () => string,
+      { enabled: () => boolean },
+    ];
+    expect(options.enabled()).toBe(false);
+  });
+
   it("returns typed data, pending, error, and refresh", () => {
     const refresh = vi.fn();
     vi.stubGlobal("useFetch", () => ({

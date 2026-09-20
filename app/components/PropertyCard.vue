@@ -46,7 +46,7 @@
     <div v-else class="stats-row">
       <ul class="stats">
         <li
-          v-for="metric in app.card.metrics"
+          v-for="metric in visibleMetrics"
           :key="`${metric.metric}-${metric.period}`"
           class="stat"
         >
@@ -71,13 +71,23 @@
 </template>
 
 <script setup lang="ts">
-import type { AppCardViewModel } from "~/utils/appViewModel";
+import {
+  PROPERTY_CARD_STAT_COUNT,
+  type AppCardViewModel,
+} from "~/utils/appViewModel";
 import {
   healthToneChipStyle,
   integrationHealthTone,
 } from "~/utils/statusColor";
 
-defineProps<{ app: AppCardViewModel }>();
+const props = defineProps<{ app: AppCardViewModel }>();
+
+// Bounded to the same count PropertyCardMetricsSkeleton reserves space for —
+// `AppCard.metrics` is a generic, unbounded list, but the card's fixed
+// height and non-wrapping stats row aren't.
+const visibleMetrics = computed(
+  () => props.app.card?.metrics.slice(0, PROPERTY_CARD_STAT_COUNT) ?? [],
+);
 </script>
 
 <style scoped>

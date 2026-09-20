@@ -13,7 +13,13 @@ export function useApp(slug: MaybeRefOrGetter<string>) {
   const encodedSlug = () => encodeURIComponent(toValue(slug));
   const { data, pending, error, refresh } = useFetch<AppDetailResponse>(
     () => `/api/apps/${encodedSlug()}`,
-    { key: () => `app-detail-${encodedSlug()}` },
+    {
+      key: () => `app-detail-${encodedSlug()}`,
+      // An empty slug would otherwise request `/api/apps/` — Nitro's own
+      // collection route (`GET /api/apps`, an `AppCard[]`) — and silently
+      // hand back the wrong shape as if it were an `AppDetailResponse`.
+      enabled: () => toValue(slug).length > 0,
+    },
   );
   return { data, pending, error, refresh };
 }
