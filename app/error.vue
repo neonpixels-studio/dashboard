@@ -75,8 +75,8 @@ const isSignupsDisabled = computed(() => {
   if (statusCode.value !== SIGNUPS_DISABLED_STATUS_CODE) {
     return false;
   }
-  const data = props.error?.data as { code?: string } | undefined;
-  return data?.code === SIGNUPS_DISABLED_ERROR_CODE;
+  const errorData = props.error?.data as { code?: string } | undefined;
+  return errorData?.code === SIGNUPS_DISABLED_ERROR_CODE;
 });
 
 const content = computed<ErrorContent>(() => {

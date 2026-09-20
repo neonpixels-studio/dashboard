@@ -17,13 +17,10 @@ const { default: authMiddleware } =
 
 const dbUser = { id: 1, providerId: "user_abc" };
 
-function eventWithUserId(
-  userId: string | null,
-  headers: Record<string, string> = {},
-) {
+function eventWithUserId(userId: string | null, path = "/") {
   return {
     context: { auth: () => ({ userId }) },
-    node: { req: { headers } },
+    path,
   } as unknown as H3Event;
 }
 
@@ -69,7 +66,7 @@ describe("server auth middleware", () => {
         statusCode: 403,
       }),
     );
-    const event = eventWithUserId("user_new", { "x-nuxt-error": "true" });
+    const event = eventWithUserId("user_new", "/__nuxt_error?statusCode=403");
 
     await authMiddleware(event);
 
