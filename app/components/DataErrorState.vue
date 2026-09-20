@@ -38,15 +38,24 @@ const emit = defineEmits<{ retry: [] }>();
 
 // The exact "Xm/Xh ago" text depends on wall-clock time, which differs
 // between the server render and the client mount — rendering it directly in
-// a computed would produce a hydration mismatch (and never update again
-// anyway, since nothing re-triggers the computed after mount). Instead SSR
-// and the initial client render both show the mount-independent message
-// below; `onMounted` then fills in the precise relative time.
+// a computed would produce a hydration mismatch. Instead SSR and the initial
+// client render both show the mount-independent message below; the watcher
+// (started inside onMounted, so it never runs during SSR or the hydration
+// pass itself) fills in the precise relative time and keeps it in sync with
+// `lastSyncedAt` — important because `@retry` is expected to call the
+// composable's `refresh`, which can update `lastSyncedAt` while this
+// component stays mounted.
 const relativeSync = ref<string | null>(null);
 onMounted(() => {
-  relativeSync.value = props.lastSyncedAt
-    ? formatRelativeTime(props.lastSyncedAt)
-    : null;
+  watch(
+    () => props.lastSyncedAt,
+    (lastSyncedAt) => {
+      relativeSync.value = lastSyncedAt
+        ? formatRelativeTime(lastSyncedAt)
+        : null;
+    },
+    { immediate: true },
+  );
 });
 
 const syncNote = computed(() => {

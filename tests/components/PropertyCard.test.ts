@@ -100,10 +100,29 @@ describe("PropertyCard", () => {
     );
   });
 
-  it("keys each metric row by metric+period so same-named metrics at different periods don't collide", () => {
+  it("keys each metric row by metric+period, so reordering two same-named metrics at different periods reorders the DOM instead of colliding", async () => {
+    // Vue's "Duplicate keys" warning only fires on a keyed patch, never on
+    // initial mount, so this forces one by re-mounting with the metrics
+    // reversed and asserting the rendered order actually followed — a
+    // `:key="metric.metric"` regression would make Vue treat both `sessions`
+    // rows as the same node and this order would NOT change.
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const wrapper = mountCard(card);
-    expect(wrapper.findAll(".stat")).toHaveLength(2);
+    expect(wrapper.findAll(".stat-value").map((node) => node.text())).toEqual([
+      "900",
+      "3600",
+    ]);
+
+    const reversedCard: AppCard = {
+      ...card,
+      metrics: [...card.metrics].reverse(),
+    };
+    await wrapper.setProps({ app: toAppCardViewModel(config, reversedCard) });
+
+    expect(wrapper.findAll(".stat-value").map((node) => node.text())).toEqual([
+      "3600",
+      "900",
+    ]);
     const duplicateKeyWarning = warnSpy.mock.calls.some((call) =>
       String(call[0]).includes("Duplicate keys"),
     );

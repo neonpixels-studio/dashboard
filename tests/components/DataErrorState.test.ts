@@ -45,6 +45,19 @@ describe("DataErrorState", () => {
     expect(wrapper.text()).toMatch(/synced \d+m ago/);
   });
 
+  it("updates the sync note when lastSyncedAt changes after a retry, without remounting", async () => {
+    const wrapper = mountState({ lastSyncedAt: null });
+    await nextTick();
+    expect(wrapper.text()).toContain("No data has synced yet.");
+
+    await wrapper.setProps({
+      lastSyncedAt: new Date(Date.now() - 60_000).toISOString(),
+    });
+    await nextTick();
+
+    expect(wrapper.text()).toMatch(/synced \d+m ago/);
+  });
+
   it("emits retry when the retry button is clicked", async () => {
     const wrapper = mountState();
     await wrapper.find(".retry-btn").trigger("click");
