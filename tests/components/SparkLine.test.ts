@@ -57,9 +57,12 @@ describe("SparkLine", () => {
   it("draws one gridline per entry, giving only the last the baseline stroke", () => {
     const wrapper = mountSpark({ gridLines: [12, 51, 90, 129] });
     const lines = wrapper.findAll("line");
-    expect(lines).toHaveLength(4);
-    expect(lines[0].attributes("stroke")).toBe("var(--line-3)");
-    expect(lines[3].attributes("stroke")).toBe("var(--line)");
+    expect(lines.map((line) => line.attributes("stroke"))).toEqual([
+      "var(--line-3)",
+      "var(--line-3)",
+      "var(--line-3)",
+      "var(--line)",
+    ]);
   });
 
   it("matches its snapshot", () => {

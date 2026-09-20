@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import StatList from "../../app/components/StatList.vue";
 
@@ -91,6 +91,37 @@ describe("StatList", () => {
     expect(
       mount(StatList, { props: { items, divided: false } }).classes(),
     ).not.toContain("divided");
+  });
+
+  it("keys each row by label, so reordering two same-label rows reorders the DOM instead of colliding", async () => {
+    // Vue's "Duplicate keys" warning only fires on a keyed patch, never on
+    // initial mount, so this forces one by re-mounting with two rows that
+    // share a label (real once these lists come from the read API instead
+    // of hardcoded markup, per StatList's `:key="row.label"`) and asserting
+    // the rendered order actually followed a reversal — mirrors
+    // PropertyCard.test.ts's equivalent metric-row test.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const items = [
+      { label: "Pro · $4/mo", value: "$312" },
+      { label: "Pro · $4/mo", value: "$70" },
+    ];
+    const wrapper = mount(StatList, { props: { items } });
+    expect(wrapper.findAll(".value").map((node) => node.text())).toEqual([
+      "$312",
+      "$70",
+    ]);
+
+    await wrapper.setProps({ items: [...items].reverse() });
+
+    expect(wrapper.findAll(".value").map((node) => node.text())).toEqual([
+      "$70",
+      "$312",
+    ]);
+    const duplicateKeyWarning = warnSpy.mock.calls.some((call) =>
+      String(call[0]).includes("Duplicate keys"),
+    );
+    expect(duplicateKeyWarning).toBe(false);
+    warnSpy.mockRestore();
   });
 
   it("matches its snapshot", () => {

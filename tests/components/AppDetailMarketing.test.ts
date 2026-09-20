@@ -48,7 +48,11 @@ describe("AppDetailMarketing", () => {
       "basin.fm",
       "markpost.io",
     ]);
+    // Assert against a bar whose target differs from the mounted app
+    // (grimicorn) — a bar keyed off `props.app.accent` instead of its own
+    // target's accent would still pass on bars[0] by coincidence.
     expect(bars[0].props("color")).toBe(findAppBySlug("grimicorn")!.accent);
+    expect(bars[1].props("color")).toBe(findAppBySlug("wanderist")!.accent);
   });
 
   it("renders the traffic-source and device stat lists", () => {
