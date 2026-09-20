@@ -42,7 +42,19 @@ async function parseIssuesResponseBody(
   response: Response,
   projectSlug: string,
 ): Promise<unknown[]> {
-  const body: unknown = await response.json();
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (cause) {
+    // A 200 response can still carry a non-JSON body (e.g. an HTML error
+    // page from Sentry's edge during an incident) — response.json() throws
+    // a bare SyntaxError with no mention of which project/request it came
+    // from; wrap it so the failure is identifiable in sync_status.error.
+    throw new Error(
+      `Sentry issue search for project "${projectSlug}" returned a non-JSON response body.`,
+      { cause },
+    );
+  }
   if (!Array.isArray(body)) {
     throw new Error(
       `Sentry issue search for project "${projectSlug}" returned a non-array response body.`,

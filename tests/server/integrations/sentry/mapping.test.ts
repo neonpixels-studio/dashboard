@@ -26,11 +26,37 @@ describe("parseSentryNextCursor", () => {
     expect(parseSentryNextCursor(linkHeader)).toBeNull();
   });
 
-  it('returns null for a header with no rel="next" segment at all', () => {
+  it("is order-independent across the rel/results/cursor attributes within an entry", () => {
+    const linkHeader =
+      '<url>; cursor="0:0:1"; results="false"; rel="previous", ' +
+      '<url>; cursor="0:200:0"; results="true"; rel="next"';
+
+    expect(parseSentryNextCursor(linkHeader)).toBe("0:200:0");
+  });
+
+  it("does not mis-split on a comma embedded inside one entry's own URL", () => {
+    const linkHeader =
+      '<https://sentry.io/api/0/projects/acme/markpost/issues/?query=a,b>; rel="previous"; results="false"; cursor="0:0:1", ' +
+      '<https://sentry.io/api/0/projects/acme/markpost/issues/?query=a,b>; rel="next"; results="true"; cursor="0:200:0"';
+
+    expect(parseSentryNextCursor(linkHeader)).toBe("0:200:0");
+  });
+
+  it('fails loud, per Sentry\'s own documented guarantee that a "next" entry is always present, instead of silently treating a header with no rel="next" segment as "no more pages"', () => {
     const linkHeader =
       '<https://sentry.io/api/0/projects/acme/markpost/issues/?cursor=0:0:1>; rel="previous"; results="false"; cursor="0:0:1"';
 
-    expect(parseSentryNextCursor(linkHeader)).toBeNull();
+    expect(() => parseSentryNextCursor(linkHeader)).toThrow(
+      /has no "next" entry/,
+    );
+  });
+
+  it('fails loud when the "next" entry is missing its results/cursor attributes, instead of silently returning null', () => {
+    const linkHeader = '<url>; rel="next"';
+
+    expect(() => parseSentryNextCursor(linkHeader)).toThrow(
+      /missing results\/cursor/,
+    );
   });
 });
 

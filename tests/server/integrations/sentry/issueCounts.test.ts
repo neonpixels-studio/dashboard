@@ -1,15 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { countAllSentryIssues } from "../../../../server/integrations/sentry/issueCounts";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
-import type { SentryIssuePage } from "../../../../server/integrations/sentry/types";
+import type {
+  SearchSentryIssues,
+  SentryIssuePage,
+} from "../../../../server/integrations/sentry/types";
 
 function fakeSearchFromPages(
   pages: Record<string, SentryIssuePage>,
-): (request: {
-  projectSlug: string;
-  query: string;
-  cursor?: string;
-}) => Promise<SentryIssuePage> {
+): SearchSentryIssues {
   return vi.fn(async ({ cursor }) => {
     const key = cursor ?? "first";
     const page = pages[key];

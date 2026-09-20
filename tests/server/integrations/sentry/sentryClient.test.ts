@@ -171,4 +171,54 @@ describe("createSentryIssueSearcher", () => {
       searchSentryIssues({ projectSlug: "markpost", query: "is:unresolved" }),
     ).rejects.toThrow(/missing a string "id" field/);
   });
+
+  it("throws a project-identified error when a 200 response body isn't valid JSON", async () => {
+    const fetchStub = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError("Unexpected token < in JSON");
+      },
+      headers: { get: () => null },
+    })) as unknown as typeof fetch;
+    const searchSentryIssues = createSentryIssueSearcher(
+      "token_abc",
+      "acme",
+      fetchStub,
+    );
+
+    await expect(
+      searchSentryIssues({ projectSlug: "markpost", query: "is:unresolved" }),
+    ).rejects.toThrow(/markpost.*non-JSON response body/);
+  });
+
+  it("aborts the request once the request timeout elapses, instead of hanging forever on a stalled response", async () => {
+    vi.useFakeTimers();
+    // Simulates a real fetch: never settles on its own, but rejects as soon
+    // as its AbortSignal fires — this is the exact seam the timeout in
+    // sentryClient.ts's createSentryIssueSearcher relies on.
+    const fetchStub = vi.fn((_url: unknown, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("This operation was aborted", "AbortError"));
+        });
+      });
+    }) as unknown as typeof fetch;
+    const searchSentryIssues = createSentryIssueSearcher(
+      "token_abc",
+      "acme",
+      fetchStub,
+    );
+
+    const resultPromise = searchSentryIssues({
+      projectSlug: "markpost",
+      query: "is:unresolved",
+    });
+    const assertion = expect(resultPromise).rejects.toThrow(/aborted/i);
+    // Matches sentryClient.ts's SENTRY_REQUEST_TIMEOUT_MS.
+    await vi.advanceTimersByTimeAsync(20_000);
+    await assertion;
+
+    vi.useRealTimers();
+  });
 });

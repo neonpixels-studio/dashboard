@@ -2,11 +2,20 @@ import type { SearchSentryIssues } from "./types";
 
 // Defends against a runaway loop if a broken/misbehaving SearchSentryIssues
 // (a bad fake in a test, or an unexpected upstream response) keeps claiming
-// `hasMore` forever — no real studio project is anywhere near this many
-// pages of open issues. Mirrors the fail-loud spirit of
-// server/integrations/stripe/mrr.ts's assertPageAdvanced, sized generously
-// (100 issues/page * 500 pages = 50,000 issues) rather than tuned tight.
-const MAX_ISSUE_SEARCH_PAGES = 500;
+// `hasMore` forever, mirroring the fail-loud spirit of
+// server/integrations/stripe/mrr.ts's assertPageAdvanced. Deliberately NOT
+// sized "generously" the way that guard is: netlify/functions/scheduled-sync.ts's
+// FETCH_TIMEOUT_MS caps the studio's ENTIRE /api/sync call (every provider,
+// concurrently) at 9s, well under Netlify's own 10s synchronous function
+// limit — a chain of sequential paginated requests here is the one shape in
+// this provider that could burn through that whole budget on its own. 20
+// pages (Sentry's default page size, ~25-100 issues/page, so 500-2,000
+// issues) is comfortably past any realistic open-issue count for basin/
+// markpost/wanderist; a project that legitimately exceeds it needs this
+// provider's fan-out reworked (see scheduled-sync.ts's own comment on
+// FETCH_TIMEOUT_MS — this is the same tight-budget tension, not a new one),
+// not a bigger number here.
+const MAX_ISSUE_SEARCH_PAGES = 20;
 
 /**
  * Walks every page of `searchSentryIssues` for one (project, query) pair and

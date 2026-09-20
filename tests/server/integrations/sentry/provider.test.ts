@@ -58,15 +58,32 @@ describe("sentryProvider", () => {
     );
   });
 
-  it("end-to-end: builds a real searcher from config.secret + NUXT_SENTRY_ORG and returns normalized metrics", async () => {
+  it("end-to-end: builds a real searcher from config.secret + NUXT_SENTRY_ORG, hits the expected URL, and returns per-query normalized metrics", async () => {
     vi.stubEnv("NUXT_SENTRY_ORG", "acme");
-    const noIssues = await loadFixture<SentryIssuePage>("sentry", "no-issues");
-    const fetchStub = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => [],
-      headers: { get: () => null },
-    })) as unknown as typeof fetch;
+    const threeOpen = await loadFixture<SentryIssuePage>(
+      "sentry",
+      "three-open-issues",
+    );
+    const oneFatal = await loadFixture<SentryIssuePage>(
+      "sentry",
+      "one-fatal-issue",
+    );
+    // Real Sentry returns a different result set per query — this stub keys
+    // off the request's own `query` param so open_issues and fatal_issues
+    // can't both pass by coincidentally matching the same fixture.
+    const fetchStub = vi.fn(async (url: URL) => {
+      const query = url.searchParams.get("query");
+      const issues =
+        query === "is:unresolved level:fatal"
+          ? oneFatal.issues
+          : threeOpen.issues;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => issues,
+        headers: { get: () => null },
+      };
+    }) as unknown as typeof fetch;
     vi.stubGlobal("fetch", fetchStub);
     const config = createTestIntegrationConfig({
       slug: "markpost",
@@ -77,17 +94,30 @@ describe("sentryProvider", () => {
 
     const result = await sentryProvider.fetch(config);
 
-    expect(fetchStub).toHaveBeenCalled();
+    const [requestedUrl] = fetchStub.mock.calls[0] ?? [];
+    expect((requestedUrl as URL).pathname).toBe(
+      "/api/0/projects/acme/markpost/issues/",
+    );
+
     const openIssuesMetric = result.metrics.find(
       (metric) => metric.metric === "open_issues",
     );
-    expect(openIssuesMetric?.value).toBe(noIssues.issues.length);
+    const fatalIssuesMetric = result.metrics.find(
+      (metric) => metric.metric === "fatal_issues",
+    );
+    expect(openIssuesMetric?.value).toBe(threeOpen.issues.length);
+    expect(fatalIssuesMetric?.value).toBe(oneFatal.issues.length);
   });
 });
 
 describe("fetchSentryMetrics", () => {
   it("returns no rows (not zeros) for an unconfigured app, without calling Sentry at all", async () => {
+    // Pinned to a real app slug + an explicitly-empty env fallback, rather
+    // than relying on the default test slug's env var happening to be unset
+    // in whatever shell/.env this runs under.
+    vi.stubEnv("NUXT_SENTRY_PROJECT_MARKPOST", "");
     const config = createTestIntegrationConfig({
+      slug: "markpost",
       vendor: "sentry",
       externalId: null,
       secret: "token_unused",
@@ -105,7 +135,9 @@ describe("fetchSentryMetrics", () => {
   });
 
   it("returns no rows for a blank project-slug string, same as null", async () => {
+    vi.stubEnv("NUXT_SENTRY_PROJECT_MARKPOST", "");
     const config = createTestIntegrationConfig({
+      slug: "markpost",
       vendor: "sentry",
       externalId: "   ",
       secret: "token_unused",
