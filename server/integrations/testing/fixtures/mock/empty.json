@@ -1,5 +1,4 @@
 {
-  "note": "Reference fixture for the mock provider. A real vendor provider records an actual recorded API response here (see server/integrations/testing/loadFixture.ts) so its fetch() can be tested without a network call.",
   "metrics": [],
   "trafficBreakdown": [],
   "syndicationPosts": []

@@ -5,26 +5,32 @@ import {
 } from "../utils/integrationSecrets";
 import type { IntegrationConfig, IntegrationConfigRow } from "./types";
 
+export class IntegrationConfigError extends Error {
+  name = "IntegrationConfigError";
+}
+
 // `secretRef` is a row-supplied string used to index process.env — without a
 // guard, any writer of an integration_config row (admin UI, seed data, a
-// future import path) could point it at an unrelated, sensitive env var and
-// have that value handed straight to a provider whose job is to send
-// credentials to a third party. The naming convention constrains it to the
-// "shared studio env var" shape described on integrationConfig in
-// server/db/schema.ts; the denylist hard-blocks the specific NUXT_-prefixed
-// vars this app relies on for things other than vendor integrations.
-const SECRET_REF_PATTERN = /^NUXT_[A-Z0-9_]+$/;
-const FORBIDDEN_SECRET_REFS = new Set([
-  "NUXT_INTEGRATION_ENCRYPTION_KEY",
-  "NUXT_DISABLE_SIGNUPS",
-]);
-
-function assertSecretRefIsSafe(secretRef: string): void {
-  const isWellFormed = SECRET_REF_PATTERN.test(secretRef);
-  const isForbidden = FORBIDDEN_SECRET_REFS.has(secretRef);
-  if (!isWellFormed || isForbidden) {
+// future import path) could point it at an unrelated, sensitive env var
+// (e.g. the one backing server/utils/integrationSecrets.ts's own encryption
+// key) and have that value handed straight to a provider whose job is to
+// send credentials to a third party.
+//
+// A fixed allowlist of full names can't work here: per
+// server/db/schema.ts's comment on `integrationConfig`, a vendor whose
+// credential varies per app (clerk) uses a per-slug suffix, e.g.
+// "NUXT_CLERK_SECRET_KEY_BASIN" vs "...WANDERIST" — there's no fixed set of
+// literal names to enumerate. Instead, the ref must be scoped to the row's
+// own vendor via a "NUXT_<VENDOR>_" prefix, which every legitimate name
+// (shared or per-slug) satisfies and no unrelated env var can.
+function assertSecretRefIsSafe(
+  row: IntegrationConfigRow,
+  secretRef: string,
+): void {
+  const requiredPrefix = `NUXT_${row.vendor.toUpperCase()}_`;
+  if (!secretRef.startsWith(requiredPrefix)) {
     throw new IntegrationSecretError(
-      `integration_config.secret_ref "${secretRef}" is not a valid integration secret name.`,
+      `integration_config.secret_ref "${secretRef}" for vendor "${row.vendor}" must start with "${requiredPrefix}".`,
     );
   }
 }
@@ -46,8 +52,18 @@ function resolveSecret(
   row: IntegrationConfigRow,
   loadDecryptionKey: () => Buffer,
 ): string | null {
+  if (row.secretRef && row.encryptedSecret) {
+    // The integration_config_single_secret DB check should make this
+    // unreachable. If it happens anyway (bypassed write path, corrupted
+    // row), fail loud rather than silently picking one source over the
+    // other for a vendor credential.
+    throw new IntegrationSecretError(
+      `integration_config ${row.slug}:${row.vendor} has both secret_ref and encrypted_secret set.`,
+    );
+  }
+
   if (row.secretRef) {
-    assertSecretRefIsSafe(row.secretRef);
+    assertSecretRefIsSafe(row, row.secretRef);
     const secretFromEnv = process.env[row.secretRef];
     if (!secretFromEnv) {
       throw new IntegrationSecretError(
@@ -56,6 +72,7 @@ function resolveSecret(
     }
     return secretFromEnv;
   }
+
   if (row.encryptedSecret) {
     try {
       return decryptSecret(
@@ -70,6 +87,7 @@ function resolveSecret(
       );
     }
   }
+
   return null;
 }
 
@@ -88,7 +106,7 @@ export function resolveIntegrationConfig(
   loadDecryptionKey: () => Buffer = loadIntegrationEncryptionKey,
 ): IntegrationConfig {
   if (!row.enabled) {
-    throw new Error(
+    throw new IntegrationConfigError(
       `integration_config ${row.slug}:${row.vendor} is not enabled.`,
     );
   }

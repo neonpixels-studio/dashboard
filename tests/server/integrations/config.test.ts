@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { randomBytes } from "node:crypto";
-import { resolveIntegrationConfig } from "../../../server/integrations/config";
+import {
+  IntegrationConfigError,
+  resolveIntegrationConfig,
+} from "../../../server/integrations/config";
 import { encryptSecret } from "../../../server/utils/integrationSecrets";
 import type { IntegrationConfigRow } from "../../../server/integrations/types";
 
@@ -23,6 +26,7 @@ function buildRow(
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("resolveIntegrationConfig", () => {
@@ -43,28 +47,54 @@ describe("resolveIntegrationConfig", () => {
   });
 
   it("throws when secretRef names an env var that isn't set", () => {
-    const row = buildRow({ secretRef: "NUXT_TRULY_UNSET_TOKEN" });
+    vi.stubEnv("NUXT_SENTRY_UNSET_TOKEN", undefined);
+    const row = buildRow({ secretRef: "NUXT_SENTRY_UNSET_TOKEN" });
 
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
-      /NUXT_TRULY_UNSET_TOKEN/,
+      /NUXT_SENTRY_UNSET_TOKEN/,
     );
   });
 
-  it("throws when secretRef doesn't match the shared-env-var naming convention", () => {
-    const row = buildRow({ secretRef: "DATABASE_URL" });
+  it("throws when secretRef names an env var set to an empty string", () => {
+    vi.stubEnv("NUXT_SENTRY_EMPTY_TOKEN", "");
+    const row = buildRow({ secretRef: "NUXT_SENTRY_EMPTY_TOKEN" });
 
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
-      /not a valid integration secret name/,
+      /NUXT_SENTRY_EMPTY_TOKEN/,
     );
   });
 
-  it("throws when secretRef targets a reserved, non-integration secret", () => {
+  it("throws when secretRef isn't scoped to the row's own vendor", () => {
+    const row = buildRow({ vendor: "sentry", secretRef: "NUXT_STRIPE_TOKEN" });
+
+    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
+      /must start with "NUXT_SENTRY_"/,
+    );
+  });
+
+  it("throws when secretRef targets an unrelated, non-integration secret", () => {
     vi.stubEnv("NUXT_INTEGRATION_ENCRYPTION_KEY", "some-value");
-    const row = buildRow({ secretRef: "NUXT_INTEGRATION_ENCRYPTION_KEY" });
+    const row = buildRow({
+      vendor: "sentry",
+      secretRef: "NUXT_INTEGRATION_ENCRYPTION_KEY",
+    });
 
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
-      /not a valid integration secret name/,
+      /must start with "NUXT_SENTRY_"/,
     );
+  });
+
+  it("accepts a per-app, slug-suffixed secretRef scoped to the vendor (e.g. clerk)", () => {
+    vi.stubEnv("NUXT_CLERK_SECRET_KEY_BASIN", "clerk-secret");
+    const row = buildRow({
+      slug: "basin",
+      vendor: "clerk",
+      secretRef: "NUXT_CLERK_SECRET_KEY_BASIN",
+    });
+
+    const config = resolveIntegrationConfig(row, vi.fn());
+
+    expect(config.secret).toBe("clerk-secret");
   });
 
   it("decrypts a per-app encrypted secret, keyed by slug:vendor", () => {
@@ -102,22 +132,40 @@ describe("resolveIntegrationConfig", () => {
     expect(config.secret).toBeNull();
   });
 
-  it("prefers secretRef over encryptedSecret if a row somehow has both", () => {
-    vi.stubEnv("NUXT_BOTH_TOKEN", "from-env");
+  it("throws when a row somehow has both secretRef and encryptedSecret set", () => {
+    vi.stubEnv("NUXT_SENTRY_BOTH_TOKEN", "from-env");
     const key = randomBytes(32);
     const row = buildRow({
-      secretRef: "NUXT_BOTH_TOKEN",
+      secretRef: "NUXT_SENTRY_BOTH_TOKEN",
       encryptedSecret: encryptSecret("from-encrypted", key, "basin:sentry"),
     });
 
-    const config = resolveIntegrationConfig(row, () => key);
-
-    expect(config.secret).toBe("from-env");
+    expect(() => resolveIntegrationConfig(row, () => key)).toThrow(
+      /has both secret_ref and encrypted_secret set/,
+    );
   });
 
-  it("throws when the row is not enabled", () => {
+  it("throws an IntegrationConfigError (not a secret error) when the row is not enabled", () => {
     const row = buildRow({ enabled: false });
 
-    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(/not enabled/);
+    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
+      IntegrationConfigError,
+    );
+  });
+
+  it("uses loadIntegrationEncryptionKey as the default decryption key loader", () => {
+    const key = randomBytes(32);
+    vi.stubGlobal("useRuntimeConfig", () => ({
+      integrationEncryptionKey: key.toString("base64"),
+    }));
+    const row = buildRow({
+      slug: "wanderist",
+      vendor: "clerk",
+      encryptedSecret: encryptSecret("per-app-secret", key, "wanderist:clerk"),
+    });
+
+    const config = resolveIntegrationConfig(row);
+
+    expect(config.secret).toBe("per-app-secret");
   });
 });
