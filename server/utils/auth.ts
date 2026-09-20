@@ -43,9 +43,29 @@ export async function getOrCreateUser(providerId: string): Promise<DbUser> {
     });
   }
 
+  // onConflictDoNothing guards a race between two concurrent first-time
+  // requests for the same providerId (e.g. a login firing parallel API
+  // calls): both can miss the findFirst() above, but the unique constraint
+  // on provider_id lets only one insert win. The loser gets an empty
+  // `returning()` here instead of an unhandled unique-violation error, and
+  // re-reads the row the winner just created.
   const [created] = await database
     .insert(users)
     .values({ providerId })
+    .onConflictDoNothing({ target: users.providerId })
     .returning();
-  return created;
+  if (created) {
+    return created;
+  }
+
+  const raced = await database.query.users.findFirst({
+    where: eq(users.providerId, providerId),
+  });
+  if (!raced) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Failed to create user",
+    });
+  }
+  return raced;
 }
