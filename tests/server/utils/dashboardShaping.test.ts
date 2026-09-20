@@ -120,6 +120,29 @@ describe("latestMetricsBySlug", () => {
       },
     ]);
   });
+
+  it("keeps two periods of the same metric as separate entries", () => {
+    const rows = [
+      metricRow({ metric: "sessions", period: "7d", value: 900 }),
+      metricRow({ metric: "sessions", period: "30d", value: 12400 }),
+    ];
+
+    expect(latestMetricsBySlug(rows, "basin")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metric: "sessions",
+          period: "7d",
+          value: 900,
+        }),
+        expect.objectContaining({
+          metric: "sessions",
+          period: "30d",
+          value: 12400,
+        }),
+      ]),
+    );
+    expect(latestMetricsBySlug(rows, "basin")).toHaveLength(2);
+  });
 });
 
 describe("metricSeriesBySlug", () => {
@@ -154,17 +177,43 @@ describe("metricSeriesBySlug", () => {
       },
     ]);
   });
+
+  it("does not mix two periods of the same metric into one series", () => {
+    const rows = [
+      metricRow({
+        metric: "sessions",
+        period: "7d",
+        value: 900,
+        capturedAt: new Date("2026-09-01"),
+      }),
+      metricRow({
+        metric: "sessions",
+        period: "30d",
+        value: 12400,
+        capturedAt: new Date("2026-09-01"),
+      }),
+    ];
+
+    const series = metricSeriesBySlug(rows, "basin");
+    expect(series).toHaveLength(2);
+    expect(series.find((entry) => entry.period === "7d")?.points).toEqual([
+      { capturedAt: new Date("2026-09-01").toISOString(), value: 900 },
+    ]);
+    expect(series.find((entry) => entry.period === "30d")?.points).toEqual([
+      { capturedAt: new Date("2026-09-01").toISOString(), value: 12400 },
+    ]);
+  });
 });
 
 describe("sumLatestMetricAcrossApps", () => {
   it("returns all-null when no app has any data for the metric", () => {
-    expect(sumLatestMetricAcrossApps([], ["basin", "markpost"], "mrr")).toEqual(
-      {
-        value: null,
-        period: null,
-        capturedAt: null,
-      },
-    );
+    expect(
+      sumLatestMetricAcrossApps([], ["basin", "markpost"], "mrr", "current"),
+    ).toEqual({
+      value: null,
+      period: null,
+      capturedAt: null,
+    });
   });
 
   it("sums only apps that have data, never treating a missing app as zero", () => {
@@ -188,11 +237,37 @@ describe("sumLatestMetricAcrossApps", () => {
         rows,
         ["basin", "markpost", "wanderist"],
         "mrr",
+        "current",
       ),
     ).toEqual({
       value: 300,
       period: "current",
       capturedAt: new Date("2026-09-05").toISOString(),
+    });
+  });
+
+  it("never sums across two different periods of the same metric", () => {
+    const rows = [
+      metricRow({
+        slug: "basin",
+        metric: "sessions",
+        period: "7d",
+        value: 900,
+      }),
+      metricRow({
+        slug: "markpost",
+        metric: "sessions",
+        period: "30d",
+        value: 12400,
+      }),
+    ];
+
+    expect(
+      sumLatestMetricAcrossApps(rows, ["basin", "markpost"], "sessions", "30d"),
+    ).toEqual({
+      value: 12400,
+      period: "30d",
+      capturedAt: rows[1].capturedAt.toISOString(),
     });
   });
 });
@@ -204,7 +279,7 @@ describe("metricSplitByApp", () => {
     ];
 
     expect(
-      metricSplitByApp(rows, ["basin", "markpost"], "open_issues"),
+      metricSplitByApp(rows, ["basin", "markpost"], "open_issues", "current"),
     ).toEqual([{ slug: "basin", value: 3 }]);
   });
 });
@@ -214,23 +289,11 @@ describe("trafficChannelSplitForApp", () => {
     expect(trafficChannelSplitForApp([], "basin")).toEqual([]);
   });
 
-  it("returns only the latest capturedAt batch of channels", () => {
+  it("returns every channel row scoped to the app", () => {
     const rows = [
-      breakdownRow({
-        channel: "organic",
-        pct: 30,
-        capturedAt: new Date("2026-09-01"),
-      }),
-      breakdownRow({
-        channel: "organic",
-        pct: 44,
-        capturedAt: new Date("2026-09-10"),
-      }),
-      breakdownRow({
-        channel: "direct",
-        pct: 56,
-        capturedAt: new Date("2026-09-10"),
-      }),
+      breakdownRow({ slug: "basin", channel: "organic", pct: 44 }),
+      breakdownRow({ slug: "basin", channel: "direct", pct: 56 }),
+      breakdownRow({ slug: "markpost", channel: "organic", pct: 90 }),
     ];
 
     expect(trafficChannelSplitForApp(rows, "basin")).toEqual([
@@ -247,7 +310,7 @@ describe("trafficChannelSplitAcrossApps", () => {
     );
   });
 
-  it("averages the latest channel pct across apps that have data", () => {
+  it("averages the channel pct across apps that have data", () => {
     const rows = [
       breakdownRow({ slug: "basin", channel: "organic", pct: 40 }),
       breakdownRow({ slug: "markpost", channel: "organic", pct: 60 }),
@@ -256,6 +319,25 @@ describe("trafficChannelSplitAcrossApps", () => {
     expect(
       trafficChannelSplitAcrossApps(rows, ["basin", "markpost", "wanderist"]),
     ).toEqual([{ channel: "organic", pct: 50 }]);
+  });
+
+  it("treats a channel an app doesn't report as 0% for that app, so the split still sums to ~100%", () => {
+    const rows = [
+      breakdownRow({ slug: "basin", channel: "organic", pct: 60 }),
+      breakdownRow({ slug: "basin", channel: "direct", pct: 40 }),
+      breakdownRow({ slug: "markpost", channel: "organic", pct: 100 }),
+    ];
+
+    const result = trafficChannelSplitAcrossApps(rows, ["basin", "markpost"]);
+    const total = result.reduce((sum, entry) => sum + entry.pct, 0);
+
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { channel: "organic", pct: 80 },
+        { channel: "direct", pct: 20 },
+      ]),
+    );
+    expect(total).toBe(100);
   });
 });
 
@@ -332,6 +414,23 @@ describe("syncSourcesForApp", () => {
   it("returns an empty array for an app with no sync history", () => {
     expect(syncSourcesForApp([], "basin")).toEqual([]);
   });
+
+  it("maps every sync_status row for the app, scoped by slug", () => {
+    const rows = [
+      syncRow({ vendor: "ga4", ok: true }),
+      syncRow({ slug: "markpost", vendor: "ga4", ok: false }),
+    ];
+
+    expect(syncSourcesForApp(rows, "basin")).toEqual([
+      {
+        vendor: "ga4",
+        ok: true,
+        lastRunAt: rows[0].lastRunAt?.toISOString(),
+        lastSuccessAt: rows[0].lastSuccessAt?.toISOString(),
+        error: null,
+      },
+    ]);
+  });
 });
 
 describe("alertsForApp", () => {
@@ -349,6 +448,13 @@ describe("alertsForApp", () => {
         occurredAt: rows[0].lastRunAt?.toISOString(),
       },
     ]);
+  });
+
+  it("falls back to the generic message for an empty-string error too", () => {
+    const rows = [syncRow({ vendor: "stripe", ok: false, error: "" })];
+    expect(alertsForApp(rows, "basin")[0]?.message).toBe(
+      "stripe sync is failing",
+    );
   });
 });
 

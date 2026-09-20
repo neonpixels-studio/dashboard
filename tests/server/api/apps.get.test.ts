@@ -11,11 +11,13 @@ vi.mock("../../../server/utils/auth", () => ({ requireUser: mockRequireUser }));
 
 vi.mock("../../../server/db", () => ({ useDb: () => ({}) }));
 
-const mockFetchMetricSnapshots = vi.fn();
+const mockFetchLatestMetricSnapshots = vi.fn();
+const mockFetchMetricSnapshotSeries = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
 const mockFetchIntegrationConfigs = vi.fn();
 vi.mock("../../../server/utils/dashboardQueries", () => ({
-  fetchMetricSnapshots: mockFetchMetricSnapshots,
+  fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
+  fetchMetricSnapshotSeries: mockFetchMetricSnapshotSeries,
   fetchSyncStatuses: mockFetchSyncStatuses,
   fetchIntegrationConfigs: mockFetchIntegrationConfigs,
 }));
@@ -25,7 +27,8 @@ const { default: appsHandler } = await import("../../../server/api/apps.get");
 describe("GET /api/apps", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockFetchMetricSnapshots.mockResolvedValue([]);
+    mockFetchLatestMetricSnapshots.mockResolvedValue([]);
+    mockFetchMetricSnapshotSeries.mockResolvedValue([]);
     mockFetchSyncStatuses.mockResolvedValue([]);
     mockFetchIntegrationConfigs.mockResolvedValue([]);
   });
@@ -38,7 +41,7 @@ describe("GET /api/apps", () => {
     await expect(appsHandler({} as H3Event)).rejects.toMatchObject({
       statusCode: 401,
     });
-    expect(mockFetchMetricSnapshots).not.toHaveBeenCalled();
+    expect(mockFetchLatestMetricSnapshots).not.toHaveBeenCalled();
   });
 
   it("returns one NOT SYNCED card per configured app when the db is empty", async () => {
@@ -74,7 +77,8 @@ describe("GET /api/apps", () => {
       ok: true,
       error: null,
     };
-    mockFetchMetricSnapshots.mockResolvedValue([metricRow]);
+    mockFetchLatestMetricSnapshots.mockResolvedValue([metricRow]);
+    mockFetchMetricSnapshotSeries.mockResolvedValue([metricRow]);
     mockFetchSyncStatuses.mockResolvedValue([syncRow]);
 
     const result = await appsHandler({} as H3Event);
@@ -83,6 +87,7 @@ describe("GET /api/apps", () => {
 
     expect(basinCard?.status).toEqual({ label: "LIVE", tone: "ok" });
     expect(basinCard?.metrics).toHaveLength(1);
+    expect(basinCard?.sparklines).toHaveLength(1);
     expect(otherCard?.status).toEqual({ label: "NOT SYNCED", tone: "muted" });
     expect(otherCard?.metrics).toEqual([]);
   });

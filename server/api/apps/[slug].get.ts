@@ -3,10 +3,11 @@ import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
 import { requireUser } from "../../utils/auth";
 import {
-  fetchMetricSnapshots,
+  fetchLatestMetricSnapshots,
+  fetchLatestTrafficBreakdowns,
+  fetchMetricSnapshotSeries,
   fetchSyncStatuses,
   fetchSyndicationPosts,
-  fetchTrafficBreakdowns,
 } from "../../utils/dashboardQueries";
 import {
   alertsForApp,
@@ -36,17 +37,19 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
 
   const db = useDb();
 
-  const [metricRows, breakdownRows, syncRows, posts] = await Promise.all([
-    fetchMetricSnapshots(db, [slug]),
-    fetchTrafficBreakdowns(db, [slug]),
-    fetchSyncStatuses(db, [slug]),
-    fetchSyndicationPosts(db, slug),
-  ]);
+  const [latestMetricRows, seriesMetricRows, breakdownRows, syncRows, posts] =
+    await Promise.all([
+      fetchLatestMetricSnapshots(db, [slug]),
+      fetchMetricSnapshotSeries(db, [slug]),
+      fetchLatestTrafficBreakdowns(db, [slug]),
+      fetchSyncStatuses(db, [slug]),
+      fetchSyndicationPosts(db, slug),
+    ]);
 
   return {
     slug,
-    metrics: latestMetricsBySlug(metricRows, slug),
-    series: metricSeriesBySlug(metricRows, slug),
+    metrics: latestMetricsBySlug(latestMetricRows, slug),
+    series: metricSeriesBySlug(seriesMetricRows, slug),
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),
     syndication: syndicationMatrixForApp(posts),
     alerts: alertsForApp(syncRows, slug),

@@ -3,7 +3,8 @@ import { useDb } from "../db";
 import { requireUser } from "../utils/auth";
 import {
   fetchIntegrationConfigs,
-  fetchMetricSnapshots,
+  fetchLatestMetricSnapshots,
+  fetchMetricSnapshotSeries,
   fetchSyncStatuses,
 } from "../utils/dashboardQueries";
 import {
@@ -23,17 +24,19 @@ export default defineEventHandler(async (event): Promise<AppsResponse> => {
   const db = useDb();
   const slugs = APPS.map((app) => app.slug);
 
-  const [metricRows, syncRows, configRows] = await Promise.all([
-    fetchMetricSnapshots(db, slugs),
-    fetchSyncStatuses(db, slugs),
-    fetchIntegrationConfigs(db, slugs),
-  ]);
+  const [latestMetricRows, seriesMetricRows, syncRows, configRows] =
+    await Promise.all([
+      fetchLatestMetricSnapshots(db, slugs),
+      fetchMetricSnapshotSeries(db, slugs),
+      fetchSyncStatuses(db, slugs),
+      fetchIntegrationConfigs(db, slugs),
+    ]);
 
   return slugs.map((slug) => ({
     slug,
     status: computeAppStatus(syncRows, slug),
-    metrics: latestMetricsBySlug(metricRows, slug),
-    sparklines: metricSeriesBySlug(metricRows, slug),
+    metrics: latestMetricsBySlug(latestMetricRows, slug),
+    sparklines: metricSeriesBySlug(seriesMetricRows, slug),
     integrations: integrationHealthForApp(configRows, syncRows, slug),
   }));
 });

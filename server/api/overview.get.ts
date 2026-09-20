@@ -6,11 +6,13 @@ import {
   METRIC_MRR,
   METRIC_OPEN_ISSUES,
   METRIC_SESSIONS,
+  PERIOD_30D,
+  PERIOD_CURRENT,
 } from "../utils/dashboardMetrics";
 import {
-  fetchMetricSnapshots,
+  fetchLatestMetricSnapshots,
+  fetchLatestTrafficBreakdowns,
   fetchSyncStatuses,
-  fetchTrafficBreakdowns,
 } from "../utils/dashboardQueries";
 import {
   latestSyncedAt,
@@ -31,28 +33,54 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
   const slugs = APPS.map((app) => app.slug);
 
   const [metricRows, breakdownRows, syncRows] = await Promise.all([
-    fetchMetricSnapshots(db, slugs),
-    fetchTrafficBreakdowns(db, slugs),
+    fetchLatestMetricSnapshots(db, slugs),
+    fetchLatestTrafficBreakdowns(db, slugs),
     fetchSyncStatuses(db, slugs),
   ]);
 
   return {
-    mrr: sumLatestMetricAcrossApps(metricRows, slugs, METRIC_MRR),
+    mrr: sumLatestMetricAcrossApps(
+      metricRows,
+      slugs,
+      METRIC_MRR,
+      PERIOD_CURRENT,
+    ),
     activeSubscribers: {
       ...sumLatestMetricAcrossApps(
         metricRows,
         slugs,
         METRIC_ACTIVE_SUBSCRIBERS,
+        PERIOD_CURRENT,
       ),
-      byApp: metricSplitByApp(metricRows, slugs, METRIC_ACTIVE_SUBSCRIBERS),
+      byApp: metricSplitByApp(
+        metricRows,
+        slugs,
+        METRIC_ACTIVE_SUBSCRIBERS,
+        PERIOD_CURRENT,
+      ),
     },
     sessions30d: {
-      ...sumLatestMetricAcrossApps(metricRows, slugs, METRIC_SESSIONS),
+      ...sumLatestMetricAcrossApps(
+        metricRows,
+        slugs,
+        METRIC_SESSIONS,
+        PERIOD_30D,
+      ),
       bySource: trafficChannelSplitAcrossApps(breakdownRows, slugs),
     },
     openIssues: {
-      ...sumLatestMetricAcrossApps(metricRows, slugs, METRIC_OPEN_ISSUES),
-      byApp: metricSplitByApp(metricRows, slugs, METRIC_OPEN_ISSUES),
+      ...sumLatestMetricAcrossApps(
+        metricRows,
+        slugs,
+        METRIC_OPEN_ISSUES,
+        PERIOD_CURRENT,
+      ),
+      byApp: metricSplitByApp(
+        metricRows,
+        slugs,
+        METRIC_OPEN_ISSUES,
+        PERIOD_CURRENT,
+      ),
     },
     lastSyncedAt: latestSyncedAt(syncRows),
   };

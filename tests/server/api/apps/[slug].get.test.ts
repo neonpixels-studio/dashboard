@@ -8,13 +8,15 @@ vi.mock("../../../../server/utils/auth", () => ({
 
 vi.mock("../../../../server/db", () => ({ useDb: () => ({}) }));
 
-const mockFetchMetricSnapshots = vi.fn();
-const mockFetchTrafficBreakdowns = vi.fn();
+const mockFetchLatestMetricSnapshots = vi.fn();
+const mockFetchMetricSnapshotSeries = vi.fn();
+const mockFetchLatestTrafficBreakdowns = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
 const mockFetchSyndicationPosts = vi.fn();
 vi.mock("../../../../server/utils/dashboardQueries", () => ({
-  fetchMetricSnapshots: mockFetchMetricSnapshots,
-  fetchTrafficBreakdowns: mockFetchTrafficBreakdowns,
+  fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
+  fetchMetricSnapshotSeries: mockFetchMetricSnapshotSeries,
+  fetchLatestTrafficBreakdowns: mockFetchLatestTrafficBreakdowns,
   fetchSyncStatuses: mockFetchSyncStatuses,
   fetchSyndicationPosts: mockFetchSyndicationPosts,
 }));
@@ -29,8 +31,9 @@ function makeEvent(slug?: string): H3Event {
 describe("GET /api/apps/[slug]", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockFetchMetricSnapshots.mockResolvedValue([]);
-    mockFetchTrafficBreakdowns.mockResolvedValue([]);
+    mockFetchLatestMetricSnapshots.mockResolvedValue([]);
+    mockFetchMetricSnapshotSeries.mockResolvedValue([]);
+    mockFetchLatestTrafficBreakdowns.mockResolvedValue([]);
     mockFetchSyncStatuses.mockResolvedValue([]);
     mockFetchSyndicationPosts.mockResolvedValue([]);
   });
@@ -43,14 +46,14 @@ describe("GET /api/apps/[slug]", () => {
     await expect(appDetailHandler(makeEvent("basin"))).rejects.toMatchObject({
       statusCode: 401,
     });
-    expect(mockFetchMetricSnapshots).not.toHaveBeenCalled();
+    expect(mockFetchLatestMetricSnapshots).not.toHaveBeenCalled();
   });
 
   it("404s for a slug that isn't in app/config/apps.ts", async () => {
     await expect(
       appDetailHandler(makeEvent("not-a-real-app")),
     ).rejects.toMatchObject({ statusCode: 404 });
-    expect(mockFetchMetricSnapshots).not.toHaveBeenCalled();
+    expect(mockFetchLatestMetricSnapshots).not.toHaveBeenCalled();
   });
 
   it("404s when no slug param is present", async () => {
@@ -77,8 +80,11 @@ describe("GET /api/apps/[slug]", () => {
   it("scopes every fetch to the requested slug", async () => {
     await appDetailHandler(makeEvent("basin"));
 
-    expect(mockFetchMetricSnapshots).toHaveBeenCalledWith({}, ["basin"]);
-    expect(mockFetchTrafficBreakdowns).toHaveBeenCalledWith({}, ["basin"]);
+    expect(mockFetchLatestMetricSnapshots).toHaveBeenCalledWith({}, ["basin"]);
+    expect(mockFetchMetricSnapshotSeries).toHaveBeenCalledWith({}, ["basin"]);
+    expect(mockFetchLatestTrafficBreakdowns).toHaveBeenCalledWith({}, [
+      "basin",
+    ]);
     expect(mockFetchSyncStatuses).toHaveBeenCalledWith({}, ["basin"]);
     expect(mockFetchSyndicationPosts).toHaveBeenCalledWith({}, "basin");
   });

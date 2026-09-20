@@ -19,14 +19,14 @@ export interface MetricSeries {
   points: MetricPoint[];
 }
 
-// The latest known value for one metric. `value`/`capturedAt` are both null
-// together (no row has ever landed for this metric) or both set — never a
-// null value with a real timestamp.
+// The latest known value for one (metric, period). A metric with no data
+// yet simply has no entry in the `metrics`/`sparklines` array it belongs to
+// — there's no "empty" CurrentMetric, so every field here is always real.
 export interface CurrentMetric {
   metric: string;
   period: string;
-  value: number | null;
-  capturedAt: string | null;
+  value: number;
+  capturedAt: string;
 }
 
 export interface TrafficChannelSplit {

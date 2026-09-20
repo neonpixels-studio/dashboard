@@ -8,12 +8,12 @@ vi.mock("../../../server/utils/auth", () => ({ requireUser: mockRequireUser }));
 
 vi.mock("../../../server/db", () => ({ useDb: () => ({}) }));
 
-const mockFetchMetricSnapshots = vi.fn();
-const mockFetchTrafficBreakdowns = vi.fn();
+const mockFetchLatestMetricSnapshots = vi.fn();
+const mockFetchLatestTrafficBreakdowns = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
 vi.mock("../../../server/utils/dashboardQueries", () => ({
-  fetchMetricSnapshots: mockFetchMetricSnapshots,
-  fetchTrafficBreakdowns: mockFetchTrafficBreakdowns,
+  fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
+  fetchLatestTrafficBreakdowns: mockFetchLatestTrafficBreakdowns,
   fetchSyncStatuses: mockFetchSyncStatuses,
 }));
 
@@ -36,8 +36,8 @@ function metricRow(overrides: Partial<MetricSnapshotRow>): MetricSnapshotRow {
 describe("GET /api/overview", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockFetchMetricSnapshots.mockResolvedValue([]);
-    mockFetchTrafficBreakdowns.mockResolvedValue([]);
+    mockFetchLatestMetricSnapshots.mockResolvedValue([]);
+    mockFetchLatestTrafficBreakdowns.mockResolvedValue([]);
     mockFetchSyncStatuses.mockResolvedValue([]);
   });
 
@@ -49,7 +49,7 @@ describe("GET /api/overview", () => {
     await expect(overviewHandler({} as H3Event)).rejects.toMatchObject({
       statusCode: 401,
     });
-    expect(mockFetchMetricSnapshots).not.toHaveBeenCalled();
+    expect(mockFetchLatestMetricSnapshots).not.toHaveBeenCalled();
   });
 
   it("returns a fully null/empty shape when the db has no rows yet", async () => {
@@ -88,7 +88,7 @@ describe("GET /api/overview", () => {
       value: 591,
       capturedAt: new Date("2026-09-10T00:00:00Z"),
     });
-    mockFetchMetricSnapshots.mockResolvedValue([basinRow, markpostRow]);
+    mockFetchLatestMetricSnapshots.mockResolvedValue([basinRow, markpostRow]);
 
     const result = await overviewHandler({} as H3Event);
 
@@ -99,12 +99,40 @@ describe("GET /api/overview", () => {
     });
   });
 
+  it("only sums sessions at the 30d period, ignoring a 7d row for the same metric", async () => {
+    mockFetchLatestMetricSnapshots.mockResolvedValue([
+      metricRow({
+        slug: "basin",
+        metric: "sessions",
+        period: "7d",
+        value: 900,
+      }),
+      metricRow({
+        slug: "markpost",
+        metric: "sessions",
+        period: "30d",
+        value: 12400,
+      }),
+    ]);
+
+    const result = await overviewHandler({} as H3Event);
+
+    expect(result.sessions30d.value).toBe(12400);
+    expect(result.sessions30d.period).toBe("30d");
+  });
+
   it("fetches metrics scoped to every configured app slug", async () => {
     await overviewHandler({} as H3Event);
 
     const expectedSlugs = APPS.map((app) => app.slug);
-    expect(mockFetchMetricSnapshots).toHaveBeenCalledWith({}, expectedSlugs);
-    expect(mockFetchTrafficBreakdowns).toHaveBeenCalledWith({}, expectedSlugs);
+    expect(mockFetchLatestMetricSnapshots).toHaveBeenCalledWith(
+      {},
+      expectedSlugs,
+    );
+    expect(mockFetchLatestTrafficBreakdowns).toHaveBeenCalledWith(
+      {},
+      expectedSlugs,
+    );
     expect(mockFetchSyncStatuses).toHaveBeenCalledWith({}, expectedSlugs);
   });
 });
