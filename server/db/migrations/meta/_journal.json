@@ -15,6 +15,13 @@
       "when": 1789878724561,
       "tag": "0001_lean_daimon_hellstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789909916562,
+      "tag": "0002_add-updated-at-trigger",
+      "breakpoints": true
     }
   ]
 }
