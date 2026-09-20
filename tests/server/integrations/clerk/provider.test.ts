@@ -49,23 +49,27 @@ describe("clerkProvider", () => {
     expect(clerkProvider.vendor).toBe("clerk");
   });
 
-  it("returns no rows (not zeros, not a throw) when the config has no secret", async () => {
-    const config = createTestIntegrationConfig({
-      vendor: "clerk",
-      secret: null,
-    });
+  it.each([null, ""])(
+    "returns no rows (not zeros, not a throw), and never builds a Clerk client, when the config secret is %j",
+    async (secret) => {
+      const config = createTestIntegrationConfig({ vendor: "clerk", secret });
 
-    const result = await clerkProvider.fetch(config);
+      const result = await clerkProvider.fetch(config);
 
-    expect(result).toEqual({
-      metrics: [],
-      trafficBreakdown: [],
-      syndicationPosts: [],
-    });
-    expect(mockCreateClerkClient).not.toHaveBeenCalled();
-    expect(mockGetCount).not.toHaveBeenCalled();
-    expect(mockGetUserList).not.toHaveBeenCalled();
-  });
+      expect(result).toEqual({
+        metrics: [],
+        trafficBreakdown: [],
+        syndicationPosts: [],
+      });
+      // The one assertion that actually protects clerkProvider.fetch's own
+      // outer guard — fetchClerkMetrics's guard alone would still make the
+      // result-shape assertions above pass even if the outer guard were
+      // removed and a client were built from a null/empty secret first.
+      expect(mockCreateClerkClient).not.toHaveBeenCalled();
+      expect(mockGetCount).not.toHaveBeenCalled();
+      expect(mockGetUserList).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects instead of returning partial metrics when the total-count call fails (e.g. a revoked key)", async () => {
     mockGetCount.mockRejectedValue(new Error("Clerk 401: invalid secret key"));
@@ -123,22 +127,22 @@ describe("clerkProvider", () => {
 });
 
 describe("fetchClerkMetrics", () => {
-  it("returns no rows for an unconfigured app, without calling Clerk at all", async () => {
-    const config = createTestIntegrationConfig({
-      vendor: "clerk",
-      secret: null,
-    });
-    const getClerkUserCount = vi.fn();
+  it.each([null, ""])(
+    "returns no rows for an unconfigured app (secret %j), without calling Clerk at all",
+    async (secret) => {
+      const config = createTestIntegrationConfig({ vendor: "clerk", secret });
+      const getClerkUserCount = vi.fn();
 
-    const result = await fetchClerkMetrics(config, getClerkUserCount);
+      const result = await fetchClerkMetrics(config, getClerkUserCount);
 
-    expect(result).toEqual({
-      metrics: [],
-      trafficBreakdown: [],
-      syndicationPosts: [],
-    });
-    expect(getClerkUserCount).not.toHaveBeenCalled();
-  });
+      expect(result).toEqual({
+        metrics: [],
+        trafficBreakdown: [],
+        syndicationPosts: [],
+      });
+      expect(getClerkUserCount).not.toHaveBeenCalled();
+    },
+  );
 
   it("emits users + new_users metrics for a configured app", async () => {
     const totalUsersFixture = await loadFixture<ClerkUserCountResponse>(
