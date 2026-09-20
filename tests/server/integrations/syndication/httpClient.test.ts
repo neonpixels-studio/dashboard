@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchJson } from "../../../../server/integrations/syndication/httpClient";
 import { jsonResponse } from "../../../../server/integrations/testing/httpFixtures";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("fetchJson", () => {
   it("returns the parsed JSON body on a 2xx response", async () => {
@@ -46,6 +50,37 @@ describe("fetchJson", () => {
     ).rejects.toThrow("Example API responded with 500 Error.");
   });
 
+  it("throws a vendorLabel-prefixed error (not a bare AbortError) when the request itself fails", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new DOMException("The operation was aborted", "AbortError");
+    });
+
+    await expect(
+      fetchJson("https://example.com", {
+        fetchImpl,
+        vendorLabel: "Example API",
+      }),
+    ).rejects.toThrow("Example API request to https://example.com failed.");
+  });
+
+  it("throws a vendorLabel-prefixed error (not a bare SyntaxError) when the body isn't valid JSON", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => {
+        throw new SyntaxError("Unexpected token <");
+      },
+    }));
+
+    await expect(
+      fetchJson("https://example.com", {
+        fetchImpl,
+        vendorLabel: "Example API",
+      }),
+    ).rejects.toThrow("Example API returned a body that isn't valid JSON.");
+  });
+
   it("defaults to the global fetch when fetchImpl isn't provided", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ ok: true }));
     vi.stubGlobal("fetch", fetchImpl);
@@ -56,6 +91,5 @@ describe("fetchJson", () => {
 
     expect(fetchImpl).toHaveBeenCalled();
     expect(body).toEqual({ ok: true });
-    vi.unstubAllGlobals();
   });
 });

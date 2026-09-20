@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchHashnodeSyndication,
   hashnodeProvider,
@@ -10,6 +10,13 @@ import type {
   FetchHashnodePostsPage,
   HashnodePostsPage,
 } from "../../../../../server/integrations/syndication/hashnode/types";
+
+beforeEach(() => {
+  // The "no publication id configured" tests below assert on the ABSENCE of
+  // this env var — stub it empty explicitly rather than relying on it
+  // happening to be unset in whoever's shell/`.env` runs this suite.
+  vi.stubEnv("NUXT_HASHNODE_PUBLICATION_ID", "");
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();

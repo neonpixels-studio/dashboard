@@ -40,19 +40,60 @@ export async function fetchJson<ResponseBody>(
   const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
-    const response = await fetchImpl(url, {
-      method: options.method,
-      headers: options.headers,
-      body: options.body,
-      signal: abortController.signal,
-    });
+    const response = await requestJson(
+      url,
+      options,
+      abortController.signal,
+      fetchImpl,
+    );
     if (!response.ok) {
       throw new Error(
         `${options.vendorLabel} responded with ${response.status} ${response.statusText}.`,
       );
     }
-    return (await response.json()) as ResponseBody;
+    return await parseJsonBody<ResponseBody>(response, options.vendorLabel);
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+// Isolated so its catch block only ever wraps fetchImpl's own failure modes
+// (a network error, or the timeout above firing and aborting the signal) —
+// never a `!response.ok` throw from the caller, which already carries its
+// own clear, vendor-labeled message and shouldn't be re-wrapped.
+async function requestJson(
+  url: string,
+  options: FetchJsonOptions,
+  signal: AbortSignal,
+  fetchImpl: typeof fetch,
+): Promise<Response> {
+  try {
+    return await fetchImpl(url, {
+      method: options.method,
+      headers: options.headers,
+      body: options.body,
+      signal,
+    });
+  } catch (cause) {
+    // A generic AbortError ("This operation was aborted") or network error
+    // doesn't say which vendor or URL failed — every other throw in this
+    // package (each client's own errors, mapping.ts's parse failures) is
+    // already labeled, so this is too.
+    throw new Error(`${options.vendorLabel} request to ${url} failed.`, {
+      cause,
+    });
+  }
+}
+
+async function parseJsonBody<ResponseBody>(
+  response: Response,
+  vendorLabel: string,
+): Promise<ResponseBody> {
+  try {
+    return (await response.json()) as ResponseBody;
+  } catch (cause) {
+    throw new Error(`${vendorLabel} returned a body that isn't valid JSON.`, {
+      cause,
+    });
   }
 }

@@ -54,6 +54,36 @@ describe("createMediumArticleIdLister", () => {
 
     await expect(listArticleIds()).rejects.toThrow(/responded with 404/);
   });
+
+  it("throws a labeled error instead of requesting /user/undefined/articles when id_for returns no id", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse({}));
+    const listArticleIds = createMediumArticleIdLister(
+      "unknown-handle",
+      "rapidapi_key",
+      fetchImpl,
+    );
+
+    await expect(listArticleIds()).rejects.toThrow(
+      /no user id for username "unknown-handle"/,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws a labeled error instead of a bare TypeError when associated_articles isn't an array", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: "user_123" }))
+      .mockResolvedValueOnce(jsonResponse({ associated_articles: null }));
+    const listArticleIds = createMediumArticleIdLister(
+      "dan-handle",
+      "rapidapi_key",
+      fetchImpl,
+    );
+
+    await expect(listArticleIds()).rejects.toThrow(
+      /associated_articles was not an array/,
+    );
+  });
 });
 
 describe("createMediumArticleInfoFetcher", () => {

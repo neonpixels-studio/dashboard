@@ -17,6 +17,30 @@ function mediumHeaders(rapidApiKey: string): Record<string, string> {
   };
 }
 
+// This whole package's response shapes are UNVERIFIED against a live
+// account (see ./types.ts's file comment) — these two guards fail loud with
+// a labeled error the moment that assumption is wrong, rather than letting
+// a missing/malformed field silently become "/user/undefined/articles" (an
+// extra wasted request against the monthly cap) or a bare, unlabeled
+// TypeError out of `.flat()`.
+function assertUserId(userId: string, username: string): string {
+  if (!userId) {
+    throw new Error(
+      `Medium API returned no user id for username "${username}".`,
+    );
+  }
+  return userId;
+}
+
+function assertArticleIdPages(articleIdPages: unknown): string[][] {
+  if (!Array.isArray(articleIdPages)) {
+    throw new Error(
+      "Medium API's associated_articles was not an array of id pages.",
+    );
+  }
+  return articleIdPages as string[][];
+}
+
 /**
  * Builds the real, network-touching `ListMediumArticleIds`: resolves the
  * configured username to Medium's internal user id (GET
@@ -35,7 +59,7 @@ export function createMediumArticleIdLister(
 ): ListMediumArticleIds {
   return async () => {
     const idForPath = `/user/id_for/${encodeURIComponent(username)}`;
-    const { id: userId } = await fetchJson<MediumUserIdResponse>(
+    const { id: rawUserId } = await fetchJson<MediumUserIdResponse>(
       `${MEDIUM_API_BASE_URL}${idForPath}`,
       {
         headers: mediumHeaders(rapidApiKey),
@@ -43,9 +67,10 @@ export function createMediumArticleIdLister(
         vendorLabel: `Medium API (${idForPath})`,
       },
     );
+    const userId = assertUserId(rawUserId, username);
 
     const articlesPath = `/user/${encodeURIComponent(userId)}/articles`;
-    const { associated_articles: articleIdPages } =
+    const { associated_articles: rawArticleIdPages } =
       await fetchJson<MediumUserArticlesResponse>(
         `${MEDIUM_API_BASE_URL}${articlesPath}`,
         {
@@ -54,7 +79,7 @@ export function createMediumArticleIdLister(
           vendorLabel: `Medium API (${articlesPath})`,
         },
       );
-    return articleIdPages.flat();
+    return assertArticleIdPages(rawArticleIdPages).flat();
   };
 }
 

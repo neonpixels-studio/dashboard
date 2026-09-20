@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC,
   createMediumProvider,
@@ -13,6 +13,14 @@ import type {
   MediumArticleInfo,
 } from "../../../../../server/integrations/syndication/medium/types";
 
+beforeEach(() => {
+  // Every "unconfigured" test below asserts on the ABSENCE of this env var —
+  // stub it empty explicitly rather than relying on it happening to be unset
+  // in whoever's shell/`.env` runs this suite (see fetchMediumSyndication's
+  // own describe block for the tests that stub a real value instead).
+  vi.stubEnv("NUXT_MEDIUM_USERNAME", "");
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -23,7 +31,7 @@ describe("mediumProvider (the default, real-wiring export)", () => {
     expect(mediumProvider.vendor).toBe("medium");
   });
 
-  it("returns no rows, without ever consulting the last-attempt lookup (no DB/network touched), when config has no secret", async () => {
+  it("returns no rows, without ever consulting the last-synced-at lookup (no DB/network touched), when config has no secret", async () => {
     const config = createTestIntegrationConfig({
       vendor: "medium",
       externalId: "dan-handle",
@@ -42,15 +50,17 @@ describe("mediumProvider (the default, real-wiring export)", () => {
 
 describe("createMediumProvider", () => {
   function buildProvider(overrides: {
-    lastAttemptAt?: Date | null;
+    lastSuccessfulSyncAt?: Date | null;
     now?: Date;
   }) {
-    const getLastAttemptAt = vi.fn(async () => overrides.lastAttemptAt ?? null);
+    const getLastSuccessfulSyncAt = vi.fn(
+      async () => overrides.lastSuccessfulSyncAt ?? null,
+    );
     const provider = createMediumProvider({
-      getLastAttemptAt,
+      getLastSuccessfulSyncAt,
       now: () => overrides.now ?? new Date("2026-09-20T12:00:00Z"),
     });
-    return { provider, getLastAttemptAt };
+    return { provider, getLastSuccessfulSyncAt };
   }
 
   it("emits no rows, silently, when the key is absent — never throws (NAMED ASSUMPTION: unlike Hashnode/DEV.to)", async () => {
@@ -90,7 +100,7 @@ describe("createMediumProvider", () => {
   it("falls back to NUXT_MEDIUM_USERNAME when external_id is unset, and actually uses it in the request", async () => {
     vi.stubEnv("NUXT_MEDIUM_USERNAME", "dan-from-env");
     const { provider } = buildProvider({
-      lastAttemptAt: new Date("2026-09-20T03:00:00Z"), // 9h ago -> due
+      lastSuccessfulSyncAt: new Date("2026-09-20T03:00:00Z"), // 9h ago -> due
     });
     const config = createTestIntegrationConfig({
       slug: "danholloran",
@@ -116,7 +126,7 @@ describe("createMediumProvider", () => {
 
   it("skips the fetch — emits no rows, and never calls the Medium API — when the guard says it isn't due yet", async () => {
     const { provider } = buildProvider({
-      lastAttemptAt: new Date("2026-09-20T11:00:00Z"), // 1h ago
+      lastSuccessfulSyncAt: new Date("2026-09-20T11:00:00Z"), // 1h ago
       now: new Date("2026-09-20T12:00:00Z"),
     });
     const config = createTestIntegrationConfig({
@@ -138,9 +148,9 @@ describe("createMediumProvider", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("proceeds when the guard says the last attempt is stale enough", async () => {
+  it("proceeds when the guard says the last successful sync is stale enough", async () => {
     const { provider } = buildProvider({
-      lastAttemptAt: new Date("2026-09-20T03:00:00Z"), // 9h ago
+      lastSuccessfulSyncAt: new Date("2026-09-20T03:00:00Z"), // 9h ago
       now: new Date("2026-09-20T12:00:00Z"),
     });
     const config = createTestIntegrationConfig({

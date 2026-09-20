@@ -1,5 +1,6 @@
 import { useDb } from "../../../db";
-import { fetchLastSyncRunAt } from "../../../utils/dashboardQueries";
+import { METRIC_POSTS } from "../../../utils/dashboardMetrics";
+import { fetchLatestMetricCapturedAt } from "../../../utils/dashboardQueries";
 import type {
   IntegrationConfig,
   IntegrationProvider,
@@ -79,31 +80,39 @@ export async function fetchMediumSyndication(
   return buildSyndicationResult(MEDIUM_VENDOR, posts, articleIds.length);
 }
 
-async function defaultGetLastAttemptAt(slug: string): Promise<Date | null> {
-  return fetchLastSyncRunAt(useDb(), slug, MEDIUM_VENDOR);
+async function defaultGetLastSuccessfulSyncAt(
+  slug: string,
+): Promise<Date | null> {
+  return fetchLatestMetricCapturedAt(
+    useDb(),
+    slug,
+    MEDIUM_VENDOR,
+    METRIC_POSTS,
+  );
 }
 
 export interface CreateMediumProviderOptions {
   // Overridable for tests; production wiring defers to
-  // defaultGetLastAttemptAt, which lazily calls useDb() only once fetch()
-  // actually runs (never at provider-construction/module-load time — see
-  // providers/index.ts, which builds every provider, including this one, at
-  // import time with no Nitro request context available yet).
-  getLastAttemptAt?: (slug: string) => Promise<Date | null>;
+  // defaultGetLastSuccessfulSyncAt, which lazily calls useDb() only once
+  // fetch() actually runs (never at provider-construction/module-load time —
+  // see providers/index.ts, which builds every provider, including this
+  // one, at import time with no Nitro request context available yet).
+  getLastSuccessfulSyncAt?: (slug: string) => Promise<Date | null>;
   now?: () => Date;
 }
 
 /**
  * Builds the Medium IntegrationProvider. A factory (unlike stripeProvider/
  * ga4Provider's plain exported objects) because, uniquely among these three
- * platforms, it needs an injectable "when did this last actually attempt a
- * sync" lookup for its rate-limit guard — see mediumSyncGuard.ts and
- * server/utils/dashboardQueries.ts's fetchLastSyncRunAt.
+ * platforms, it needs an injectable "when did this last actually succeed"
+ * lookup for its rate-limit guard — see mediumSyncGuard.ts and
+ * server/utils/dashboardQueries.ts's fetchLatestMetricCapturedAt.
  */
 export function createMediumProvider(
   options: CreateMediumProviderOptions = {},
 ): IntegrationProvider {
-  const getLastAttemptAt = options.getLastAttemptAt ?? defaultGetLastAttemptAt;
+  const getLastSuccessfulSyncAt =
+    options.getLastSuccessfulSyncAt ?? defaultGetLastSuccessfulSyncAt;
   const now = options.now ?? (() => new Date());
 
   return {
@@ -126,8 +135,8 @@ export function createMediumProvider(
         return emptySyndicationResult();
       }
 
-      const lastAttemptAt = await getLastAttemptAt(config.slug);
-      if (!isMediumSyncDue(now(), lastAttemptAt)) {
+      const lastSuccessfulSyncAt = await getLastSuccessfulSyncAt(config.slug);
+      if (!isMediumSyncDue(now(), lastSuccessfulSyncAt)) {
         return emptySyndicationResult();
       }
 

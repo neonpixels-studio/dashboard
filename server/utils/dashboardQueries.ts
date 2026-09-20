@@ -186,28 +186,51 @@ export function fetchSyndicationPosts(
     .orderBy(desc(syndicationPost.syncedAt), asc(syndicationPost.platform));
 }
 
-// Powers server/integrations/syndication/medium's rate-limit guard:
-// sync_status.last_run_at for one (slug, vendor) — deliberately the run
-// timestamp, not last_success_at. recordSyncStatus (persist.ts) writes
-// last_run_at on EVERY orchestrator tick, success or failure (and even a
-// tick the guard itself decided to skip, since a guard-skip isn't an
-// exception), so gating on it means a persistently *failing* Medium sync
-// still only gets attempted once per MEDIUM_MIN_SYNC_INTERVAL_HOURS window,
-// the same as a healthy one — gating on last_success_at instead would let a
-// stuck failure (bad key, a mapping bug, a 403) retry every single
-// orchestrator tick forever, burning the whole monthly quota in hours. See
+// Powers server/integrations/syndication/medium's rate-limit guard: the
+// most recent capturedAt a given (slug, vendor, metric) metric_snapshot row
+// was actually written with.
+//
+// Deliberately metric_snapshot (written ONLY when buildSyndicationResult
+// runs, i.e. after Medium's real network calls already succeeded), not
+// sync_status.last_run_at/last_success_at. sync_status is written by the
+// orchestrator on EVERY tick regardless of what a provider's fetch()
+// actually did internally — including a tick where the guard itself decided
+// to skip and returned empty data with no exception. Gating on sync_status
+// would make the row's own timestamp advance every ~15 minutes forever
+// (each skip re-stamps "last run" to "just now", which the very next tick
+// then reads back as "attempted 15 minutes ago" — permanently not due,
+// after the very first sync ever succeeds). metric_snapshot has no such
+// self-feedback loop: a skip returns zero metric rows, so persist.ts writes
+// nothing and this clock only moves on a real, fully-succeeded attempt.
+//
+// Known, accepted tradeoff: a PERSISTENTLY FAILING Medium sync (bad/revoked
+// key, a mapping bug) never reaches buildSyndicationResult, so this clock
+// never advances either, and the guard stays "due" every orchestrator tick
+// until it's fixed — same exposure Stripe/GA4 already have with no guard at
+// all, and, like them, loudly visible via sync_status.ok/error on every
+// attempt rather than silent. Flagged as a follow-up (e.g. a dedicated
+// last_attempted_at the provider could update independent of outcome) if
+// this proves to matter in practice. See
 // server/integrations/syndication/medium/mediumSyncGuard.ts.
-export async function fetchLastSyncRunAt(
+export async function fetchLatestMetricCapturedAt(
   db: DrizzleDb,
   slug: string,
   vendor: string,
+  metric: string,
 ): Promise<Date | null> {
   const [row] = await db
-    .select({ lastRunAt: syncStatus.lastRunAt })
-    .from(syncStatus)
-    .where(and(eq(syncStatus.slug, slug), eq(syncStatus.vendor, vendor)))
+    .select({ capturedAt: metricSnapshot.capturedAt })
+    .from(metricSnapshot)
+    .where(
+      and(
+        eq(metricSnapshot.slug, slug),
+        eq(metricSnapshot.vendor, vendor),
+        eq(metricSnapshot.metric, metric),
+      ),
+    )
+    .orderBy(desc(metricSnapshot.capturedAt))
     .limit(1);
-  return row?.lastRunAt ?? null;
+  return row?.capturedAt ?? null;
 }
 
 export function fetchSyncStatuses(
