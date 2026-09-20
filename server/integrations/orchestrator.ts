@@ -1,3 +1,4 @@
+import { redactSecrets } from "../utils/redactSecrets";
 import type { ProviderRegistry } from "./registry";
 import type {
   IntegrationConfig,
@@ -76,11 +77,14 @@ async function recordSyncStatusBestEffort(
 // failure row for this vendor alone, never an exception that would stop the
 // rest of the run.
 //
-// The error is written through to `sync_status.error` and console.error
-// as-is (`cause.message` or `String(cause)`), deliberately not sanitized
-// here — a raw vendor SDK error can echo request details, including
-// secrets. Issue #27 owns redacting this column before it's ever persisted;
-// this is the one write site it needs to wrap.
+// The error is logged to console.error as-is (`cause.message` or
+// `String(cause)`) — that's server-side only, so the unredacted cause is
+// fine there. `sync_status.error` is different: it's a persisted, later-read
+// column, so the same raw message is passed through redactSecrets() (see
+// server/utils/redactSecrets.ts) before it's handed to
+// recordSyncStatusBestEffort, stripping known secret material a raw vendor
+// SDK error can echo back (API keys, tokens, credential query params/
+// headers).
 async function syncOneIntegration(
   row: IntegrationConfigRow,
   deps: SyncOrchestratorDeps,
@@ -103,7 +107,7 @@ async function syncOneIntegration(
       ...identity,
       runAt,
       ok: false,
-      error: message,
+      error: redactSecrets(message),
     });
     return { ...identity, ok: false, error: message };
   }

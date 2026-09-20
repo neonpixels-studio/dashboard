@@ -173,6 +173,32 @@ describe("runSync", () => {
     } satisfies SyncStatusWrite);
   });
 
+  it("redacts secret material from the error before writing sync_status", async () => {
+    // Representative of a real vendor error: the raw cause can echo the
+    // request it just made, including the API key. Issue #27 requires this
+    // to be stripped before it ever reaches sync_status.error.
+    const secretBearingCause = new Error(
+      "Request to https://api.stripe.com/v1/subscriptions?api_key=sk_live_leaked failed with 401",
+    );
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: {
+        get: () =>
+          stubProvider("stripe", vi.fn().mockRejectedValue(secretBearingCause)),
+      },
+    });
+
+    await runSync(deps);
+
+    const [writtenStatus] = deps.recordSyncStatus.mock.calls[0] as [
+      SyncStatusWrite,
+    ];
+    expect(writtenStatus.error).not.toContain("sk_live_leaked");
+    expect(writtenStatus.error).not.toContain("api_key=sk_live");
+    expect(writtenStatus.error).toContain("[REDACTED]");
+  });
+
   it("records a failure when no provider is registered for the row's vendor", async () => {
     const row = configRow({ slug: "basin", vendor: "ga4" });
     const deps = createDeps({
