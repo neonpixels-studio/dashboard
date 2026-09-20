@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "~": resolve(__dirname, "app"),
+      "#shared": resolve(__dirname, "shared"),
     },
   },
   test: {

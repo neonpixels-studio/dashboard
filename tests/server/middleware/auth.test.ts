@@ -17,9 +17,10 @@ const { default: authMiddleware } =
 
 const dbUser = { id: 1, providerId: "user_abc" };
 
-function eventWithUserId(userId: string | null) {
+function eventWithUserId(userId: string | null, path = "/") {
   return {
     context: { auth: () => ({ userId }) },
+    path,
   } as unknown as H3Event;
 }
 
@@ -57,5 +58,19 @@ describe("server auth middleware", () => {
     await expect(
       authMiddleware(eventWithUserId("user_new")),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("no-ops on Nitro's internal error-render request instead of re-throwing", async () => {
+    mockGetOrCreateUser.mockRejectedValue(
+      Object.assign(new Error("Sign-ups are currently disabled"), {
+        statusCode: 403,
+      }),
+    );
+    const event = eventWithUserId("user_new", "/__nuxt_error?statusCode=403");
+
+    await authMiddleware(event);
+
+    expect(mockGetOrCreateUser).not.toHaveBeenCalled();
+    expect(event.context.user).toBeUndefined();
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { H3Event } from "h3";
+import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
 import { users } from "../../../server/db/schema";
 
 const mockFindFirst = vi.fn();
@@ -88,6 +89,7 @@ describe("getOrCreateUser", () => {
 
     await expect(getOrCreateUser("user_new")).rejects.toMatchObject({
       statusCode: 403,
+      data: { code: SIGNUPS_DISABLED_ERROR_CODE },
     });
     expect(mockInsert).not.toHaveBeenCalled();
   });
