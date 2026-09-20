@@ -66,10 +66,16 @@ describe("AppDetailMarketing", () => {
     expect(wrapper.text()).toContain("DEVICE");
   });
 
-  it("renders the deploy log entries", () => {
+  it("renders the deploy log entries, marking only the font-subset deploy as warn", () => {
     const wrapper = mountDetail("grimicorn");
-    expect(wrapper.findAll(".deploys li")).toHaveLength(4);
+    const entries = wrapper.findAll(".deploys li");
+    expect(entries).toHaveLength(4);
     expect(wrapper.text()).toContain("copy tweak on hero");
+    expect(
+      entries.map((entry) =>
+        entry.find(".deploy-dot").classes().includes("warn"),
+      ),
+    ).toEqual([false, false, false, true]);
   });
 
   it("matches its tile-grid snapshot", () => {

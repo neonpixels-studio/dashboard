@@ -37,12 +37,18 @@ describe("AppDetailWriting", () => {
     expect(wrapper.text()).toContain("8,914");
   });
 
-  it("renders the per-platform syndication table with a warn state for the failing platform", () => {
+  it("renders the per-platform syndication table, marking only the failing platform as warn", () => {
     const wrapper = mountDetail();
     const rows = wrapper.findAll(".platform-row");
     expect(rows).toHaveLength(4);
+
+    // Assert the whole warn/ok column at once — checking only the ZyVOP row
+    // wouldn't catch every row being warn, or the mapping being inverted.
+    expect(
+      rows.map((row) => row.find(".status-pill").classes().includes("warn")),
+    ).toEqual([false, false, false, true]);
+
     const zyvopRow = rows.find((row) => row.text().includes("ZyVOP"))!;
-    expect(zyvopRow.find(".status-pill").classes()).toContain("warn");
     expect(zyvopRow.text()).toContain("API 502");
   });
 

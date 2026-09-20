@@ -3,9 +3,18 @@ import { mount } from "@vue/test-utils";
 import AppIcon from "../../app/components/AppIcon.vue";
 
 describe("AppIcon", () => {
-  it("renders a known icon's path data", () => {
+  it("renders the exact path data for a known icon name", () => {
+    // Assert the specific `d`/`points` for checkCircle, not just "a
+    // polyline exists" — both `check` and `checkCircle` contain a
+    // <polyline>, so a looser assertion couldn't tell a mis-keyed icon
+    // from the right one.
     const wrapper = mount(AppIcon, { props: { name: "checkCircle" } });
-    expect(wrapper.find("polyline").exists()).toBe(true);
+    expect(wrapper.find("path").attributes("d")).toBe(
+      "M21.8 10A10 10 0 1 1 17 3.34",
+    );
+    expect(wrapper.find("polyline").attributes("points")).toBe(
+      "22 4 12 14.01 9 11.01",
+    );
   });
 
   it("renders no path data for an unknown icon name", () => {

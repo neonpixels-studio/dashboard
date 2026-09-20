@@ -39,9 +39,21 @@ describe("AppDetailProduct", () => {
     expect(wrapper.text()).toContain("$412");
   });
 
-  it("colors the MRR chart and plan bars in the app's accent", () => {
+  it("colors the MRR chart in the app's accent and the error-rate chart in warn, not the accent", () => {
     const wrapper = mountDetail();
-    expect(wrapper.findComponent(SparkLine).props("color")).toBe(app.accent);
+    // findComponent(SparkLine) alone would silently anchor to whichever of
+    // the panel's several SparkLines renders first — scope to each chart's
+    // own panel so the two colors can't be conflated.
+    expect(
+      wrapper.find(".mrr-chart").findComponent(SparkLine).props("color"),
+    ).toBe(app.accent);
+    expect(
+      wrapper.find(".error-rate").findComponent(SparkLine).props("color"),
+    ).toBe("var(--warn)");
+  });
+
+  it("colors the plan and sign-in-method bars in the app's accent", () => {
+    const wrapper = mountDetail();
     const bars = wrapper.findAllComponents(BarMeter);
     // Plan bars (3) + sign-in method bars (3) — pin the count so this can't
     // pass vacuously if either BarMeter list stops rendering.
@@ -49,17 +61,36 @@ describe("AppDetailProduct", () => {
     expect(bars.every((bar) => bar.props("color") === app.accent)).toBe(true);
   });
 
-  it("renders the transaction and issue rows", () => {
+  it("renders the transaction rows, styling only the failed one as warn/muted", () => {
     const wrapper = mountDetail();
-    expect(wrapper.findAll(".transaction")).toHaveLength(4);
+    const transactions = wrapper.findAll(".transaction");
+    expect(transactions).toHaveLength(4);
+
+    const failedRow = transactions.find((row) =>
+      row.text().includes("Payment failed"),
+    )!;
+    expect(failedRow.find(".tx-plan").classes()).toContain("warn");
+    expect(failedRow.find(".tx-amount").classes()).toContain("muted");
+
+    const successfulRow = transactions[0];
+    expect(successfulRow.find(".tx-plan").classes()).not.toContain("warn");
+    expect(successfulRow.find(".tx-amount").classes()).not.toContain("muted");
+  });
+
+  it("renders the Sentry issue rows", () => {
+    const wrapper = mountDetail();
     expect(wrapper.findAll(".issue")).toHaveLength(3);
     expect(wrapper.text()).toContain("TypeError: feed.items is undefined");
   });
 
-  it("passes the app through to the traffic panel and sources footer", () => {
+  it("passes the app through to the traffic panel and the sources footer's note text", () => {
     const wrapper = mountDetail();
     expect(wrapper.findComponent(TrafficPanel).props("app")).toStrictEqual(app);
-    expect(wrapper.findComponent(SourcesFooter).exists()).toBe(true);
+    const sourcesFooter = wrapper.findComponent(SourcesFooter);
+    expect(sourcesFooter.props("note")).toBe(
+      "MEDIUM · HASHNODE · DEV.TO · ZYVOP",
+    );
+    expect(sourcesFooter.props("noteTag")).toBe("NOT USED ON THIS APP");
   });
 
   it("matches its tile-grid snapshot", () => {

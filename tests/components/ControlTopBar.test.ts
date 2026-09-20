@@ -15,7 +15,11 @@ function mountBar(props: Record<string, unknown> = {}) {
       components: { BrandMark },
       stubs: {
         NuxtLink: { props: ["to"], template: "<a :href='to'><slot /></a>" },
-        UserButton: { template: "<div class='user-button-stub' />" },
+        UserButton: {
+          name: "UserButton",
+          props: ["signOutRedirectUrl", "appearance"],
+          template: "<div class='user-button-stub' />",
+        },
       },
     },
   });
@@ -40,8 +44,13 @@ describe("ControlTopBar", () => {
     expect(mountBar().find("a.brand").attributes("href")).toBe("/");
   });
 
-  it("renders the user button", () => {
-    expect(mountBar().find(".user-button-stub").exists()).toBe(true);
+  it("renders the user button, wired to redirect to /login on sign-out", () => {
+    const userButton = mountBar().findComponent({ name: "UserButton" });
+    expect(userButton.exists()).toBe(true);
+    expect(userButton.props("signOutRedirectUrl")).toBe("/login");
+    expect(userButton.props("appearance")).toEqual({
+      elements: { avatarBox: { width: "32px", height: "32px" } },
+    });
   });
 
   it("matches its snapshot without a crumb", () => {
