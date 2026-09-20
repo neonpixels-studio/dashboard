@@ -1,0 +1,7 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MetricTileSkeleton > matches its snapshot 1`] = `
+"<div data-v-8f0b934c="" class="card tile-skeleton"><span data-v-bf48201a="" data-v-8f0b934c="" class="skeleton-block" style="width: 70px; height: 10px; border-radius: var(--r-xs);" aria-hidden="true"></span>
+  <div data-v-8f0b934c="" class="value-row"><span data-v-bf48201a="" data-v-8f0b934c="" class="skeleton-block" style="width: 90px; height: 34px; border-radius: var(--r-xs);" aria-hidden="true"></span></div><span data-v-bf48201a="" data-v-8f0b934c="" class="skeleton-block" style="width: 120px; height: 10px; border-radius: var(--r-xs);" aria-hidden="true"></span>
+</div>"
+`;

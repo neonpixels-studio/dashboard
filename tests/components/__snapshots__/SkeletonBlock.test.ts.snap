@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SkeletonBlock > matches its snapshot 1`] = `"<span data-v-bf48201a="" class="skeleton-block" style="width: 100%; height: 1em; border-radius: var(--r-xs);" aria-hidden="true"></span>"`;

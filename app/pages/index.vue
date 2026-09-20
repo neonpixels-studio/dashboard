@@ -118,7 +118,11 @@
       />
 
       <div id="integrations" class="property-grid">
-        <PropertyCard v-for="app in APPS" :key="app.slug" :app="app" />
+        <PropertyCard
+          v-for="app in cardViewModels"
+          :key="app.slug"
+          :app="app"
+        />
       </div>
     </main>
   </div>
@@ -126,10 +130,16 @@
 
 <script setup lang="ts">
 import { APPS } from "~/config/apps";
+import { toAppCardViewModel } from "~/utils/appViewModel";
 
 useHead({ title: "Overview · Neon Pixels Control" });
 
 const propertyCount = String(APPS.length).padStart(2, "0");
+
+// GET /api/apps isn't wired here yet (see issue #19) — every card's `card`
+// merges in as `null` for now, so PropertyCard renders its skeleton state
+// rather than pretending to have metrics that were never fetched.
+const cardViewModels = APPS.map((app) => toAppCardViewModel(app, null));
 
 function accentFor(slug: string): string {
   return APPS.find((app) => app.slug === slug)?.accent ?? "var(--ink-3)";

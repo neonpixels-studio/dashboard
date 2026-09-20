@@ -6,14 +6,16 @@
   >
     <div class="head-row">
       <span
+        v-if="app.card"
         class="status-chip"
         :style="{
-          color: app.statusColor,
-          background: `color-mix(in srgb, ${app.statusColor} 15%, transparent)`,
+          color: statusColor(app.card.status.tone),
+          background: `color-mix(in srgb, ${statusColor(app.card.status.tone)} 15%, transparent)`,
         }"
       >
-        {{ app.statusLabel }}
+        {{ app.card.status.label }}
       </span>
+      <SkeletonBlock v-else width="52px" height="16px" radius="var(--r-xs)" />
       <span class="category">{{ app.order }} — {{ app.category }}</span>
       <svg
         width="13"
@@ -39,55 +41,42 @@
 
     <p class="description">{{ app.description }}</p>
 
-    <div class="stats-row">
+    <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
+         tone) and draw a real sparkline path from app.card.sparklines. -->
+    <PropertyCardMetricsSkeleton v-if="!app.card" />
+    <div v-else class="stats-row">
       <ul class="stats">
-        <li v-for="stat in app.stats" :key="stat.label" class="stat">
-          <span class="micro-label">{{ stat.label }}</span>
-          <span class="stat-value" :style="{ color: statColor(stat) }">
-            {{ stat.value }}
-          </span>
+        <li
+          v-for="metric in app.card.metrics"
+          :key="metric.metric"
+          class="stat"
+        >
+          <span class="micro-label">{{ metric.metric }}</span>
+          <span class="stat-value">{{ metric.value }}</span>
         </li>
       </ul>
       <span class="grow"></span>
-      <SparkLine
-        :path="app.sparklinePath"
-        :width="120"
-        :height="34"
-        view-box="0 0 120 34"
-        :color="app.accent"
-      />
+      <SkeletonBlock width="120px" height="34px" radius="var(--r-sm)" />
     </div>
 
-    <ul class="chips">
+    <ul v-if="app.card" class="chips">
       <li
-        v-for="integration in app.integrations"
-        :key="integration.label"
+        v-for="integration in app.card.integrations"
+        :key="integration.vendor"
         class="chip-tag"
-        :class="integration.tone ?? 'default'"
+        :class="{ danger: integration.ok === false }"
       >
-        {{ integration.label }}
+        {{ integration.vendor }}
       </li>
     </ul>
   </NuxtLink>
 </template>
 
 <script setup lang="ts">
-import type { AppStat, DashboardApp } from "~/config/apps";
+import type { AppCardViewModel } from "~/utils/appViewModel";
+import { healthToneColor as statusColor } from "~/utils/statusColor";
 
-defineProps<{ app: DashboardApp }>();
-
-const STAT_TONE_COLORS: Record<string, string> = {
-  ok: "var(--ok)",
-  warn: "var(--warn)",
-  danger: "var(--err)",
-};
-
-function statColor(stat: AppStat): string {
-  if (!stat.tone) {
-    return "var(--ink)";
-  }
-  return STAT_TONE_COLORS[stat.tone] ?? "var(--ink)";
-}
+defineProps<{ app: AppCardViewModel }>();
 </script>
 
 <style scoped>

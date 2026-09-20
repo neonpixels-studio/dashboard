@@ -27,14 +27,9 @@ function buildFixtureApp(slug: string, template: AppTemplate): DashboardApp {
     accent: "#000000",
     order: "00",
     category: "TEST",
-    statusLabel: "LIVE",
-    statusColor: "#000000",
     description: "Fixture app for seed data tests.",
     tagline: "Fixture app for seed data tests.",
     template,
-    stats: [],
-    sparklinePath: "M0 0",
-    integrations: [],
   };
 }
 
