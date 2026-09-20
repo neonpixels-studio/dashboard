@@ -99,6 +99,12 @@ Two layers of secrets:
   secrets or a database (`tests/server/utils/integrationSecrets.test.ts`
   covers round-trip, tamper-detection, and wrong-key failure).
 
+Only `NUXT_INTEGRATION_ENCRYPTION_KEY` is wired into `runtimeConfig` today,
+since it's what the helper above already consumes. The vendor vars below are
+documented here and in `.env.example` so they're ready to set, but each one's
+`runtimeConfig` entry and actual API client land with that vendor's provider
+issue (GA4/Stripe/Clerk/Sentry/blog-platform sync — separate issues).
+
 Set any of the vars below the same way as Clerk/Neon:
 
 ```bash
