@@ -1,0 +1,244 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppDetailProduct > matches its snapshot 1`] = `
+"<div data-v-12a7c813="" class="detail-body">
+  <div data-v-823d5be8="" data-v-12a7c813="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">MONEY &amp; HEALTH</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">STRIPE · SENTRY</span></div>
+  <div data-v-12a7c813="" class="tile-grid">
+    <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile">
+      <div data-v-d6008d9b="" class="tile-head">
+        <!--v-if--><span data-v-d6008d9b="" class="tile-label">MRR</span>
+      </div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">$412</span><span data-v-d6008d9b="" class="delta ok">▲ 6.4%</span></div>
+      <div data-v-d6008d9b="" class="sub">$387 last month</div>
+    </div>
+    <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile">
+      <div data-v-d6008d9b="" class="tile-head">
+        <!--v-if--><span data-v-d6008d9b="" class="tile-label">ACTIVE SUBS</span>
+      </div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">96</span><span data-v-d6008d9b="" class="delta ok">▲ 7</span></div>
+      <div data-v-d6008d9b="" class="sub">11 trialing · 3 past due</div>
+    </div>
+    <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile">
+      <div data-v-d6008d9b="" class="tile-head">
+        <!--v-if--><span data-v-d6008d9b="" class="tile-label">CHURN · 30D</span>
+      </div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2.1%</span><span data-v-d6008d9b="" class="delta ok">▼ 0.4pp</span></div>
+      <div data-v-d6008d9b="" class="sub">2 cancellations</div>
+    </div>
+    <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile warn">
+      <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg><span data-v-d6008d9b="" class="tile-label">OPEN ISSUES</span></div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">3</span><span data-v-d6008d9b="" class="delta muted">1 new</span></div>
+      <div data-v-d6008d9b="" class="sub">0 fatal · 3 error</div>
+    </div>
+  </div>
+  <div data-v-12a7c813="" class="stripe-sentry">
+    <div data-v-12a7c813="" class="card stripe-panel">
+      <div class="panel-head" data-v-12a7c813=""><span class="panel-title" data-v-12a7c813="">Stripe</span><span class="level-chip live-chip" data-v-12a7c813="">LIVE MODE</span><span class="grow" data-v-12a7c813=""></span><span class="panel-meta" data-v-12a7c813="">SYNCED 2M AGO</span></div>
+      <div data-v-12a7c813="" class="stripe-charts">
+        <div data-v-12a7c813="" class="mrr-chart"><span data-v-12a7c813="" class="metric-label">MRR · 30 DAYS</span><svg data-v-12a7c813="" width="100%" height="80" viewBox="0 0 340 80" preserveAspectRatio="none" role="img" aria-label="basin.fm monthly recurring revenue over the last 30 days">
+            <path d="M0 69.3 C1.9 69.2 7.8 69.9 11.7 68.6 C15.6 67.3 19.5 61.9 23.4 61.2 C27.3 60.5 31.3 63 35.2 64.5 C39.1 66 43 70.4 46.9 70 C50.8 69.6 54.7 63.2 58.6 62.2 C62.5 61.2 66.4 62.7 70.3 64 C74.2 65.3 78.2 69.7 82.1 69.8 C86 69.9 89.9 65.8 93.8 64.5 C97.7 63.3 101.6 62.3 105.5 62.3 C109.4 62.3 113.3 65.3 117.2 64.7 C121.1 64.1 125.1 58.9 129 58.7 C132.9 58.5 136.8 64 140.7 63.7 C144.6 63.4 148.5 58.2 152.4 57.1 C156.3 56 160.2 58.7 164.1 57.3 C168 55.9 172 52.4 175.9 48.9 C179.8 45.4 183.7 38.3 187.6 36.1 C191.5 33.9 195.4 36 199.3 35.7 C203.2 35.4 207.1 33.6 211 34.1 C214.9 34.6 218.9 39.9 222.8 39 C226.7 38.1 230.6 30.3 234.5 28.8 C238.4 27.3 242.3 29.7 246.2 29.9 C250.1 30.1 254 29.1 257.9 29.9 C261.8 30.7 265.8 35.9 269.7 34.9 C273.6 33.9 277.5 27.5 281.4 23.8 C285.3 20.1 289.2 14.1 293.1 12.8 C297 11.5 300.9 14.5 304.8 16 C308.7 17.5 312.7 22.1 316.6 21.7 C320.5 21.3 324.4 15.8 328.3 13.8 C332.2 11.9 338.1 10.6 340 10 L340 80 L0 80 Z" fill="color-mix(in srgb, #FFB020 13%, transparent)"></path>
+            <path d="M0 69.3 C1.9 69.2 7.8 69.9 11.7 68.6 C15.6 67.3 19.5 61.9 23.4 61.2 C27.3 60.5 31.3 63 35.2 64.5 C39.1 66 43 70.4 46.9 70 C50.8 69.6 54.7 63.2 58.6 62.2 C62.5 61.2 66.4 62.7 70.3 64 C74.2 65.3 78.2 69.7 82.1 69.8 C86 69.9 89.9 65.8 93.8 64.5 C97.7 63.3 101.6 62.3 105.5 62.3 C109.4 62.3 113.3 65.3 117.2 64.7 C121.1 64.1 125.1 58.9 129 58.7 C132.9 58.5 136.8 64 140.7 63.7 C144.6 63.4 148.5 58.2 152.4 57.1 C156.3 56 160.2 58.7 164.1 57.3 C168 55.9 172 52.4 175.9 48.9 C179.8 45.4 183.7 38.3 187.6 36.1 C191.5 33.9 195.4 36 199.3 35.7 C203.2 35.4 207.1 33.6 211 34.1 C214.9 34.6 218.9 39.9 222.8 39 C226.7 38.1 230.6 30.3 234.5 28.8 C238.4 27.3 242.3 29.7 246.2 29.9 C250.1 30.1 254 29.1 257.9 29.9 C261.8 30.7 265.8 35.9 269.7 34.9 C273.6 33.9 277.5 27.5 281.4 23.8 C285.3 20.1 289.2 14.1 293.1 12.8 C297 11.5 300.9 14.5 304.8 16 C308.7 17.5 312.7 22.1 316.6 21.7 C320.5 21.3 324.4 15.8 328.3 13.8 C332.2 11.9 338.1 10.6 340 10" fill="none" stroke="#FFB020" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+          <div data-v-5654670f="" data-v-12a7c813="" class="axis-row"><span data-v-5654670f="">20 AUG</span><span data-v-5654670f="">04 SEP</span><span data-v-5654670f="">19 SEP</span></div>
+        </div>
+        <div data-v-12a7c813="" class="plan-bars"><span data-v-12a7c813="" class="metric-label">REVENUE BY PLAN</span>
+          <div data-v-f350e699="" data-v-12a7c813="" class="bar-meter">
+            <div data-v-f350e699="" class="bar-head">
+              <!--v-if--><span data-v-f350e699="" class="label">Pro · $4/mo</span><span data-v-f350e699="" class="value">$312</span><span data-v-f350e699="" class="pct">76%</span>
+            </div>
+            <div data-v-f350e699="" class="track">
+              <div data-v-f350e699="" class="fill" style="width: 76%; background: #FFB020;"></div>
+            </div>
+          </div>
+          <div data-v-f350e699="" data-v-12a7c813="" class="bar-meter">
+            <div data-v-f350e699="" class="bar-head">
+              <!--v-if--><span data-v-f350e699="" class="label">Lifetime · amortized</span><span data-v-f350e699="" class="value">$70</span><span data-v-f350e699="" class="pct">17%</span>
+            </div>
+            <div data-v-f350e699="" class="track">
+              <div data-v-f350e699="" class="fill" style="width: 17%; background: #FFB020;"></div>
+            </div>
+          </div>
+          <div data-v-f350e699="" data-v-12a7c813="" class="bar-meter">
+            <div data-v-f350e699="" class="bar-head">
+              <!--v-if--><span data-v-f350e699="" class="label">Supporter · $2/mo</span><span data-v-f350e699="" class="value">$30</span><span data-v-f350e699="" class="pct">7%</span>
+            </div>
+            <div data-v-f350e699="" class="track">
+              <div data-v-f350e699="" class="fill" style="width: 7%; background: #FFB020;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul data-v-12a7c813="" class="transactions">
+        <li data-v-12a7c813="" class="transaction"><span data-v-12a7c813="" class="tx-date">19 SEP</span><span data-v-12a7c813="" class="tx-email">m••••a@hey.com</span><span data-v-12a7c813="" class="tx-plan">Pro · monthly</span><span data-v-12a7c813="" class="tx-amount">+$4.00</span></li>
+        <li data-v-12a7c813="" class="transaction"><span data-v-12a7c813="" class="tx-date">19 SEP</span><span data-v-12a7c813="" class="tx-email">j••••n@fastmail.com</span><span data-v-12a7c813="" class="tx-plan">Lifetime</span><span data-v-12a7c813="" class="tx-amount">+$49.00</span></li>
+        <li data-v-12a7c813="" class="transaction"><span data-v-12a7c813="" class="tx-date">18 SEP</span><span data-v-12a7c813="" class="tx-email">s••••e@gmail.com</span><span data-v-12a7c813="" class="tx-plan">Pro · monthly</span><span data-v-12a7c813="" class="tx-amount">+$4.00</span></li>
+        <li data-v-12a7c813="" class="transaction"><span data-v-12a7c813="" class="tx-date">18 SEP</span><span data-v-12a7c813="" class="tx-email">r••••t@proton.me</span><span data-v-12a7c813="" class="tx-plan warn">Payment failed</span><span data-v-12a7c813="" class="tx-amount muted">—$4.00</span></li>
+      </ul>
+    </div>
+    <div data-v-12a7c813="" class="card sentry-panel">
+      <div class="panel-head" data-v-12a7c813=""><span class="panel-title" data-v-12a7c813="">Sentry</span><span class="level-chip warn-chip" data-v-12a7c813="">3 OPEN</span><span class="grow" data-v-12a7c813=""></span><a href="#" class="panel-meta" data-v-12a7c813="">VIEW ALL →</a></div>
+      <div data-v-12a7c813="" class="error-rate">
+        <div data-v-12a7c813="" class="error-rate-head"><span data-v-12a7c813="" class="metric-label">ERROR RATE</span><span data-v-12a7c813="" class="rate-value">0.31%</span><span data-v-12a7c813="" class="delta ok">▼ 0.18pp</span></div><svg data-v-12a7c813="" width="100%" height="60" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="basin.fm error rate over the last 30 days">
+          <!--v-if-->
+          <path d="M0 33.2 C1.7 32.3 6.9 27.9 10.3 27.7 C13.8 27.5 17.3 29.9 20.7 32.1 C24.1 34.4 27.6 40.5 31 41.2 C34.5 41.9 37.9 37.8 41.4 36.1 C44.9 34.4 48.3 34 51.7 30.9 C55.2 27.8 58.6 20.5 62.1 17.6 C65.5 14.7 69 14.5 72.4 13.4 C75.9 12.3 79.3 12.2 82.8 11.3 C86.3 10.4 89.7 5.4 93.1 8 C96.5 10.6 100 22.8 103.4 27.1 C106.9 31.5 110.3 35.3 113.8 34.1 C117.3 32.9 120.6 21.7 124.1 19.9 C127.5 18.1 131.1 20.8 134.5 23.3 C137.9 25.9 141.4 33.5 144.8 35.2 C148.3 36.9 151.8 33.9 155.2 33.5 C158.6 33.1 162.1 31.9 165.5 32.7 C168.9 33.6 172.5 37.8 175.9 38.6 C179.3 39.4 182.8 38.1 186.2 37.7 C189.6 37.3 193.1 36.5 196.6 36 C200.1 35.5 203.5 34.8 206.9 34.9 C210.3 35 213.8 38.9 217.2 36.8 C220.6 34.7 224.1 23.3 227.6 22.1 C231.1 20.9 234.4 27.3 237.9 29.8 C241.4 32.3 244.9 36.3 248.3 37.1 C251.8 37.9 255.2 34.8 258.6 34.5 C262.1 34.2 265.6 32.4 269 35.3 C272.4 38.2 275.9 51.5 279.3 52 C282.8 52.5 286.3 42.9 289.7 38.3 C293.1 33.7 298.3 26.6 300 24.3" fill="none" stroke="var(--warn)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+      <ul data-v-12a7c813="" class="issues">
+        <li data-v-12a7c813="" class="issue">
+          <div data-v-12a7c813="" class="issue-head"><span data-v-12a7c813="" class="level-chip" style="color: #D6A419;">ERROR</span><span data-v-12a7c813="" class="issue-title">TypeError: feed.items is undefined</span></div>
+          <div data-v-12a7c813="" class="issue-meta"><span data-v-12a7c813="">parsers/rss.ts:118</span><span data-v-12a7c813="" aria-hidden="true">·</span><span data-v-12a7c813="">41 events</span><span data-v-12a7c813="" aria-hidden="true">·</span><span data-v-12a7c813="">14 users</span><span data-v-12a7c813="" class="grow"></span><span data-v-12a7c813="">12m ago</span></div>
+        </li>
+        <li data-v-12a7c813="" class="issue">
+          <div data-v-12a7c813="" class="issue-head"><span data-v-12a7c813="" class="level-chip" style="color: #D6A419;">ERROR</span><span data-v-12a7c813="" class="issue-title">FetchError: ETIMEDOUT overcast.fm</span></div>
+          <div data-v-12a7c813="" class="issue-meta"><span data-v-12a7c813="">jobs/poll.ts:52</span><span data-v-12a7c813="" aria-hidden="true">·</span><span data-v-12a7c813="">18 events</span><span data-v-12a7c813="" aria-hidden="true">·</span><span data-v-12a7c813="">3 users</span><span data-v-12a7c813="" class="grow"></span><span data-v-12a7c813="">2h ago</span></div>
+        </li>
+        <li data-v-12a7c813="" class="issue">
+          <div data-v-12a7c813="" class="issue-head"><span data-v-12a7c813="" class="level-chip" style="color: #9A9AA8;">WARN</span><span data-v-12a7c813="" class="issue-title">Slow query: feed_items scan 2.4s</span></div>
+          <div data-v-12a7c813="" class="issue-meta"><span data-v-12a7c813="">db/queries.ts:9</span><span data-v-12a7c813="" aria-hidden="true">·</span><span data-v-12a7c813="">6 events</span><span data-v-12a7c813="" aria-hidden="true">·</span><span data-v-12a7c813="">6 users</span><span data-v-12a7c813="" class="grow"></span><span data-v-12a7c813="">1d ago</span></div>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div data-v-823d5be8="" data-v-12a7c813="" class="section-label section-gap"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">USERS &amp; AUTH</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">CLERK</span></div>
+  <div data-v-12a7c813="" class="auth-grid">
+    <div data-v-12a7c813="" class="card auth-card"><span data-v-12a7c813="" class="panel-title">Total users</span>
+      <div data-v-12a7c813="" class="big-value-row"><span data-v-12a7c813="" class="display-num big-value">1,204</span><span data-v-12a7c813="" class="delta ok">▲ 38 this week</span></div>
+      <ul data-v-5cd44a83="" data-v-12a7c813="" class="stat-list auth-list">
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Verified email</span><span data-v-5cd44a83="" class="value">1,147</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Active last 7d</span><span data-v-5cd44a83="" class="value">418</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Converted to paid</span><span data-v-5cd44a83="" class="value">8.0%</span>
+          <!--v-if-->
+        </li>
+      </ul>
+    </div>
+    <div data-v-12a7c813="" class="card auth-card">
+      <div data-v-12a7c813="" class="panel-head"><span data-v-12a7c813="" class="panel-title">Signups</span><span data-v-12a7c813="" class="panel-meta">DAILY · 30D</span></div><svg data-v-12a7c813="" width="100%" height="76" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="basin.fm daily signups over the last 30 days">
+        <!--v-if-->
+        <path d="M0 52 C1.7 51.4 6.9 49.2 10.3 48.2 C13.8 47.2 17.3 46.8 20.7 45.9 C24.1 45 27.6 43.7 31 42.7 C34.5 41.7 37.9 40.7 41.4 39.8 C44.9 38.9 48.3 37.1 51.7 37.1 C55.2 37.1 58.6 39.7 62.1 39.7 C65.5 39.7 69 38 72.4 37 C75.9 36 79.3 34.2 82.8 33.7 C86.3 33.2 89.7 34.1 93.1 34.1 C96.5 34.1 100 33.9 103.4 33.5 C106.9 33.1 110.3 32.5 113.8 31.7 C117.3 30.9 120.6 30.1 124.1 28.8 C127.5 27.5 131.1 25.8 134.5 24.1 C137.9 22.4 141.4 19.3 144.8 18.6 C148.3 18 151.8 20 155.2 20.2 C158.6 20.4 162.1 20.2 165.5 19.8 C168.9 19.4 172.5 18 175.9 18 C179.3 18 182.8 19.4 186.2 19.9 C189.6 20.4 193.1 21.8 196.6 21.2 C200.1 20.6 203.5 16.9 206.9 16.3 C210.3 15.7 213.8 16.8 217.2 17.5 C220.6 18.2 224.1 19.9 227.6 20.7 C231.1 21.5 234.4 22.7 237.9 22.4 C241.4 22.1 244.9 20.3 248.3 18.8 C251.8 17.3 255.2 14.9 258.6 13.5 C262.1 12.1 265.6 10.5 269 10.1 C272.4 9.7 275.9 11.2 279.3 10.9 C282.8 10.6 286.3 8.6 289.7 8.1 C293.1 7.6 298.3 8 300 8" fill="none" stroke="#FFB020" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <div data-v-5654670f="" data-v-12a7c813="" class="axis-row"><span data-v-5654670f="">20 AUG</span><span data-v-5654670f="">04 SEP</span><span data-v-5654670f="">19 SEP</span></div>
+      <div data-v-12a7c813="" class="card-foot"><span data-v-12a7c813="" class="foot-label">Best day · 16 Sep</span><span data-v-12a7c813="" class="foot-value">31 signups</span></div>
+    </div>
+    <div data-v-12a7c813="" class="card auth-card"><span data-v-12a7c813="" class="panel-title">Sign-in method</span>
+      <div data-v-12a7c813="" class="method-bars">
+        <div data-v-f350e699="" data-v-12a7c813="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head">
+            <!--v-if--><span data-v-f350e699="" class="label">GitHub</span>
+            <!--v-if--><span data-v-f350e699="" class="pct">61%</span>
+          </div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 61%; background: #FFB020;"></div>
+          </div>
+        </div>
+        <div data-v-f350e699="" data-v-12a7c813="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head">
+            <!--v-if--><span data-v-f350e699="" class="label">Google</span>
+            <!--v-if--><span data-v-f350e699="" class="pct">28%</span>
+          </div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 28%; background: #FFB020;"></div>
+          </div>
+        </div>
+        <div data-v-f350e699="" data-v-12a7c813="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head">
+            <!--v-if--><span data-v-f350e699="" class="label">Email code</span>
+            <!--v-if--><span data-v-f350e699="" class="pct">11%</span>
+          </div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 11%; background: #FFB020;"></div>
+          </div>
+        </div>
+      </div>
+      <div data-v-12a7c813="" class="card-foot"><span data-v-12a7c813="" class="foot-label">Failed sign-ins · 7d</span><span data-v-12a7c813="" class="foot-value">14</span></div>
+    </div>
+  </div>
+  <div data-v-823d5be8="" data-v-12a7c813="" class="section-label section-gap"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">TRAFFIC</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">GOOGLE ANALYTICS · GA4</span></div>
+  <div data-v-b28e9303="" data-v-12a7c813="" class="card traffic-panel">
+    <div data-v-b28e9303="" class="traffic-chart">
+      <div data-v-b28e9303="" class="traffic-head">
+        <ul data-v-b28e9303="" class="headline-stats">
+          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">SESSIONS</span><span data-v-b28e9303="" class="display-num headline-value">8,612</span></li>
+          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">USERS</span><span data-v-b28e9303="" class="display-num headline-value">5,431</span></li>
+          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">AVG TIME</span><span data-v-b28e9303="" class="display-num headline-value">3:18</span></li>
+          <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">BOUNCE</span><span data-v-b28e9303="" class="display-num headline-value">38%</span></li>
+        </ul><span data-v-b28e9303="" class="grow"></span><span data-v-b28e9303="" class="delta ok">▲ 22% vs prev 30d</span>
+      </div><svg data-v-b28e9303="" width="100%" height="150" viewBox="0 0 860 150" preserveAspectRatio="none" role="img" aria-label="basin.fm daily sessions over the last 30 days">
+        <line x1="0" y1="14" x2="860" y2="14" stroke="var(--line-3)" stroke-width="1"></line>
+        <line x1="0" y1="55" x2="860" y2="55" stroke="var(--line-3)" stroke-width="1"></line>
+        <line x1="0" y1="96" x2="860" y2="96" stroke="var(--line-3)" stroke-width="1"></line>
+        <line x1="0" y1="149" x2="860" y2="149" stroke="var(--line)" stroke-width="1"></line>
+        <path d="M0 14 C5 16.2 19.8 23.7 29.7 27.1 C39.6 30.5 49.4 32 59.3 34.2 C69.2 36.4 79.1 37 89 40.5 C98.9 44 108.7 51.1 118.6 55.3 C128.5 59.5 138.4 62.3 148.3 65.8 C158.2 69.3 168 75 177.9 76.2 C187.8 77.5 197.7 76.4 207.6 73.3 C217.5 70.2 227.3 58.3 237.2 57.4 C247.1 56.5 257 68.4 266.9 67.7 C276.8 67 286.7 54.1 296.6 53.4 C306.5 52.7 316.3 61.4 326.2 63.4 C336.1 65.4 346 63.9 355.9 65.6 C365.8 67.3 375.6 70.7 385.5 73.8 C395.4 76.9 405.3 84.4 415.2 84.3 C425.1 84.2 434.9 75.8 444.8 73.1 C454.7 70.4 464.6 71.2 474.5 68.1 C484.4 65 494.2 56.4 504.1 54.7 C514 53 523.9 58.7 533.8 57.7 C543.7 56.7 553.5 51.2 563.4 48.9 C573.3 46.6 583.2 42.9 593.1 43.9 C603 44.9 612.9 52.9 622.8 54.8 C632.7 56.7 642.5 53.9 652.4 55.4 C662.3 56.9 672.2 62.3 682.1 63.9 C692 65.5 701.8 62.9 711.7 65 C721.6 67.1 731.5 72.7 741.4 76.6 C751.3 80.5 761.1 83.8 771 88.4 C780.9 93 790.8 98.7 800.7 104 C810.6 109.3 820.4 114.7 830.3 120 C840.2 125.3 855 133.3 860 136 L860 150 L0 150 Z" fill="color-mix(in srgb, #FFB020 9%, transparent)"></path>
+        <path d="M0 14 C5 16.2 19.8 23.7 29.7 27.1 C39.6 30.5 49.4 32 59.3 34.2 C69.2 36.4 79.1 37 89 40.5 C98.9 44 108.7 51.1 118.6 55.3 C128.5 59.5 138.4 62.3 148.3 65.8 C158.2 69.3 168 75 177.9 76.2 C187.8 77.5 197.7 76.4 207.6 73.3 C217.5 70.2 227.3 58.3 237.2 57.4 C247.1 56.5 257 68.4 266.9 67.7 C276.8 67 286.7 54.1 296.6 53.4 C306.5 52.7 316.3 61.4 326.2 63.4 C336.1 65.4 346 63.9 355.9 65.6 C365.8 67.3 375.6 70.7 385.5 73.8 C395.4 76.9 405.3 84.4 415.2 84.3 C425.1 84.2 434.9 75.8 444.8 73.1 C454.7 70.4 464.6 71.2 474.5 68.1 C484.4 65 494.2 56.4 504.1 54.7 C514 53 523.9 58.7 533.8 57.7 C543.7 56.7 553.5 51.2 563.4 48.9 C573.3 46.6 583.2 42.9 593.1 43.9 C603 44.9 612.9 52.9 622.8 54.8 C632.7 56.7 642.5 53.9 652.4 55.4 C662.3 56.9 672.2 62.3 682.1 63.9 C692 65.5 701.8 62.9 711.7 65 C721.6 67.1 731.5 72.7 741.4 76.6 C751.3 80.5 761.1 83.8 771 88.4 C780.9 93 790.8 98.7 800.7 104 C810.6 109.3 820.4 114.7 830.3 120 C840.2 125.3 855 133.3 860 136" fill="none" stroke="#FFB020" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <div data-v-5654670f="" data-v-b28e9303="" class="axis-row"><span data-v-5654670f="">20 AUG</span><span data-v-5654670f="">27 AUG</span><span data-v-5654670f="">03 SEP</span><span data-v-5654670f="">10 SEP</span><span data-v-5654670f="">19 SEP</span></div>
+    </div>
+    <div data-v-b28e9303="" class="traffic-list"><span data-v-b28e9303="" class="metric-label">TOP PAGES</span>
+      <ul data-v-5cd44a83="" data-v-b28e9303="" class="stat-list divided">
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">/</span><span data-v-5cd44a83="" class="value">3,104</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">/feed</span><span data-v-5cd44a83="" class="value">1,882</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">/pricing</span><span data-v-5cd44a83="" class="value">1,016</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">/sources/add</span><span data-v-5cd44a83="" class="value">744</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">/docs/import</span><span data-v-5cd44a83="" class="value">512</span>
+          <!--v-if-->
+        </li>
+      </ul>
+    </div>
+    <div data-v-b28e9303="" class="traffic-list"><span data-v-b28e9303="" class="metric-label">TOP REFERRERS</span>
+      <ul data-v-5cd44a83="" data-v-b28e9303="" class="stat-list divided">
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Organic search</span><span data-v-5cd44a83="" class="value">41%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">news.ycombinator</span><span data-v-5cd44a83="" class="value">19%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">bsky.app</span><span data-v-5cd44a83="" class="value">14%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">neonpixels.dev</span><span data-v-5cd44a83="" class="value">11%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Direct</span><span data-v-5cd44a83="" class="value">15%</span>
+          <!--v-if-->
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div data-v-f8143493="" data-v-12a7c813="" class="sources-footer"><span data-v-f8143493="" class="label">SOURCES</span>
+    <ul data-v-f8143493="" class="sources">
+      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> GOOGLE ANALYTICS · 4m</li>
+      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> CLERK · 4m</li>
+      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> STRIPE · 2m</li>
+      <li data-v-f8143493="" class="source-chip ok"><span data-v-f8143493="" class="dot" aria-hidden="true"></span> SENTRY · live</li>
+    </ul><span data-v-f8143493="" class="grow"></span><span data-v-f8143493="" class="note">MEDIUM · HASHNODE · DEV.TO · ZYVOP</span><span data-v-f8143493="" class="note-tag">NOT USED ON THIS APP</span>
+  </div>
+</div>"
+`;

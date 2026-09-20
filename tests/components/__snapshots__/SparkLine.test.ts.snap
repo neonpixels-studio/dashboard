@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SparkLine > matches its snapshot 1`] = `
+"<svg width="100%" height="130" viewBox="0 0 600 130" preserveAspectRatio="none" role="img" aria-label="basin.fm daily sessions over the last 30 days">
+  <line x1="0" y1="12" x2="600" y2="12" stroke="var(--line-3)" stroke-width="1"></line>
+  <line x1="0" y1="51" x2="600" y2="51" stroke="var(--line-3)" stroke-width="1"></line>
+  <line x1="0" y1="90" x2="600" y2="90" stroke="var(--line-3)" stroke-width="1"></line>
+  <line x1="0" y1="129" x2="600" y2="129" stroke="var(--line)" stroke-width="1"></line>
+  <path d="M0 26.8 C3.4 26.4 13.8 23.3 20.7 24.5 L600 130 L0 130 Z" fill="color-mix(in srgb, #FFB020 7%, transparent)"></path>
+  <path d="M0 26.8 C3.4 26.4 13.8 23.3 20.7 24.5" fill="none" stroke="#FFB020" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>"
+`;

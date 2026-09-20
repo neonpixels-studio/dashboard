@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ControlTopBar > matches its snapshot with a crumb 1`] = `
+"<header data-v-2e629669="" class="top-bar"><a data-v-2e629669="" href="/" class="brand">
+    <brandmark data-v-2e629669="" size="18"></brandmark><span data-v-2e629669="" class="brand-name">NEONPIXELS</span>
+    <!--v-if-->
+  </a><span data-v-2e629669="" class="crumb-sep" aria-hidden="true">/</span><a data-v-2e629669="" href="/" class="crumb-link">All properties</a><span data-v-2e629669="" class="crumb-sep" aria-hidden="true">/</span><span data-v-2e629669="" class="crumb-current">basin.fm</span><span data-v-2e629669="" class="grow"></span><button data-v-2e629669="" type="button" class="range-btn"> LAST 30 DAYS <svg data-v-2e629669="" width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden="true">
+      <path data-v-2e629669="" d="M1 1.5L4.5 5L8 1.5" stroke="#9A9AA8" stroke-width="1.5" stroke-linecap="round"></path>
+    </svg></button>
+  <div data-v-2e629669="" class="user-button-stub" sign-out-redirect-url="/login" appearance="[object Object]"></div>
+</header>"
+`;
+
+exports[`ControlTopBar > matches its snapshot without a crumb 1`] = `
+"<header data-v-2e629669="" class="top-bar"><a data-v-2e629669="" href="/" class="brand">
+    <brandmark data-v-2e629669="" size="18"></brandmark><span data-v-2e629669="" class="brand-name">NEONPIXELS</span><span data-v-2e629669="" class="brand-sub">CONTROL</span>
+  </a>
+  <nav data-v-2e629669="" class="top-nav">
+    <ul data-v-2e629669="" class="nav-list">
+      <li data-v-2e629669=""><a data-v-2e629669="" href="/" class="nav-link active">Overview</a></li>
+      <li data-v-2e629669=""><a data-v-2e629669="" href="#properties" class="nav-link">Properties</a></li>
+      <li data-v-2e629669=""><a data-v-2e629669="" href="#alerts" class="nav-link">Alerts</a></li>
+      <li data-v-2e629669=""><a data-v-2e629669="" href="#integrations" class="nav-link">Integrations</a></li>
+    </ul>
+  </nav><button data-v-2e629669="" type="button" class="range-btn"> LAST 30 DAYS <svg data-v-2e629669="" width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden="true">
+      <path data-v-2e629669="" d="M1 1.5L4.5 5L8 1.5" stroke="#9A9AA8" stroke-width="1.5" stroke-linecap="round"></path>
+    </svg></button>
+  <div data-v-2e629669="" class="user-button-stub" sign-out-redirect-url="/login" appearance="[object Object]"></div>
+</header>"
+`;

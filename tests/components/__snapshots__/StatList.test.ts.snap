@@ -1,0 +1,20 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`StatList > matches its snapshot 1`] = `
+"<ul data-v-5cd44a83="" class="stat-list divided">
+  <li data-v-5cd44a83="" class="stat-row">
+    <!--v-if--><span data-v-5cd44a83="" class="label">Direct</span><span data-v-5cd44a83="" class="value">38%</span>
+    <!--v-if-->
+  </li>
+  <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="level-chip" style="color: #B4F03C;">8.0%</span><span data-v-5cd44a83="" class="label">Converted to paid</span><span data-v-5cd44a83="" class="value">8.0%</span>
+    <!--v-if-->
+  </li>
+  <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #FFB020;"></span><span data-v-5cd44a83="" class="label">basin.fm</span><span data-v-5cd44a83="" class="value">612</span>
+    <!--v-if-->
+  </li>
+  <li data-v-5cd44a83="" class="stat-row">
+    <!--v-if--><span data-v-5cd44a83="" class="label muted">Prefers dark</span><span data-v-5cd44a83="" class="value">83%</span>
+    <!--v-if-->
+  </li>
+</ul>"
+`;

@@ -1,0 +1,134 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppDetailMarketing > matches its snapshot 1`] = `
+"<div data-v-86945382="" class="detail-body">
+  <div data-v-86945382="" class="tile-grid">
+    <div data-v-d6008d9b="" data-v-86945382="" class="card tile">
+      <div data-v-d6008d9b="" class="tile-head">
+        <!--v-if--><span data-v-d6008d9b="" class="tile-label">SESSIONS</span>
+      </div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">6,104</span><span data-v-d6008d9b="" class="delta ok">▲ 7%</span></div>
+      <div data-v-d6008d9b="" class="sub">4,782 unique users</div>
+    </div>
+    <div data-v-d6008d9b="" data-v-86945382="" class="card tile">
+      <div data-v-d6008d9b="" class="tile-head">
+        <!--v-if--><span data-v-d6008d9b="" class="tile-label">OUTBOUND CLICKS</span>
+      </div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1,475</span><span data-v-d6008d9b="" class="delta ok">▲ 19%</span></div>
+      <div data-v-d6008d9b="" class="sub">24.2% of sessions click through</div>
+    </div>
+    <div data-v-d6008d9b="" data-v-86945382="" class="card tile">
+      <div data-v-d6008d9b="" class="tile-head">
+        <!--v-if--><span data-v-d6008d9b="" class="tile-label">AVG ENGAGED TIME</span>
+      </div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1:42</span><span data-v-d6008d9b="" class="delta muted">flat</span></div>
+      <div data-v-d6008d9b="" class="sub">single-page site</div>
+    </div>
+    <div data-v-d6008d9b="" data-v-86945382="" class="card tile ok">
+      <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.8 10A10 10 0 1 1 17 3.34"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg><span data-v-d6008d9b="" class="tile-label">SENTRY</span></div>
+      <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">0</span><span data-v-d6008d9b="" class="delta muted">open issues</span></div>
+      <div data-v-d6008d9b="" class="sub">quiet for 41 days</div>
+    </div>
+  </div>
+  <div data-v-86945382="" class="mid-row">
+    <div data-v-86945382="" class="card sessions-panel">
+      <div class="panel-head" data-v-86945382=""><span class="panel-title" data-v-86945382="">Sessions</span><span class="panel-meta" data-v-86945382="">GOOGLE ANALYTICS · DAILY</span><span class="grow" data-v-86945382=""></span><span class="panel-note" data-v-86945382="">peak 341 on 06 SEP</span></div><svg data-v-86945382="" width="100%" height="130" viewBox="0 0 600 130" preserveAspectRatio="none" role="img" aria-label="grimicorn.dev daily sessions over the last 30 days">
+        <line x1="0" y1="12" x2="600" y2="12" stroke="var(--line-3)" stroke-width="1"></line>
+        <line x1="0" y1="51" x2="600" y2="51" stroke="var(--line-3)" stroke-width="1"></line>
+        <line x1="0" y1="90" x2="600" y2="90" stroke="var(--line-3)" stroke-width="1"></line>
+        <line x1="0" y1="129" x2="600" y2="129" stroke="var(--line)" stroke-width="1"></line>
+        <path d="M0 26.8 C3.4 26.4 13.8 23.3 20.7 24.5 C27.6 25.7 34.5 34.7 41.4 34 C48.3 33.3 55.2 24 62.1 20.3 C69 16.6 75.9 11.3 82.8 12 C89.7 12.7 96.5 19.8 103.4 24.3 C110.3 28.8 117.2 34.6 124.1 38.8 C131 43 137.9 50.8 144.8 49.4 C151.7 48 158.6 31.4 165.5 30.6 C172.4 29.8 179.3 39.8 186.2 44.4 C193.1 49 200 53.9 206.9 58.3 C213.8 62.6 220.7 71.6 227.6 70.5 C234.5 69.4 241.4 54.5 248.3 51.5 C255.2 48.5 262.1 54.2 269 52.3 C275.9 50.4 282.8 40.5 289.7 40.1 C296.6 39.7 303.4 45.7 310.3 50 C317.2 54.3 324.1 60.7 331 65.9 C337.9 71.1 344.8 76.7 351.7 81.3 C358.6 85.9 365.5 93.7 372.4 93.4 C379.3 93.1 386.2 82.9 393.1 79.7 C400 76.5 406.9 73.3 413.8 74.3 C420.7 75.3 427.6 81.9 434.5 85.8 C441.4 89.7 448.3 94.8 455.2 97.4 C462.1 100 469 99.7 475.9 101.5 C482.8 103.3 489.7 105.5 496.6 108.2 C503.5 111 510.3 117.8 517.2 118 C524.1 118.2 531 109.9 537.9 109.5 C544.8 109.1 551.7 117.6 558.6 115.7 C565.5 113.8 572.4 103.5 579.3 98 C586.2 92.5 596.5 85.5 600 83 L600 130 L0 130 Z" fill="color-mix(in srgb, #B4F03C 7%, transparent)"></path>
+        <path d="M0 26.8 C3.4 26.4 13.8 23.3 20.7 24.5 C27.6 25.7 34.5 34.7 41.4 34 C48.3 33.3 55.2 24 62.1 20.3 C69 16.6 75.9 11.3 82.8 12 C89.7 12.7 96.5 19.8 103.4 24.3 C110.3 28.8 117.2 34.6 124.1 38.8 C131 43 137.9 50.8 144.8 49.4 C151.7 48 158.6 31.4 165.5 30.6 C172.4 29.8 179.3 39.8 186.2 44.4 C193.1 49 200 53.9 206.9 58.3 C213.8 62.6 220.7 71.6 227.6 70.5 C234.5 69.4 241.4 54.5 248.3 51.5 C255.2 48.5 262.1 54.2 269 52.3 C275.9 50.4 282.8 40.5 289.7 40.1 C296.6 39.7 303.4 45.7 310.3 50 C317.2 54.3 324.1 60.7 331 65.9 C337.9 71.1 344.8 76.7 351.7 81.3 C358.6 85.9 365.5 93.7 372.4 93.4 C379.3 93.1 386.2 82.9 393.1 79.7 C400 76.5 406.9 73.3 413.8 74.3 C420.7 75.3 427.6 81.9 434.5 85.8 C441.4 89.7 448.3 94.8 455.2 97.4 C462.1 100 469 99.7 475.9 101.5 C482.8 103.3 489.7 105.5 496.6 108.2 C503.5 111 510.3 117.8 517.2 118 C524.1 118.2 531 109.9 537.9 109.5 C544.8 109.1 551.7 117.6 558.6 115.7 C565.5 113.8 572.4 103.5 579.3 98 C586.2 92.5 596.5 85.5 600 83" fill="none" stroke="#B4F03C" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <div data-v-5654670f="" data-v-86945382="" class="axis-row"><span data-v-5654670f="">20 AUG</span><span data-v-5654670f="">27 AUG</span><span data-v-5654670f="">03 SEP</span><span data-v-5654670f="">10 SEP</span><span data-v-5654670f="">19 SEP</span></div>
+    </div>
+    <div data-v-86945382="" class="card outbound-panel">
+      <div data-v-86945382="" class="panel-head"><span data-v-86945382="" class="panel-title">Outbound clicks by project</span><span data-v-86945382="" class="grow"></span><span data-v-86945382="" class="panel-meta">1,475 TOTAL</span></div>
+      <div data-v-86945382="" class="outbound-bars">
+        <div data-v-f350e699="" data-v-86945382="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head"><span data-v-f350e699="" class="swatch" style="background: #B4F03C;" aria-hidden="true"></span><span data-v-f350e699="" class="label">grimicorn.dev</span><span data-v-f350e699="" class="value">612</span><span data-v-f350e699="" class="pct">41%</span></div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 41%; background: #B4F03C;"></div>
+          </div>
+        </div>
+        <div data-v-f350e699="" data-v-86945382="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head"><span data-v-f350e699="" class="swatch" style="background: #22D3EE;" aria-hidden="true"></span><span data-v-f350e699="" class="label">wanderist.io</span><span data-v-f350e699="" class="value">388</span><span data-v-f350e699="" class="pct">26%</span></div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 26%; background: #22D3EE;"></div>
+          </div>
+        </div>
+        <div data-v-f350e699="" data-v-86945382="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head"><span data-v-f350e699="" class="swatch" style="background: #FFB020;" aria-hidden="true"></span><span data-v-f350e699="" class="label">basin.fm</span><span data-v-f350e699="" class="value">274</span><span data-v-f350e699="" class="pct">19%</span></div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 19%; background: #FFB020;"></div>
+          </div>
+        </div>
+        <div data-v-f350e699="" data-v-86945382="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head"><span data-v-f350e699="" class="swatch" style="background: #FF3EA5;" aria-hidden="true"></span><span data-v-f350e699="" class="label">markpost.io</span><span data-v-f350e699="" class="value">201</span><span data-v-f350e699="" class="pct">14%</span></div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 14%; background: #FF3EA5;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hint-note" data-v-86945382=""><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" data-v-86945382="">
+          <circle cx="8" cy="8" r="6.4" stroke="#82828F" stroke-width="1.4" data-v-86945382=""></circle>
+          <path d="M8 7.2v4" stroke="#82828F" stroke-width="1.4" stroke-linecap="round" data-v-86945382=""></path>
+          <circle cx="8" cy="4.9" r="0.8" fill="#82828F" data-v-86945382=""></circle>
+        </svg><span data-v-86945382=""> danholloran.me is linked from the footer only and drew 0 outbound clicks. Worth a card in the grid. </span></div>
+    </div>
+  </div>
+  <div data-v-86945382="" class="bottom-row">
+    <div data-v-86945382="" class="card bottom-card"><span data-v-86945382="" class="metric-label">TRAFFIC SOURCES</span>
+      <ul data-v-5cd44a83="" data-v-86945382="" class="stat-list divided">
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Direct</span><span data-v-5cd44a83="" class="value">38%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">bsky.app</span><span data-v-5cd44a83="" class="value">24%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">github.com</span><span data-v-5cd44a83="" class="value">21%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Organic search</span><span data-v-5cd44a83="" class="value">17%</span>
+          <!--v-if-->
+        </li>
+      </ul>
+    </div>
+    <div data-v-86945382="" class="card bottom-card"><span data-v-86945382="" class="metric-label">DEVICE</span>
+      <ul data-v-5cd44a83="" data-v-86945382="" class="stat-list divided">
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Desktop</span><span data-v-5cd44a83="" class="value">71%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Mobile</span><span data-v-5cd44a83="" class="value">26%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Tablet</span><span data-v-5cd44a83="" class="value">3%</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label muted">Prefers dark</span><span data-v-5cd44a83="" class="value">83%</span>
+          <!--v-if-->
+        </li>
+      </ul>
+    </div>
+    <div data-v-86945382="" class="card bottom-card"><span data-v-86945382="" class="metric-label">DEPLOYS</span>
+      <ul data-v-86945382="" class="deploys">
+        <li data-v-86945382=""><span data-v-86945382="" class="deploy-date">19 SEP</span><span data-v-86945382="" class="deploy-text">copy tweak on hero</span><span data-v-86945382="" class="deploy-dot ok" aria-hidden="true"></span></li>
+        <li data-v-86945382=""><span data-v-86945382="" class="deploy-date">14 SEP</span><span data-v-86945382="" class="deploy-text">add markpost card</span><span data-v-86945382="" class="deploy-dot ok" aria-hidden="true"></span></li>
+        <li data-v-86945382=""><span data-v-86945382="" class="deploy-date">09 SEP</span><span data-v-86945382="" class="deploy-text">og image regen</span><span data-v-86945382="" class="deploy-dot ok" aria-hidden="true"></span></li>
+        <li data-v-86945382=""><span data-v-86945382="" class="deploy-date">06 SEP</span><span data-v-86945382="" class="deploy-text">font subset build</span><span data-v-86945382="" class="deploy-dot warn" aria-hidden="true"></span></li>
+      </ul>
+    </div>
+  </div>
+</div>"
+`;
