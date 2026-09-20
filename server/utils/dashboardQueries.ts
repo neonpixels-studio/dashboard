@@ -186,6 +186,36 @@ export function fetchSyndicationPosts(
     .orderBy(desc(syndicationPost.syncedAt), asc(syndicationPost.platform));
 }
 
+// Powers server/integrations/syndication/medium's rate-limit guard: the
+// most recent capturedAt a given (slug, vendor, metric) metric_snapshot row
+// was actually written with. Deliberately scoped to metric_snapshot (written
+// only when a provider's fetch genuinely ran against the real API) rather
+// than sync_status.last_success_at (written on every orchestrator tick that
+// didn't throw, including one the guard itself decided to skip) — using
+// sync_status here would make a skipped sync look like a fresh success and
+// reset the very clock the guard reads from, so it would never come due
+// again. See server/integrations/syndication/medium/mediumSyncGuard.ts.
+export function fetchLatestMetricCapturedAt(
+  db: DrizzleDb,
+  slug: string,
+  vendor: string,
+  metric: string,
+): Promise<Date | null> {
+  return db
+    .select({ capturedAt: metricSnapshot.capturedAt })
+    .from(metricSnapshot)
+    .where(
+      and(
+        eq(metricSnapshot.slug, slug),
+        eq(metricSnapshot.vendor, vendor),
+        eq(metricSnapshot.metric, metric),
+      ),
+    )
+    .orderBy(desc(metricSnapshot.capturedAt))
+    .limit(1)
+    .then((rows) => rows[0]?.capturedAt ?? null);
+}
+
 export function fetchSyncStatuses(
   db: DrizzleDb,
   slugs: string[],

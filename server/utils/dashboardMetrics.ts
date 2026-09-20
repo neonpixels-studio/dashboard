@@ -7,6 +7,11 @@ export const METRIC_MRR = "mrr";
 export const METRIC_ACTIVE_SUBSCRIBERS = "active_subscribers";
 export const METRIC_SESSIONS = "sessions";
 export const METRIC_OPEN_ISSUES = "open_issues";
+// Post count for a blog-syndication platform (Hashnode/DEV.to/Medium) — see
+// server/integrations/syndication. One row per (slug, vendor) here, same as
+// every other metric; a studio-wide/cross-platform rollup (the writing
+// template's "POSTS" card) is that consumer's concern, not this provider's.
+export const METRIC_POSTS = "posts";
 
 // Canonical `metric_snapshot.period` values (schema: "e.g. \"30d\", \"current\"").
 // A metric name alone doesn't identify a series — the schema allows the same

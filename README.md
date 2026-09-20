@@ -176,17 +176,39 @@ Reports open issue counts per property.
 3. Per-property project slug — that project's Settings page, in the URL as
    `sentry.io/organizations/<org>/projects/<slug>/`.
 
-### Blog platforms (markpost publishing targets)
+### Blog platforms (danholloran.me cross-posting targets)
+
+Reads post counts + per-post cross-post status for the writing template
+(danholloran; the only app with `template: "writing"` in
+`app/config/apps.ts`) — see `server/integrations/syndication`. Publishing
+itself happens outside this app; these providers only read what's already
+live on each platform. One shared account per platform (no per-slug env var
+suffix, since there's only one writing-template app today).
 
 - **Hashnode** — <https://hashnode.com/settings/developer> → generate a
   Personal Access Token (`NUXT_HASHNODE_TOKEN`). Publication ID is on the
-  blog's dashboard → Settings → General.
+  blog's dashboard → Settings → General (`NUXT_HASHNODE_PUBLICATION_ID`); an
+  `integration_config` row's `external_id`, once set, overrides it, same
+  precedent as Stripe's product IDs / GA4's property IDs.
 - **DEV.to** — <https://dev.to/settings/extensions> → DEV API Keys → Generate
-  API Key.
-- **Medium** — Medium retired its publish API, so stats read via RapidAPI's
-  unofficial Medium API. Subscribe at
+  API Key (`NUXT_DEVTO_API_KEY`). No separate publication id: the key alone
+  identifies the account.
+- **Medium** — Medium retired its own publish API and has no supported read
+  endpoint either, so this reads via RapidAPI's unofficial "medium2" API
+  (aka mediumapi.com — <https://docs.mediumapi.com/>), a **paid** add-on.
+  Subscribe at
   <https://rapidapi.com/nishujain199719-vgIfuFHxLd0/api/medium2> for
   `NUXT_MEDIUM_RAPIDAPI_KEY`; `NUXT_MEDIUM_USERNAME` is the plain `@handle`.
+  Until that key is provisioned, `NUXT_MEDIUM_RAPIDAPI_KEY` stays unset and
+  the Medium provider (`server/integrations/syndication/medium`) resolves to
+  silently empty — no rows, no error — the same way a property with no
+  Clerk instance configured shows no Clerk data. Once subscribed, the plan's
+  150-requests/month cap means this provider self-limits to at most 3 syncs
+  a day regardless of how often the orchestrator itself runs (see
+  `mediumSyncGuard.ts`), and bounds how many posts get a fresh
+  `syndication_post` row per sync (see `MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC`
+  in `provider.ts`) — the `posts` count metric itself is never affected by
+  that bound.
 
 ### Cross-app sync trigger
 
