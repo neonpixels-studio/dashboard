@@ -8,6 +8,18 @@ import { fileURLToPath } from "node:url";
 const moduleUrl = import.meta.url;
 const FIXTURES_DIRECTORY = fileURLToPath(new URL("./fixtures", moduleUrl));
 
+// Both arguments are joined straight into a filesystem path; without this,
+// a value like "../../secrets" would escape FIXTURES_DIRECTORY.
+const FIXTURE_SEGMENT_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+function assertSafeFixtureSegment(segment: string, label: string): void {
+  if (!FIXTURE_SEGMENT_PATTERN.test(segment)) {
+    throw new Error(
+      `Invalid fixture ${label} "${segment}": must match ${FIXTURE_SEGMENT_PATTERN}.`,
+    );
+  }
+}
+
 /**
  * Loads a recorded vendor response from server/integrations/testing/fixtures
  * so a provider's fetch() can be exercised against real-shaped data without
@@ -19,7 +31,14 @@ export async function loadFixture<FixtureShape>(
   vendor: string,
   fixtureName: string,
 ): Promise<FixtureShape> {
+  assertSafeFixtureSegment(vendor, "vendor");
+  assertSafeFixtureSegment(fixtureName, "fixtureName");
+
   const fixturePath = join(FIXTURES_DIRECTORY, vendor, `${fixtureName}.json`);
-  const fileContents = await readFile(fixturePath, "utf8");
-  return JSON.parse(fileContents) as FixtureShape;
+  try {
+    const fileContents = await readFile(fixturePath, "utf8");
+    return JSON.parse(fileContents) as FixtureShape;
+  } catch (cause) {
+    throw new Error(`Failed to load fixture at ${fixturePath}`, { cause });
+  }
 }

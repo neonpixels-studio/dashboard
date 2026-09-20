@@ -20,6 +20,16 @@ describe("mockProvider", () => {
     });
   });
 
+  it("returns a fresh result object on every call, not a shared mutable singleton", async () => {
+    const config = createTestIntegrationConfig();
+
+    const first = await mockProvider.fetch(config);
+    const second = await mockProvider.fetch(config);
+
+    expect(first).not.toBe(second);
+    expect(first.metrics).not.toBe(second.metrics);
+  });
+
   it("returns the same normalized shape regardless of the config passed in", async () => {
     const configWithSecret = createTestIntegrationConfig({
       externalId: "external-123",
