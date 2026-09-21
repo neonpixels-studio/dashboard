@@ -1,0 +1,150 @@
+import { parseSentryNextCursor, toSentryIssue } from "./mapping";
+import type { SearchSentryIssues, SentryIssuePage } from "./types";
+
+// A hung Sentry request would otherwise block a sync indefinitely (no
+// independent deadline on a Netlify function) — same reasoning as
+// server/integrations/stripe/stripeClient.ts's STRIPE_REQUEST_TIMEOUT_MS.
+const SENTRY_REQUEST_TIMEOUT_MS = 20_000;
+// SaaS Sentry only — a self-hosted install would need its own base URL, not
+// currently a studio requirement (every property's Sentry org lives on
+// sentry.io).
+const SENTRY_API_BASE_URL = "https://sentry.io/api/0";
+
+// Only the subset of the global `fetch` signature this package calls —
+// narrowing the parameter type (rather than depending on the ambient global
+// directly) is what makes `createSentryIssueSearcher` accept a lightweight
+// test double instead of a real network call, mirroring
+// server/integrations/stripe/stripeClient.ts's StripeSubscriptionsClient and
+// server/integrations/ga4/ga4Client.ts's Ga4DataClient seams.
+type FetchIssuesPage = typeof fetch;
+
+function buildIssueSearchUrl(
+  orgSlug: string,
+  projectSlug: string,
+  query: string,
+  cursor: string | undefined,
+): URL {
+  // Both slugs are encoded before joining into the path — orgSlug is a
+  // shared env var, but projectSlug comes from integration_config.external_id
+  // (a DB-writable, row-supplied value), so an unencoded "/" or "?" in it
+  // could otherwise redirect the request to a different path/query entirely.
+  const url = new URL(
+    `${SENTRY_API_BASE_URL}/projects/${encodeURIComponent(orgSlug)}/${encodeURIComponent(projectSlug)}/issues/`,
+  );
+  url.searchParams.set("query", query);
+  if (cursor) {
+    url.searchParams.set("cursor", cursor);
+  }
+  return url;
+}
+
+async function fetchIssuesPage(
+  fetchImpl: FetchIssuesPage,
+  url: URL,
+  authToken: string,
+  abortController: AbortController,
+  projectSlug: string,
+): Promise<Response> {
+  try {
+    return await fetchImpl(url, {
+      headers: { Authorization: `Bearer ${authToken}` },
+      signal: abortController.signal,
+    });
+  } catch (cause) {
+    // `abortController.signal.aborted` distinguishes "our own timeout fired"
+    // from any other rejection (a DNS/network failure unrelated to the
+    // timeout) — only the former gets relabeled. Without this, a raw
+    // AbortError ("This operation was aborted") lands in sync_status.error
+    // with no project/query context, the same gap parseIssuesResponseBody
+    // closes for a non-JSON body below.
+    if (abortController.signal.aborted) {
+      throw new Error(
+        `Sentry issue search for project "${projectSlug}" timed out after ${SENTRY_REQUEST_TIMEOUT_MS}ms.`,
+        { cause },
+      );
+    }
+    throw cause;
+  }
+}
+
+async function parseIssuesResponseBody(
+  response: Response,
+  projectSlug: string,
+): Promise<unknown[]> {
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (cause) {
+    // A 200 response can still carry a non-JSON body (e.g. an HTML error
+    // page from Sentry's edge during an incident) — response.json() throws
+    // a bare SyntaxError with no mention of which project/request it came
+    // from; wrap it so the failure is identifiable in sync_status.error.
+    throw new Error(
+      `Sentry issue search for project "${projectSlug}" returned a non-JSON response body.`,
+      { cause },
+    );
+  }
+  if (!Array.isArray(body)) {
+    throw new Error(
+      `Sentry issue search for project "${projectSlug}" returned a non-array response body.`,
+    );
+  }
+  return body;
+}
+
+/**
+ * Builds the real, network-touching `SearchSentryIssues`. `fetchImpl`
+ * defaults to the global `fetch` but is injectable — this is the one
+ * function in server/integrations/sentry that would otherwise make a live
+ * HTTP call with no seam, unlike every other function in this package
+ * (mapping.ts, issueCounts.ts, provider.ts), which already takes a
+ * `SearchSentryIssues` as a parameter and is tested against a
+ * fixture-backed fake.
+ */
+export function createSentryIssueSearcher(
+  authToken: string,
+  orgSlug: string,
+  fetchImpl: FetchIssuesPage = fetch,
+): SearchSentryIssues {
+  return async ({ projectSlug, query, cursor }): Promise<SentryIssuePage> => {
+    const url = buildIssueSearchUrl(orgSlug, projectSlug, query, cursor);
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(
+      () => abortController.abort(),
+      SENTRY_REQUEST_TIMEOUT_MS,
+    );
+
+    // The deadline must cover reading the response body, not just receiving
+    // headers — `response.json()` still streams over the same connection, so
+    // clearing the timeout right after `fetchImpl` resolves would leave a
+    // stalled body read with no deadline at all. Both the request and the
+    // body parse stay inside this one try, and the timer only clears once
+    // both are done.
+    try {
+      const response = await fetchIssuesPage(
+        fetchImpl,
+        url,
+        authToken,
+        abortController,
+        projectSlug,
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Sentry issue search for project "${projectSlug}" failed with status ${response.status}.`,
+        );
+      }
+
+      const rawIssues = await parseIssuesResponseBody(response, projectSlug);
+      const nextCursor = parseSentryNextCursor(response.headers.get("link"));
+
+      return {
+        issues: rawIssues.map(toSentryIssue),
+        hasMore: nextCursor !== null,
+        nextCursor,
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+}

@@ -2,6 +2,7 @@ import type { IntegrationProvider } from "../types";
 import { mockProvider } from "./mock";
 import { stripeProvider } from "../stripe";
 import { ga4Provider } from "../ga4";
+import { sentryProvider } from "../sentry";
 import { clerkProvider } from "../clerk";
 import {
   devtoProvider,
@@ -17,6 +18,7 @@ export const PROVIDERS: IntegrationProvider[] = [
   mockProvider,
   stripeProvider,
   ga4Provider,
+  sentryProvider,
   clerkProvider,
   hashnodeProvider,
   devtoProvider,
