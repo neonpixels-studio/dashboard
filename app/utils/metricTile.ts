@@ -38,6 +38,26 @@ export const PERIOD_CURRENT = "current";
 export const PERIOD_30D = "30d";
 export const PERIOD_DAILY = "daily";
 
+// A single point has no trend to draw — the minimum every daily-sessions
+// chart (AppDetailProduct's PropertySessionsChart panel, AppDetailMarketing's
+// SparkLine, TrafficPanel via buildTrafficPanelData) requires before drawing
+// anything, via dailySessionsPoints below.
+const MIN_SESSIONS_POINTS = 2;
+
+// The real `sessions`/`daily` points for one app, or null when there isn't
+// enough history yet to draw a trend — the one shared gate every daily
+// sessions chart in the detail-page layer goes through, so "how many points
+// counts as enough" can't drift between them.
+export function dailySessionsPoints(
+  seriesList: MetricSeries[],
+): MetricPoint[] | null {
+  const dailySeries = findSeries(seriesList, METRIC_SESSIONS, PERIOD_DAILY);
+  if (!dailySeries || dailySeries.points.length < MIN_SESSIONS_POINTS) {
+    return null;
+  }
+  return dailySeries.points;
+}
+
 // The only metric currently stored as a dollar amount — every other metric
 // (active_subscribers, sessions, open_issues, users, posts, ...) is a plain
 // count.

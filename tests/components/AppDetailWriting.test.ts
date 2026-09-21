@@ -127,6 +127,36 @@ describe("AppDetailWriting", () => {
     expect(tiles[3]!.props("tone")).toBe("warn");
   });
 
+  it("shows an all-synced, untoned tile and hides the retry button when nothing has failed", () => {
+    const detail = appDetailFixture({
+      syndication: [
+        {
+          postRef: "solo-post",
+          cells: [
+            {
+              platform: "medium",
+              status: "synced",
+              syncedAt: "2026-09-19T00:00:00.000Z",
+            },
+          ],
+        },
+      ],
+    });
+    const wrapper = mountDetail({ detail });
+    const failuresTile = wrapper
+      .findAllComponents(MetricTile)
+      .find((tile) => tile.props("label") === "CROSS-POST FAILURES")!;
+    expect(failuresTile.props("value")).toBe("0");
+    expect(failuresTile.props("sub")).toBe("All synced");
+    expect(failuresTile.props("tone")).toBeUndefined();
+    expect(wrapper.find(".retry-btn").exists()).toBe(false);
+
+    const platformsTile = wrapper
+      .findAllComponents(MetricTile)
+      .find((tile) => tile.props("label") === "PLATFORMS LIVE")!;
+    expect(platformsTile.props("sub")).toBe("1 platform posted to");
+  });
+
   it("derives the platform column set from the real syndication rows, sorted", () => {
     const wrapper = mountDetail({ detail: LOADED_DETAIL });
     const matrix = wrapper.findComponent(SyndicationPostMatrix);

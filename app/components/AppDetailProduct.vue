@@ -29,7 +29,7 @@
         :series="sessionsChartSeries"
         :aria-label="`Daily sessions for ${app.name} over the last 30 days.`"
       />
-      <AxisRow />
+      <AxisRow v-if="sessionsChartSeries.length" :labels="sessionsAxisLabels" />
     </div>
 
     <SectionLabel label="MONEY &amp; HEALTH" meta="STRIPE · SENTRY" />
@@ -49,6 +49,7 @@
       :stats="trafficPanelData.stats"
       :delta="trafficPanelData.delta"
       :path="trafficPanelData.path"
+      :axis-labels="trafficPanelData.axisLabels"
       :lists="trafficPanelData.lists"
     />
 
@@ -60,24 +61,24 @@
 import type { AppDetailTemplateProps } from "~/utils/appViewModel";
 import {
   buildMetricTileData,
-  findSeries,
+  dailySessionsPoints,
   METRIC_ACTIVE_SUBSCRIBERS,
   METRIC_MRR,
   METRIC_OPEN_ISSUES,
-  METRIC_SESSIONS,
   METRIC_USERS,
   PERIOD_CURRENT,
-  PERIOD_DAILY,
 } from "~/utils/metricTile";
-import { buildSparklinePath, sparklineEndY } from "~/utils/sparklinePath";
+import {
+  buildAxisLabels,
+  buildSparklinePath,
+  sparklineEndY,
+} from "~/utils/sparklinePath";
 import { useAppDetailPanels } from "~/composables/useAppDetailPanels";
 
 const props = defineProps<AppDetailTemplateProps>();
 
 const SESSIONS_CHART_VIEWBOX_WIDTH = 900;
 const SESSIONS_CHART_VIEWBOX_HEIGHT = 200;
-// A single point has no trend to draw.
-const MIN_SESSIONS_POINTS = 2;
 
 const tiles = computed(() => {
   const metrics = props.app.detail?.metrics ?? [];
@@ -96,12 +97,8 @@ const tiles = computed(() => {
 });
 
 const sessionsChartSeries = computed(() => {
-  const dailySessions = findSeries(
-    props.app.detail?.series ?? [],
-    METRIC_SESSIONS,
-    PERIOD_DAILY,
-  );
-  if (!dailySessions || dailySessions.points.length < MIN_SESSIONS_POINTS) {
+  const points = dailySessionsPoints(props.app.detail?.series ?? []);
+  if (!points) {
     return [];
   }
   return [
@@ -109,13 +106,18 @@ const sessionsChartSeries = computed(() => {
       slug: props.app.slug,
       color: props.app.accent,
       path: buildSparklinePath(
-        dailySessions.points,
+        points,
         SESSIONS_CHART_VIEWBOX_WIDTH,
         SESSIONS_CHART_VIEWBOX_HEIGHT,
       ),
-      endY: sparklineEndY(dailySessions.points, SESSIONS_CHART_VIEWBOX_HEIGHT),
+      endY: sparklineEndY(points, SESSIONS_CHART_VIEWBOX_HEIGHT),
     },
   ];
+});
+
+const sessionsAxisLabels = computed(() => {
+  const points = dailySessionsPoints(props.app.detail?.series ?? []);
+  return points ? buildAxisLabels(points) : [];
 });
 
 const { trafficPanelData, sourceChips } = useAppDetailPanels(

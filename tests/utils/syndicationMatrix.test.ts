@@ -58,6 +58,20 @@ describe("syndicationMatrixPosts", () => {
       { label: "— NOT POSTED", tone: "off" }, // zyvop
     ]);
   });
+
+  it("falls back to the not-posted view for a status outside the known enum, rather than rendering undefined", () => {
+    // Simulates schema drift (a DB enum value STATUS_VIEWS doesn't know
+    // about yet) — cast past the type system the same way a raw, unvalidated
+    // API response would arrive.
+    const rowWithUnknownStatus = {
+      postRef: "future-status",
+      cells: [{ platform: "medium", status: "archived", syncedAt: null }],
+    } as unknown as SyndicationMatrixRow;
+
+    const posts = syndicationMatrixPosts([rowWithUnknownStatus], ["medium"]);
+
+    expect(posts[0]!.cells).toEqual([{ label: "— NOT POSTED", tone: "off" }]);
+  });
 });
 
 describe("syndicationFailedCount", () => {

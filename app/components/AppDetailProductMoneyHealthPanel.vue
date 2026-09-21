@@ -3,7 +3,6 @@
     <div class="card stripe-panel">
       <div class="panel-head">
         <span class="panel-title">Stripe</span>
-        <span class="level-chip live-chip">LIVE MODE</span>
         <span class="grow"></span>
         <span
           class="sample-chip"
@@ -77,7 +76,6 @@
     <div class="card sentry-panel">
       <div class="panel-head">
         <span class="panel-title">Sentry</span>
-        <span class="level-chip warn-chip">3 OPEN</span>
         <span class="grow"></span>
         <span
           class="sample-chip"
@@ -247,22 +245,6 @@ const ISSUES = [
 .panel-meta {
   font-size: 10px;
   letter-spacing: 0.1em;
-  color: var(--ink-3);
-}
-.live-chip {
-  color: var(--ok);
-  background: var(--ok-tint);
-}
-.warn-chip {
-  color: var(--warn);
-  background: var(--warn-tint);
-}
-.sample-chip {
-  padding: 4px 9px;
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-sm);
-  font-size: 9px;
-  letter-spacing: 0.08em;
   color: var(--ink-3);
 }
 .stripe-charts {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import TrafficPanel from "../../app/components/TrafficPanel.vue";
+import AxisRow from "../../app/components/AxisRow.vue";
 import SparkLine from "../../app/components/SparkLine.vue";
 import StatList from "../../app/components/StatList.vue";
 import { findAppBySlug } from "../../app/config/apps";
@@ -66,6 +67,39 @@ describe("TrafficPanel", () => {
   it("colors the sparkline from the app's accent", () => {
     const wrapper = mountPanel();
     expect(wrapper.findComponent(SparkLine).props("color")).toBe(app.accent);
+  });
+
+  it("falls back to AxisRow's own default labels when none are given", () => {
+    const wrapper = mountPanel();
+    // AxisRow resolves its own withDefaults default when the parent passes
+    // no (or an undefined) `labels` prop — this is that default, not TrafficPanel
+    // fabricating dates of its own.
+    expect(wrapper.findComponent(AxisRow).props("labels")).toEqual([
+      "20 AUG",
+      "27 AUG",
+      "03 SEP",
+      "10 SEP",
+      "19 SEP",
+    ]);
+  });
+
+  it("passes real axis labels through to AxisRow when given", () => {
+    const wrapper = mount(TrafficPanel, {
+      props: {
+        app,
+        stats,
+        delta: "▲ 22% vs prev 30d",
+        path: "M0 14 C5 16.2",
+        axisLabels: ["20 AUG", "04 SEP", "19 SEP"],
+        lists,
+      },
+      global: { components: DETAIL_COMPONENTS },
+    });
+    expect(wrapper.findComponent(AxisRow).props("labels")).toEqual([
+      "20 AUG",
+      "04 SEP",
+      "19 SEP",
+    ]);
   });
 
   it("matches its snapshot", () => {

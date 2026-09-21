@@ -93,11 +93,9 @@ describe("AppDetailProduct", () => {
     expect(wrapper.findComponent(DataErrorState).exists()).toBe(false);
   });
 
-  it("shows the error state wired to refresh, hiding the tiles", () => {
-    const refresh = vi.fn();
-    const wrapper = mountDetail({ error: new Error("network down"), refresh });
-    const errorState = wrapper.findComponent(DataErrorState);
-    expect(errorState.exists()).toBe(true);
+  it("shows the error state and hides the tiles", () => {
+    const wrapper = mountDetail({ error: new Error("network down") });
+    expect(wrapper.findComponent(DataErrorState).exists()).toBe(true);
     expect(wrapper.findAllComponents(MetricTile)).toHaveLength(0);
   });
 

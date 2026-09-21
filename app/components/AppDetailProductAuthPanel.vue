@@ -4,7 +4,7 @@
       class="sample-chip"
       title="No Clerk detail endpoint exists yet (see PR follow-up)"
     >
-      SAMPLE DATA — signups trend &amp; sign-in method aren't wired yet
+      SAMPLE DATA — this panel isn't wired to live Clerk data yet
     </span>
 
     <div class="auth-grid">
@@ -99,14 +99,11 @@ const SIGNUPS_PATH =
   flex-direction: column;
   gap: 10px;
 }
+/* .sample-chip's own box/type styling is global (app/assets/css/main.css) —
+   only this layout-specific placement (this panel stacks it above the grid
+   instead of inline in a `.panel-head` row) needs to be scoped here. */
 .sample-chip {
   align-self: flex-start;
-  padding: 4px 9px;
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-sm);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
 }
 .auth-grid {
   display: grid;

@@ -179,6 +179,14 @@ const MONTH_ABBREVIATIONS = [
   "DEC",
 ];
 
+// Shared by formatSyncedDate/formatAxisDate below — both need "DD MON", one
+// with the year appended and one without.
+function dayMonth(date: Date): string {
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = MONTH_ABBREVIATIONS[date.getUTCMonth()];
+  return `${day} ${month}`;
+}
+
 // "19 SEP 2026" for the "SYNCED Xm ago · 19 SEP 2026" section meta. Returns
 // null for an unparseable timestamp rather than rendering "NaN undefined
 // NaN" — lastSyncedAt is server-sourced, but a bad value should still fail
@@ -188,7 +196,18 @@ export function formatSyncedDate(isoTimestamp: string): string | null {
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = MONTH_ABBREVIATIONS[date.getUTCMonth()];
-  return `${day} ${month} ${date.getUTCFullYear()}`;
+  return `${dayMonth(date)} ${date.getUTCFullYear()}`;
+}
+
+// "19 SEP" — same "DD MON" style, without the year, for AxisRow's compact
+// chart labels (sparklinePath.ts:buildAxisLabels). AxisRow's own default
+// labels are fixed sample dates that describe nothing once real data is
+// wired; every chart drawn from a real series builds its own labels from
+// that series' own points instead.
+export function formatAxisDate(isoTimestamp: string): string | null {
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return dayMonth(date);
 }

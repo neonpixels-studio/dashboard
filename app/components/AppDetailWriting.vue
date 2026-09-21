@@ -22,7 +22,10 @@
         <span class="panel-title">Syndication</span>
         <span class="panel-meta">{{ platformsMeta }}</span>
         <span class="grow"></span>
-        <button type="button" class="retry-btn">
+        <!-- @todo: no retry endpoint exists yet (POST /api/sync only
+             re-runs every vendor's regular poll, not a single failed
+             cross-post) — hidden until there's something for it to do. -->
+        <button v-if="failedCount > 0" type="button" class="retry-btn">
           <svg
             width="12"
             height="12"
@@ -62,6 +65,7 @@
       :stats="trafficPanelData.stats"
       :delta="trafficPanelData.delta"
       :path="trafficPanelData.path"
+      :axis-labels="trafficPanelData.axisLabels"
       :lists="trafficPanelData.lists"
     />
 
@@ -109,18 +113,23 @@ function crossPostFailuresSub(failedCount: number): string {
   return `${failedCount} failed cross-post${failedCount === 1 ? "" : "s"}`;
 }
 
+const failedCount = computed(() =>
+  syndicationFailedCount(syndicationRows.value),
+);
+const liveCount = computed(() =>
+  syndicationLivePlatformCount(syndicationRows.value),
+);
+
 const tiles = computed<MetricTileData[]>(() => {
   const metrics = props.app.detail?.metrics ?? [];
   const series = props.app.detail?.series ?? [];
-  const failedCount = syndicationFailedCount(syndicationRows.value);
-  const liveCount = syndicationLivePlatformCount(syndicationRows.value);
 
   return [
     buildMetricTileData(METRIC_SESSIONS, PERIOD_30D, metrics, series),
     buildMetricTileData(METRIC_POSTS, PERIOD_CURRENT, metrics, series),
     {
       label: "PLATFORMS LIVE",
-      value: String(liveCount),
+      value: String(liveCount.value),
       delta: NO_VALUE_LABEL,
       deltaTone: "muted",
       // "posted to", not "configured" — this counts platforms with at least
@@ -130,11 +139,11 @@ const tiles = computed<MetricTileData[]>(() => {
     },
     {
       label: "CROSS-POST FAILURES",
-      value: String(failedCount),
+      value: String(failedCount.value),
       delta: NO_VALUE_LABEL,
       deltaTone: "muted",
-      sub: crossPostFailuresSub(failedCount),
-      tone: failedCount > 0 ? "warn" : undefined,
+      sub: crossPostFailuresSub(failedCount.value),
+      tone: failedCount.value > 0 ? "warn" : undefined,
     },
   ];
 });

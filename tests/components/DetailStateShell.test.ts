@@ -65,6 +65,12 @@ describe("DetailStateShell", () => {
     expect(wrapper.find(".loaded-slot").exists()).toBe(false);
   });
 
+  it("shows the error state over already-loaded content too — a failed refresh still needs surfacing", () => {
+    const wrapper = mountShell({ error: new Error("boom"), hasData: true });
+    expect(wrapper.findComponent(DataErrorState).exists()).toBe(true);
+    expect(wrapper.find(".loaded-slot").exists()).toBe(false);
+  });
+
   it("wires the error state's retry to the refresh prop", async () => {
     const refresh = vi.fn();
     const wrapper = mountShell({ error: new Error("boom"), refresh });

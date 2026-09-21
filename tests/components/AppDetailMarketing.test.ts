@@ -117,6 +117,14 @@ describe("AppDetailMarketing", () => {
     expect(wrapper.findComponent(SparkLine).props("color")).toBe("var(--ink)");
   });
 
+  it("shows the empty-chart note instead of the sparkline when fewer than two daily points exist", () => {
+    const wrapper = mountDetail("grimicorn", { detail: appDetailFixture() });
+    expect(wrapper.findComponent(SparkLine).exists()).toBe(false);
+    expect(wrapper.text()).toContain(
+      "Not enough synced data for a trend line yet.",
+    );
+  });
+
   it("renders the real traffic-source split, sorted largest first, and omits the panel when there is none", () => {
     const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
     const list = wrapper.findComponent(StatList);

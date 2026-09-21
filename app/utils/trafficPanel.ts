@@ -19,14 +19,14 @@ import {
   NO_VALUE_LABEL,
 } from "./rollupFormat";
 import {
+  dailySessionsPoints,
   findMetric,
   findSeries,
   METRIC_SESSIONS,
   PERIOD_30D,
-  PERIOD_DAILY,
   seriesDelta,
 } from "./metricTile";
-import { buildSparklinePath } from "./sparklinePath";
+import { buildAxisLabels, buildSparklinePath } from "./sparklinePath";
 
 export const TRAFFIC_PANEL_VIEWBOX_WIDTH = 860;
 export const TRAFFIC_PANEL_VIEWBOX_HEIGHT = 150;
@@ -50,6 +50,7 @@ export interface TrafficPanelData {
   stats: { label: string; value: string }[];
   delta: string;
   path: string;
+  axisLabels: string[];
   lists: { title: string; items: { label: string; value: string }[] }[];
 }
 
@@ -57,7 +58,13 @@ export function buildTrafficPanelData(
   detail: AppDetailResponse | null,
 ): TrafficPanelData {
   if (!detail) {
-    return { stats: [], delta: NO_VALUE_LABEL, path: "", lists: [] };
+    return {
+      stats: [],
+      delta: NO_VALUE_LABEL,
+      path: "",
+      axisLabels: [],
+      lists: [],
+    };
   }
 
   const sessions30d = findMetric(detail.metrics, METRIC_SESSIONS, PERIOD_30D);
@@ -66,11 +73,11 @@ export function buildTrafficPanelData(
     METRIC_SESSIONS,
     PERIOD_30D,
   );
-  const sessionsDailySeries = findSeries(
-    detail.series,
-    METRIC_SESSIONS,
-    PERIOD_DAILY,
-  );
+  // Same "at least 2 points" gate every daily-sessions chart in the
+  // detail-page layer shares (see dailySessionsPoints' own doc comment) —
+  // null here means "not enough history yet", not "no chart at all"; the
+  // path/axisLabels below both fall back to empty in that case.
+  const dailyPoints = dailySessionsPoints(detail.series);
 
   // Full comma-separated count (formatCount), not the "/"-page rollup's
   // compact "61.3K" style (formatCompactCount) — the original design's
@@ -83,13 +90,15 @@ export function buildTrafficPanelData(
     formatPctDelta(seriesDelta(sessions30dSeries?.points ?? [])) ??
     NO_VALUE_LABEL;
 
-  const path = sessionsDailySeries
+  const path = dailyPoints
     ? buildSparklinePath(
-        sessionsDailySeries.points,
+        dailyPoints,
         TRAFFIC_PANEL_VIEWBOX_WIDTH,
         TRAFFIC_PANEL_VIEWBOX_HEIGHT,
       )
     : "";
+
+  const axisLabels = dailyPoints ? buildAxisLabels(dailyPoints) : [];
 
   const trafficSourceItems = buildTrafficSourceItems(detail.trafficBreakdown);
 
@@ -97,5 +106,5 @@ export function buildTrafficPanelData(
     ? [{ title: "TRAFFIC SOURCES", items: trafficSourceItems }]
     : [];
 
-  return { stats, delta, path, lists };
+  return { stats, delta, path, axisLabels, lists };
 }

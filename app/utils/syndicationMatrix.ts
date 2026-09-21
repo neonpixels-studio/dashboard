@@ -60,7 +60,13 @@ export function syndicationMatrixPosts(
       const cell = row.cells.find(
         (candidate) => candidate.platform === platform,
       );
-      return cell ? STATUS_VIEWS[cell.status] : NOT_POSTED_VIEW;
+      // STATUS_VIEWS is typed as exhaustive over the three real statuses,
+      // but that's only a compile-time guarantee — a raw DB row could still
+      // carry a value the enum grows to include later. Fall back to the
+      // same "not posted" view rather than rendering an undefined label.
+      return cell
+        ? (STATUS_VIEWS[cell.status] ?? NOT_POSTED_VIEW)
+        : NOT_POSTED_VIEW;
     }),
   }));
 }

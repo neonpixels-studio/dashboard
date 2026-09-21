@@ -35,7 +35,7 @@
       <p v-else class="empty-chart-note">
         Not enough synced data for a trend line yet.
       </p>
-      <AxisRow />
+      <AxisRow v-if="sessionsPath" :labels="sessionsAxisLabels" />
     </div>
 
     <div v-if="trafficSourceItems.length" class="bottom-row">
@@ -53,26 +53,22 @@
 import type { AppDetailTemplateProps } from "~/utils/appViewModel";
 import {
   buildMetricTileData,
-  findSeries,
+  dailySessionsPoints,
   METRIC_NEW_USERS,
   METRIC_OPEN_ISSUES,
   METRIC_SESSIONS,
   METRIC_USERS,
   PERIOD_30D,
   PERIOD_CURRENT,
-  PERIOD_DAILY,
 } from "~/utils/metricTile";
 import { buildSourceChips } from "~/utils/syncSource";
-import { buildSparklinePath } from "~/utils/sparklinePath";
+import { buildAxisLabels, buildSparklinePath } from "~/utils/sparklinePath";
 import { buildTrafficSourceItems } from "~/utils/trafficPanel";
 
 const props = defineProps<AppDetailTemplateProps>();
 
 const SESSIONS_VIEWBOX_WIDTH = 600;
 const SESSIONS_VIEWBOX_HEIGHT = 130;
-// A single point has no trend to draw — same minimum AppDetailProduct's own
-// sessions chart requires (see its sessionsChartSeries).
-const MIN_SESSIONS_POINTS = 2;
 
 // The studio site charts sessions in neutral white; product/marketing
 // properties use their own accent.
@@ -92,19 +88,19 @@ const tiles = computed(() => {
 });
 
 const sessionsPath = computed(() => {
-  const dailySessions = findSeries(
-    props.app.detail?.series ?? [],
-    METRIC_SESSIONS,
-    PERIOD_DAILY,
-  );
-  if (!dailySessions || dailySessions.points.length < MIN_SESSIONS_POINTS) {
-    return "";
-  }
-  return buildSparklinePath(
-    dailySessions.points,
-    SESSIONS_VIEWBOX_WIDTH,
-    SESSIONS_VIEWBOX_HEIGHT,
-  );
+  const points = dailySessionsPoints(props.app.detail?.series ?? []);
+  return points
+    ? buildSparklinePath(
+        points,
+        SESSIONS_VIEWBOX_WIDTH,
+        SESSIONS_VIEWBOX_HEIGHT,
+      )
+    : "";
+});
+
+const sessionsAxisLabels = computed(() => {
+  const points = dailySessionsPoints(props.app.detail?.series ?? []);
+  return points ? buildAxisLabels(points) : [];
 });
 
 const trafficSourceItems = computed(() =>

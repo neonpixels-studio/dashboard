@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAxisLabels,
   buildSparklinePath,
   sparklineEndY,
 } from "../../app/utils/sparklinePath";
@@ -7,6 +8,10 @@ import type { MetricPoint } from "../../shared/types/dashboard";
 
 function point(value: number): MetricPoint {
   return { capturedAt: "2026-09-01T00:00:00Z", value };
+}
+
+function pointAt(capturedAt: string, value = 0): MetricPoint {
+  return { capturedAt, value };
 }
 
 describe("buildSparklinePath", () => {
@@ -78,5 +83,31 @@ describe("sparklineEndY", () => {
     // Lower y is higher on screen — the last (highest-value) point should
     // sit above the vertical center, not below it.
     expect(endY).toBeLessThan(100);
+  });
+});
+
+describe("buildAxisLabels", () => {
+  it("returns an empty array for fewer than two points", () => {
+    expect(buildAxisLabels([])).toEqual([]);
+    expect(buildAxisLabels([pointAt("2026-09-19T00:00:00.000Z")])).toEqual([]);
+  });
+
+  it("picks the first, middle, and last point, formatted without a year", () => {
+    const points = [
+      pointAt("2026-08-20T00:00:00.000Z"),
+      pointAt("2026-09-01T00:00:00.000Z"),
+      pointAt("2026-09-10T00:00:00.000Z"),
+      pointAt("2026-09-15T00:00:00.000Z"),
+      pointAt("2026-09-19T00:00:00.000Z"),
+    ];
+    expect(buildAxisLabels(points)).toEqual(["20 AUG", "10 SEP", "19 SEP"]);
+  });
+
+  it("omits an unparseable timestamp rather than rendering a broken label", () => {
+    const labels = buildAxisLabels([
+      pointAt("not-a-date"),
+      pointAt("2026-09-19T00:00:00.000Z"),
+    ]);
+    expect(labels).toEqual(["19 SEP"]);
   });
 });

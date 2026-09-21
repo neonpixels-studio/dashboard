@@ -8,17 +8,36 @@ describe("buildTrafficPanelData", () => {
       stats: [],
       delta: "—",
       path: "",
+      axisLabels: [],
       lists: [],
     });
   });
 
-  it("returns empty stats/delta/path/lists when nothing has synced, never fabricated numbers", () => {
+  it("returns empty stats/delta/path/axisLabels/lists when nothing has synced, never fabricated numbers", () => {
     expect(buildTrafficPanelData(appDetailFixture())).toEqual({
       stats: [],
       delta: "—",
       path: "",
+      axisLabels: [],
       lists: [],
     });
+  });
+
+  it("draws no chart or axis labels for a single daily point — same 2-point minimum as the dedicated sessions charts", () => {
+    const detail = appDetailFixture({
+      series: [
+        {
+          metric: "sessions",
+          period: "daily",
+          points: [{ capturedAt: "2026-09-19T00:00:00.000Z", value: 250 }],
+        },
+      ],
+    });
+
+    const data = buildTrafficPanelData(detail);
+
+    expect(data.path).toBe("");
+    expect(data.axisLabels).toEqual([]);
   });
 
   it("builds the headline stat, delta, sparkline path, and traffic-source list from real data", () => {
@@ -60,6 +79,7 @@ describe("buildTrafficPanelData", () => {
     expect(data.stats).toEqual([{ label: "SESSIONS · 30D", value: "8,612" }]);
     expect(data.delta).toBe("▲ 23.0%");
     expect(data.path.length).toBeGreaterThan(0);
+    expect(data.axisLabels).toEqual(["18 SEP", "18 SEP", "19 SEP"]);
     // Sorted largest share first, not the API's row order.
     expect(data.lists).toEqual([
       {

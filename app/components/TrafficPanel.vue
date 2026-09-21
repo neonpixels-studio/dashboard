@@ -23,7 +23,7 @@
         :grid-lines="[14, 55, 96, 149]"
         :aria-label="`${app.name} daily sessions over the last 30 days`"
       />
-      <AxisRow />
+      <AxisRow :labels="axisLabels" />
     </div>
 
     <div v-for="list in lists" :key="list.title" class="traffic-list">
@@ -41,6 +41,10 @@ defineProps<{
   stats: { label: string; value: string }[];
   delta: string;
   path: string;
+  // Real date labels for the chart above (issue #20) — omitted (falls back
+  // to AxisRow's own sample-date default) only when the caller has no
+  // series to build them from, i.e. `path` is also empty.
+  axisLabels?: string[];
   lists: { title: string; items: { label: string; value: string }[] }[];
 }>();
 </script>

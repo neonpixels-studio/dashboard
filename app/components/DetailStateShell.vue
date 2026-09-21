@@ -13,7 +13,7 @@
 
     <template v-else>
       <ul v-if="alerts.length" class="alerts-list">
-        <li v-for="alert in alerts" :key="`${alert.vendor}-${alert.slug}`">
+        <li v-for="(alert, index) in alerts" :key="index">
           <AppAlert
             tone="err"
             :title="`${alert.vendor.toUpperCase()} sync failing`"
