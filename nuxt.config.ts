@@ -84,6 +84,18 @@ export default defineNuxtConfig({
     sentryProjectBasin: process.env.NUXT_SENTRY_PROJECT_BASIN || "",
     sentryProjectMarkpost: process.env.NUXT_SENTRY_PROJECT_MARKPOST || "",
     sentryProjectWanderist: process.env.NUXT_SENTRY_PROJECT_WANDERIST || "",
+    // The Clerk provider's per-app secret keys
+    // (server/integrations/clerk) — one per product-template app, each its
+    // own Clerk instance (separate from this dashboard's own auth, configured
+    // via the Clerk Nuxt module above). Same reasoning as the Stripe/GA4
+    // entries above: declared here purely so the Netlify preset forwards
+    // each into the deployed function's process.env; an integration_config
+    // row's secret_ref still resolves the actual value
+    // (server/integrations/config.ts's resolveSecret reads process.env
+    // directly), not useRuntimeConfig().
+    clerkSecretKeyBasin: process.env.NUXT_CLERK_SECRET_KEY_BASIN || "",
+    clerkSecretKeyMarkpost: process.env.NUXT_CLERK_SECRET_KEY_MARKPOST || "",
+    clerkSecretKeyWanderist: process.env.NUXT_CLERK_SECRET_KEY_WANDERIST || "",
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package

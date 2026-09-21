@@ -11,6 +11,11 @@ export const METRIC_OPEN_ISSUES = "open_issues";
 // METRIC_OPEN_ISSUES that drives the status chip's danger tone (see
 // server/integrations/sentry/mapping.ts's sentryStatusChip).
 export const METRIC_FATAL_ISSUES = "fatal_issues";
+export const METRIC_USERS = "users";
+// The new-users delta for server/integrations/clerk/provider.ts's reporting
+// window — not in the schema's own "e.g." list, but follows that list's
+// snake_case convention (mirrors active_subscribers).
+export const METRIC_NEW_USERS = "new_users";
 
 // Canonical `metric_snapshot.period` values (schema: "e.g. \"30d\", \"current\"").
 // A metric name alone doesn't identify a series — the schema allows the same

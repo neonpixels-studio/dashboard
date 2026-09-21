@@ -118,3 +118,20 @@ export const APPS: DashboardApp[] = [
 export function findAppBySlug(slug: string): DashboardApp | undefined {
   return APPS.find((app) => app.slug === slug);
 }
+
+// Sorts a list of per-app rollup rows (e.g. OverviewMetric.byApp) into the
+// same order APPS declares them in, rather than whatever order the DB
+// returned — the rollup tiles' StatList rows should read top-to-bottom the
+// same way the property grid below them does. An app slug with no matching
+// config (shouldn't happen; every row is sourced from APPS' own slugs on the
+// server) sorts last rather than throwing.
+export function sortByAppOrder<Item extends { slug: string }>(
+  items: Item[],
+): Item[] {
+  const indexBySlug = new Map(APPS.map((app, index) => [app.slug, index]));
+  return [...items].sort(
+    (a, b) =>
+      (indexBySlug.get(a.slug) ?? APPS.length) -
+      (indexBySlug.get(b.slug) ?? APPS.length),
+  );
+}

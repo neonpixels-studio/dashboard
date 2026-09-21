@@ -7,6 +7,8 @@ import {
   latestSyncedAt,
   metricRollupWithSplit,
   metricSeriesBySlug,
+  rollupDelta,
+  rollupSeriesAcrossApps,
   syncSourcesForApp,
   syndicationMatrixForApp,
   trafficChannelSplitAcrossApps,
@@ -299,6 +301,190 @@ describe("metricRollupWithSplit", () => {
       capturedAt: rows[1].capturedAt.toISOString(),
       byApp: [{ slug: "markpost", value: 12400 }],
     });
+  });
+});
+
+describe("rollupSeriesAcrossApps", () => {
+  const now = new Date("2026-09-20T00:00:00Z");
+
+  it("returns an empty series when no app has any data", () => {
+    expect(rollupSeriesAcrossApps([], ["basin"], "mrr", "current")).toEqual([]);
+  });
+
+  it("collapses multiple same-day rows from one app to the latest instead of summing them", () => {
+    // A poller that runs twice in one day writes two rows that are each the
+    // app's FULL current total, not two amounts to add together — summing
+    // both would double the real number.
+    const rows = [
+      metricRow({
+        slug: "basin",
+        value: 900,
+        capturedAt: new Date("2026-09-01T08:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        value: 1000,
+        capturedAt: new Date("2026-09-01T20:00:00Z"),
+      }),
+    ];
+    // `now` pinned to the same day as the rows so the series is exactly one
+    // point (no carry-forward days after it to also assert on).
+    const sameDay = new Date("2026-09-01T23:00:00Z");
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, sameDay),
+    ).toEqual([{ capturedAt: "2026-09-01T00:00:00.000Z", value: 1000 }]);
+  });
+
+  it("carries an app's last known value forward on a day it doesn't poll, rather than dropping it from that day's sum", () => {
+    // This is the scenario metricRollupWithSplit's headline total already
+    // handles correctly (sum of each app's latest-ever row); a rollup
+    // series must agree with it, not undercount a day just because one
+    // app's poll hadn't landed yet that specific day.
+    const rows = [
+      metricRow({
+        slug: "basin",
+        value: 900,
+        capturedAt: new Date("2026-09-01T08:00:00Z"),
+      }),
+      metricRow({
+        slug: "markpost",
+        value: 300,
+        capturedAt: new Date("2026-09-03T08:00:00Z"),
+      }),
+    ];
+    const sameDayAsLastPoll = new Date("2026-09-03T20:00:00Z");
+
+    expect(
+      rollupSeriesAcrossApps(
+        rows,
+        ["basin", "markpost"],
+        "mrr",
+        "current",
+        30,
+        sameDayAsLastPoll,
+      ),
+    ).toEqual([
+      { capturedAt: "2026-09-01T00:00:00.000Z", value: 900 },
+      // markpost hasn't polled yet — basin's known value carries forward
+      // alone, rather than the day being dropped or summing a phantom 0.
+      { capturedAt: "2026-09-02T00:00:00.000Z", value: 900 },
+      { capturedAt: "2026-09-03T00:00:00.000Z", value: 1200 },
+    ]);
+  });
+
+  it("treats windowDays as whole UTC calendar days, not the last N*24 wall-clock hours", () => {
+    const midday = new Date("2026-09-20T12:00:00Z");
+    const rows = [
+      // "Yesterday" evening — inside a genuine 2-calendar-day window (today
+      // + yesterday), even though it's less than 24 raw hours before a row
+      // from earlier the same day it belongs to.
+      metricRow({
+        value: 10,
+        capturedAt: new Date("2026-09-19T18:00:00Z"),
+      }),
+      // The day before yesterday. Older than the row above regardless of
+      // the window, so it would lose to it either way here — this test is
+      // about the DAY AXIS excluding 09-18 as its own point (windowDays=2
+      // only produces 09-19/09-20), not about this row failing to seed
+      // anything; see the "seeds ... from before the display window" test
+      // below for that.
+      metricRow({
+        value: 999,
+        capturedAt: new Date("2026-09-18T18:00:00Z"),
+      }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 2, midday),
+    ).toEqual([
+      { capturedAt: "2026-09-19T00:00:00.000Z", value: 10 },
+      { capturedAt: "2026-09-20T00:00:00.000Z", value: 10 },
+    ]);
+  });
+
+  it("seeds carry-forward from a row before the display window, however old, instead of dropping a stale app from early days", () => {
+    // A single missed poll for any app would otherwise read as a fake jump
+    // once the window starts — this is the same "sum of each app's latest
+    // known value" rule metricRollupWithSplit's headline total already
+    // follows, just applied once per day.
+    const rows = [
+      metricRow({ value: 999, capturedAt: new Date("2026-01-01T00:00:00Z") }),
+      metricRow({ value: 100, capturedAt: new Date("2026-09-19T00:00:00Z") }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 3, now),
+    ).toEqual([
+      // Window covers 09-18 through 09-20 (windowDays=3, now=09-20); the
+      // 01-01 row is the only thing known as of 09-18, however stale.
+      { capturedAt: "2026-09-18T00:00:00.000Z", value: 999 },
+      { capturedAt: "2026-09-19T00:00:00.000Z", value: 100 },
+      { capturedAt: "2026-09-20T00:00:00.000Z", value: 100 },
+    ]);
+  });
+
+  it("picks the row with the latest capturedAt regardless of input order, not the last element in the array", () => {
+    const rows = [
+      // Deliberately out of chronological order — a caller sorted
+      // descending (or not at all) shouldn't change which row wins.
+      metricRow({ value: 100, capturedAt: new Date("2026-09-19T00:00:00Z") }),
+      metricRow({ value: 999, capturedAt: new Date("2026-01-01T00:00:00Z") }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 1, now),
+    ).toEqual([{ capturedAt: "2026-09-20T00:00:00.000Z", value: 100 }]);
+  });
+
+  it("never mixes two different periods of the same metric into one series", () => {
+    const rows = [
+      sessionsRow({ period: "7d", value: 900, capturedAt: now }),
+      sessionsRow({ period: "30d", value: 12400, capturedAt: now }),
+    ];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "sessions", "30d", 30, now),
+    ).toEqual([{ capturedAt: now.toISOString(), value: 12400 }]);
+  });
+
+  it("ignores an app outside the requested slug list", () => {
+    const rows = [metricRow({ slug: "unlisted", value: 500, capturedAt: now })];
+
+    expect(
+      rollupSeriesAcrossApps(rows, ["basin"], "mrr", "current", 30, now),
+    ).toEqual([]);
+  });
+});
+
+describe("rollupDelta", () => {
+  it("returns null for an empty series", () => {
+    expect(rollupDelta([])).toBeNull();
+  });
+
+  it("returns null for a single-point series — nothing to compare against", () => {
+    expect(
+      rollupDelta([{ capturedAt: "2026-09-01T00:00:00Z", value: 100 }]),
+    ).toBeNull();
+  });
+
+  it("computes the absolute and percentage change from first to last point", () => {
+    const series = [
+      { capturedAt: "2026-09-01T00:00:00Z", value: 1000 },
+      { capturedAt: "2026-09-10T00:00:00Z", value: 900 },
+      { capturedAt: "2026-09-20T00:00:00Z", value: 1082 },
+    ];
+
+    expect(rollupDelta(series)).toEqual({ value: 82, pct: 8.2 });
+  });
+
+  it("returns a null pct when the first point is zero — no baseline to divide by", () => {
+    const series = [
+      { capturedAt: "2026-09-01T00:00:00Z", value: 0 },
+      { capturedAt: "2026-09-20T00:00:00Z", value: 40 },
+    ];
+
+    expect(rollupDelta(series)).toEqual({ value: 40, pct: null });
   });
 });
 

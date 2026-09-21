@@ -18,7 +18,11 @@
 </template>
 
 <script setup lang="ts">
-interface StatListItem {
+// Exported so callers that build `items` (RollupStatTile.vue,
+// RollupIssuesTile.vue) can type against the real shape instead of each
+// redeclaring their own near-identical interface that could drift from
+// this one.
+export interface StatListItem {
   label: string;
   value: string;
   swatch?: string;

@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RollupMrrTile > matches its snapshot 1`] = `
+"<div class="card rollup-tile"><span class="metric-label">MRR · ALL APPS</span>
+  <div class="value-row"><span class="display-num rollup-value">$2,145</span><span class="delta ok">▲ 8.2%</span></div><svg width="100%" height="46" viewBox="0 0 320 72" preserveAspectRatio="none" role="img" aria-label="Monthly recurring revenue across all apps over the last 30 days" class="rollup-spark">
+    <path d="M0 36 L320 36 L320 72 L0 72 Z" fill="color-mix(in srgb, #f2f2f5 8%, transparent)"></path>
+    <path d="M0 36 L320 36" fill="none" stroke="var(--ink)" stroke-width="2.6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+  </svg>
+</div>"
+`;

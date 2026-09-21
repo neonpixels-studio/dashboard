@@ -99,11 +99,11 @@ Two layers of secrets:
   secrets or a database (`tests/server/utils/integrationSecrets.test.ts`
   covers round-trip, tamper-detection, and wrong-key failure).
 
-`NUXT_INTEGRATION_ENCRYPTION_KEY`, the Stripe vars, the GA4 vars, and the
-Sentry vars are wired into `runtimeConfig` today (see nuxt.config.ts) —
-declared there so the Netlify preset forwards them into the deployed
-function's `process.env`, even though the code that actually reads them
-(`server/integrations/config.ts`'s `resolveSecret`,
+`NUXT_INTEGRATION_ENCRYPTION_KEY`, the Stripe vars, the GA4 vars, the Sentry
+vars, and the per-app Clerk secret keys are wired into `runtimeConfig` today
+(see nuxt.config.ts) — declared there so the Netlify preset forwards them
+into the deployed function's `process.env`, even though the code that
+actually reads them (`server/integrations/config.ts`'s `resolveSecret`,
 `server/integrations/stripe/provider.ts`'s `resolveProductIdsSource`,
 `server/integrations/ga4/provider.ts`'s `resolvePropertyId` and its direct
 `NUXT_GA4_SA_CLIENT_EMAIL` read, `server/integrations/sentry/provider.ts`'s
@@ -112,7 +112,7 @@ function's `process.env`, even though the code that actually reads them
 row/app-specific key name at runtime. The remaining vendor vars below are
 documented here and in `.env.example` so they're ready to set, but each
 one's `runtimeConfig` entry and actual API client land with that vendor's
-provider issue (Clerk/blog-platform sync — separate issues).
+provider issue (blog-platform sync — separate issue).
 
 Set any of the vars below the same way as Clerk/Neon:
 
@@ -162,10 +162,20 @@ scoped per property by product ID — see
 
 ### Per-app Clerk
 
-Reads user/session counts for each property's own Clerk app (separate from
-this dashboard's own Clerk app configured above). Each property's
-<https://dashboard.clerk.com> → API Keys → Secret key goes in the matching
-`NUXT_CLERK_SECRET_KEY_*` var.
+Reports total user count (`users`, current) and a new-signups delta over the
+trailing 30 days (`new_users`, `30d`) for each product-template app's own
+Clerk instance — separate from this dashboard's own Clerk app configured
+above — see `server/integrations/clerk/provider.ts`. Unlike Stripe/GA4's one
+shared studio-wide credential, each app has its own Clerk instance, so
+there's no shared default: the secret key itself is what identifies which
+app's data is being read, and an app with no secret configured anywhere
+simply produces no rows (not a zeroed metric, not a thrown error).
+
+1. Secret key — each property's own <https://dashboard.clerk.com> → API Keys
+   → Secret key → the matching `NUXT_CLERK_SECRET_KEY_*` var.
+2. An `integration_config` row (`vendor: "clerk"`) with `secret_ref` pointing
+   at that var is what actually resolves the key into `config.secret` at
+   sync time (`server/integrations/config.ts`'s `resolveSecret`).
 
 ### Sentry
 
