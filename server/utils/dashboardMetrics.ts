@@ -12,6 +12,11 @@ export const METRIC_USERS = "users";
 // window — not in the schema's own "e.g." list, but follows that list's
 // snake_case convention (mirrors active_subscribers).
 export const METRIC_NEW_USERS = "new_users";
+// Post count for a blog-syndication platform (Hashnode/DEV.to/Medium) — see
+// server/integrations/syndication. One row per (slug, vendor) here, same as
+// every other metric; a studio-wide/cross-platform rollup (the writing
+// template's "POSTS" card) is that consumer's concern, not this provider's.
+export const METRIC_POSTS = "posts";
 
 // Canonical `metric_snapshot.period` values (schema: "e.g. \"30d\", \"current\"").
 // A metric name alone doesn't identify a series — the schema allows the same

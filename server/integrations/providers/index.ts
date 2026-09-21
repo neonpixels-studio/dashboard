@@ -3,6 +3,11 @@ import { mockProvider } from "./mock";
 import { stripeProvider } from "../stripe";
 import { ga4Provider } from "../ga4";
 import { clerkProvider } from "../clerk";
+import {
+  devtoProvider,
+  hashnodeProvider,
+  mediumProvider,
+} from "../syndication";
 
 // Adding a real vendor provider is: one file (or, once a vendor needs more
 // than one file, a directory — see ../stripe) implementing IntegrationProvider
@@ -13,4 +18,7 @@ export const PROVIDERS: IntegrationProvider[] = [
   stripeProvider,
   ga4Provider,
   clerkProvider,
+  hashnodeProvider,
+  devtoProvider,
+  mediumProvider,
 ];

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
   fetchIntegrationConfigs,
+  fetchLatestMetricCapturedAt,
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
   fetchMetricSnapshotSeries,
@@ -240,5 +241,37 @@ describe("fetchSyndicationPosts", () => {
     const { db, where } = createOrderedFakeDb(rows);
     await expect(fetchSyndicationPosts(db, "basin")).resolves.toEqual(rows);
     expect(where).toHaveBeenCalled();
+  });
+});
+
+// Stubs `select().from().where().orderBy().limit()` — the chain used by
+// fetchLatestMetricCapturedAt (medium's rate-limit guard clock).
+function createLimitedFakeDb(rows: { capturedAt: Date }[]) {
+  const limit = vi.fn().mockResolvedValue(rows);
+  const orderBy = vi.fn().mockReturnValue({ limit });
+  const where = vi.fn().mockReturnValue({ orderBy });
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+  return { db: { select } as unknown as FakeDb, where, orderBy, limit };
+}
+
+describe("fetchLatestMetricCapturedAt", () => {
+  it("returns null when no matching metric_snapshot row exists", async () => {
+    const { db } = createLimitedFakeDb([]);
+
+    await expect(
+      fetchLatestMetricCapturedAt(db, "danholloran", "medium", "posts"),
+    ).resolves.toBeNull();
+  });
+
+  it("returns the single row's capturedAt when one exists", async () => {
+    const capturedAt = new Date("2026-09-20T03:00:00Z");
+    const { db, where, limit } = createLimitedFakeDb([{ capturedAt }]);
+
+    await expect(
+      fetchLatestMetricCapturedAt(db, "danholloran", "medium", "posts"),
+    ).resolves.toEqual(capturedAt);
+    expect(where).toHaveBeenCalled();
+    expect(limit).toHaveBeenCalledWith(1);
   });
 });

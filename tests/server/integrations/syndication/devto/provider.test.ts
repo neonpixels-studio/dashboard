@@ -1,0 +1,165 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ARTICLES_PAGE_SIZE } from "../../../../../server/integrations/syndication/devto/devtoClient";
+import {
+  devtoProvider,
+  fetchDevtoSyndication,
+} from "../../../../../server/integrations/syndication/devto/provider";
+import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
+import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
+import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
+import type {
+  DevtoArticle,
+  FetchDevtoArticlesPage,
+} from "../../../../../server/integrations/syndication/devto/types";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("devtoProvider", () => {
+  it("identifies itself as the devto vendor", () => {
+    expect(devtoProvider.vendor).toBe("devto");
+  });
+
+  it("throws when the config has no secret (API key) configured", async () => {
+    const config = createTestIntegrationConfig({
+      vendor: "devto",
+      secret: null,
+    });
+
+    await expect(devtoProvider.fetch(config)).rejects.toThrow(
+      /no API key configured/,
+    );
+  });
+
+  it("end-to-end: builds a real DEV.to client from config.secret and returns normalized posts", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { id: 1, slug: "a-post", published_at: "2026-09-01T12:00:00Z" },
+        ]),
+      )
+      .mockResolvedValue(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchImpl);
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "devto",
+      secret: "key_abc",
+    });
+
+    const result = await devtoProvider.fetch(config);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      expect.stringContaining("/articles/me/published"),
+      expect.anything(),
+    );
+    expect(result.metrics[0]).toMatchObject({ metric: "posts", value: 1 });
+    expect(result.syndicationPosts[0]).toMatchObject({ postRef: "a-post" });
+  });
+});
+
+describe("fetchDevtoSyndication", () => {
+  it("normalizes a page of articles into syndication_post rows plus a posts count metric", async () => {
+    const articles = await loadFixture<DevtoArticle[]>(
+      "syndication",
+      "devto-two-articles",
+    );
+    const fetchArticlesPage: FetchDevtoArticlesPage = vi
+      .fn()
+      .mockResolvedValueOnce(articles);
+
+    const result = await fetchDevtoSyndication(fetchArticlesPage);
+
+    expect(result.metrics).toEqual([
+      expect.objectContaining({
+        vendor: "devto",
+        metric: "posts",
+        value: 2,
+        period: "current",
+      }),
+    ]);
+    expect(result.syndicationPosts).toEqual([
+      {
+        platform: "devto",
+        postRef: "shipping-a-nuxt-dashboard",
+        status: "synced",
+        syncedAt: new Date("2026-09-01T12:05:00Z"),
+      },
+      {
+        platform: "devto",
+        postRef: "landscape-photography-in-iceland",
+        status: "synced",
+        syncedAt: new Date("2026-08-15T09:35:00Z"),
+      },
+    ]);
+  });
+
+  it("reports a real zero posts count when there are no published articles yet", async () => {
+    const fetchArticlesPage: FetchDevtoArticlesPage = vi
+      .fn()
+      .mockResolvedValue([]);
+
+    const result = await fetchDevtoSyndication(fetchArticlesPage);
+
+    expect(result.metrics[0]).toMatchObject({ metric: "posts", value: 0 });
+    expect(result.syndicationPosts).toEqual([]);
+  });
+
+  it("stops after one request when the first page is already shorter than ARTICLES_PAGE_SIZE, with no wasted trailing request", async () => {
+    const shortPage: DevtoArticle[] = Array.from({ length: 2 }, (_, index) => ({
+      id: index,
+      slug: `post-${index}`,
+      published_at: "2026-09-01T00:00:00Z",
+    }));
+    const fetchArticlesPage = vi.fn().mockResolvedValueOnce(shortPage);
+
+    await fetchDevtoSyndication(fetchArticlesPage);
+
+    expect(fetchArticlesPage).toHaveBeenCalledTimes(1);
+    expect(fetchArticlesPage).toHaveBeenCalledWith(1);
+  });
+
+  it("keeps requesting subsequent pages while a page comes back exactly full-sized", async () => {
+    const fullPage: DevtoArticle[] = Array.from(
+      { length: ARTICLES_PAGE_SIZE },
+      (_, index) => ({
+        id: index,
+        slug: `post-${index}`,
+        published_at: "2026-09-01T00:00:00Z",
+      }),
+    );
+    const shortPage: DevtoArticle[] = [
+      { id: 999, slug: "final-post", published_at: "2026-09-01T00:00:00Z" },
+    ];
+    const fetchArticlesPage = vi
+      .fn()
+      .mockResolvedValueOnce(fullPage)
+      .mockResolvedValueOnce(shortPage);
+
+    const result = await fetchDevtoSyndication(fetchArticlesPage);
+
+    expect(fetchArticlesPage).toHaveBeenCalledTimes(2);
+    expect(fetchArticlesPage).toHaveBeenNthCalledWith(1, 1);
+    expect(fetchArticlesPage).toHaveBeenNthCalledWith(2, 2);
+    expect(result.syndicationPosts).toHaveLength(ARTICLES_PAGE_SIZE + 1);
+  });
+
+  it("fails loud instead of looping forever if pages never come back short", async () => {
+    const fullPage: DevtoArticle[] = Array.from(
+      { length: ARTICLES_PAGE_SIZE },
+      (_, index) => ({
+        id: index,
+        slug: `never-ending-${index}`,
+        published_at: "2026-09-01T00:00:00Z",
+      }),
+    );
+    const fetchArticlesPage: FetchDevtoArticlesPage = vi
+      .fn()
+      .mockResolvedValue(fullPage);
+
+    await expect(fetchDevtoSyndication(fetchArticlesPage)).rejects.toThrow(
+      /did not terminate within/,
+    );
+  });
+});

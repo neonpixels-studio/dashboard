@@ -77,6 +77,23 @@ export default defineNuxtConfig({
     clerkSecretKeyBasin: process.env.NUXT_CLERK_SECRET_KEY_BASIN || "",
     clerkSecretKeyMarkpost: process.env.NUXT_CLERK_SECRET_KEY_MARKPOST || "",
     clerkSecretKeyWanderist: process.env.NUXT_CLERK_SECRET_KEY_WANDERIST || "",
+    // The blog-syndication providers' shared studio-wide credentials
+    // (server/integrations/syndication) — same reasoning as the Stripe/GA4
+    // entries above: declared here purely so the Netlify preset forwards
+    // these into the deployed function's process.env. There is only one
+    // writing-template app (danholloran; see app/config/apps.ts's
+    // `template: "writing"`), so — unlike Stripe's per-app product ids or
+    // GA4's per-property ids — none of these need a per-slug suffix.
+    // hashnodeToken/devtoApiKey/mediumRapidapiKey still resolve via
+    // config.ts's resolveSecret (integration_config.secret_ref ->
+    // process.env), never via useRuntimeConfig(); hashnodePublicationId and
+    // mediumUsername are public identifiers (not secrets) read via a plain
+    // process.env lookup in each provider's own resolve*() function.
+    hashnodeToken: process.env.NUXT_HASHNODE_TOKEN || "",
+    hashnodePublicationId: process.env.NUXT_HASHNODE_PUBLICATION_ID || "",
+    devtoApiKey: process.env.NUXT_DEVTO_API_KEY || "",
+    mediumRapidapiKey: process.env.NUXT_MEDIUM_RAPIDAPI_KEY || "",
+    mediumUsername: process.env.NUXT_MEDIUM_USERNAME || "",
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package

@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {
+      "id": "hn_1",
+      "slug": "shipping-a-nuxt-dashboard",
+      "publishedAt": "2026-09-01T12:00:00.000Z"
+    },
+    {
+      "id": "hn_2",
+      "slug": "landscape-photography-in-iceland",
+      "publishedAt": "2026-08-15T09:30:00.000Z"
+    }
+  ],
+  "hasNextPage": false,
+  "endCursor": null
+}
