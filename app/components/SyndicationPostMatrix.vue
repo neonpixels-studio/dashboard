@@ -6,7 +6,6 @@
       <span v-for="platform in platforms" :key="platform" class="col-cell">
         {{ platform.toUpperCase() }}
       </span>
-      <span class="col-views">SITE VIEWS</span>
     </div>
     <ul class="matrix-rows">
       <li v-for="post in posts" :key="post.title" class="matrix-row">
@@ -14,7 +13,6 @@
         <span v-for="(cell, index) in post.cells" :key="index" class="col-cell">
           <span class="cell-pill" :class="cell.tone">{{ cell.label }}</span>
         </span>
-        <span class="col-views">{{ post.views }}</span>
       </li>
     </ul>
   </div>
@@ -26,7 +24,6 @@ defineProps<{
   posts: {
     title: string;
     cells: { label: string; tone: "live" | "failed" | "queued" | "off" }[];
-    views: string;
   }[];
 }>();
 </script>
@@ -61,10 +58,6 @@ defineProps<{
   display: block;
   text-align: center;
 }
-.col-views {
-  width: 90px;
-  text-align: right;
-}
 .matrix-rows {
   margin: 0;
   padding: 0;
@@ -84,10 +77,6 @@ defineProps<{
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.matrix-row .col-views {
-  font-size: 11px;
-  font-weight: 600;
 }
 .cell-pill {
   padding: 2px 8px;

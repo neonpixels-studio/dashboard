@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildSparklinePath } from "../../app/utils/sparklinePath";
+import {
+  buildSparklinePath,
+  sparklineEndY,
+} from "../../app/utils/sparklinePath";
 import type { MetricPoint } from "../../shared/types/dashboard";
 
 function point(value: number): MetricPoint {
@@ -48,5 +51,32 @@ describe("buildSparklinePath", () => {
       true,
     );
     expect(commands).toHaveLength(3);
+  });
+});
+
+describe("sparklineEndY", () => {
+  it("returns the vertical center for fewer than two points", () => {
+    expect(sparklineEndY([], 200)).toBe(100);
+    expect(sparklineEndY([point(50)], 200)).toBe(100);
+  });
+
+  it("returns the vertical center for a perfectly flat series", () => {
+    expect(sparklineEndY([point(10), point(10), point(10)], 200)).toBe(100);
+  });
+
+  it("agrees with buildSparklinePath's own last y for a normal series", () => {
+    const points = [point(0), point(50), point(100)];
+    const path = buildSparklinePath(points, 100, 100);
+    const lastY = Number(path.split(" ").at(-1));
+
+    expect(sparklineEndY(points, 100)).toBeCloseTo(lastY, 5);
+  });
+
+  it("places a rising series' endpoint above its starting point (smaller y)", () => {
+    const points = [point(0), point(100)];
+    const endY = sparklineEndY(points, 200);
+    // Lower y is higher on screen — the last (highest-value) point should
+    // sit above the vertical center, not below it.
+    expect(endY).toBeLessThan(100);
   });
 });

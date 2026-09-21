@@ -41,3 +41,15 @@ export function toAppDetailViewModel(
 ): AppDetailViewModel {
   return { ...config, detail };
 }
+
+// The exact prop contract every AppDetail* template (issue #20) takes from
+// app/pages/apps/[slug].vue — a shared type so each template's own
+// `defineProps<...>()` is a one-line reference instead of three near-
+// identical multi-line literals (fallow's duplication gate flagged the
+// repeated literal).
+export interface AppDetailTemplateProps {
+  app: AppDetailViewModel;
+  pending: boolean;
+  error: unknown;
+  refresh: () => Promise<void>;
+}

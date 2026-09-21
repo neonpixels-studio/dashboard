@@ -2,7 +2,13 @@
   <div class="page-shell">
     <ControlTopBar :crumb="app.name" />
     <AppHeaderBand :app="app" :secondary-links="secondaryLinks" />
-    <component :is="templateComponent" :app="app" />
+    <component
+      :is="templateComponent"
+      :app="appViewModel"
+      :pending="pending"
+      :error="error"
+      :refresh="refresh"
+    />
   </div>
 </template>
 
@@ -14,6 +20,8 @@ import {
   AppDetailWriting,
 } from "#components";
 import { findAppBySlug, type AppTemplate } from "~/config/apps";
+import { useApp } from "~/composables/useApp";
+import { toAppDetailViewModel } from "~/utils/appViewModel";
 
 const route = useRoute();
 const app = findAppBySlug(String(route.params.slug));
@@ -38,4 +46,9 @@ const TEMPLATE_SECONDARY_LINKS: Record<AppTemplate, string[]> = {
 
 const templateComponent = TEMPLATE_COMPONENTS[app.template];
 const secondaryLinks = TEMPLATE_SECONDARY_LINKS[app.template];
+
+const { data: detail, pending, error, refresh } = useApp(() => app.slug);
+const appViewModel = computed(() =>
+  toAppDetailViewModel(app, detail.value ?? null),
+);
 </script>

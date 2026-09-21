@@ -1,35 +1,34 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`AppDetailMarketing > matches its tile-grid snapshot 1`] = `
-"<div data-v-86945382="" class="tile-grid">
-  <div data-v-d6008d9b="" data-v-86945382="" class="card tile">
+"<div data-v-71379453="" data-v-86945382="" class="tile-grid">
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">SESSIONS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">6,104</span><span data-v-d6008d9b="" class="delta ok">▲ 7%</span></div>
-    <div data-v-d6008d9b="" class="sub">4,782 unique users</div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">6,104</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
-  <div data-v-d6008d9b="" data-v-86945382="" class="card tile">
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
-      <!--v-if--><span data-v-d6008d9b="" class="tile-label">OUTBOUND CLICKS</span>
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">USERS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1,475</span><span data-v-d6008d9b="" class="delta ok">▲ 19%</span></div>
-    <div data-v-d6008d9b="" class="sub">24.2% of sessions click through</div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="sub">Not synced yet</div>
   </div>
-  <div data-v-d6008d9b="" data-v-86945382="" class="card tile">
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
-      <!--v-if--><span data-v-d6008d9b="" class="tile-label">AVG ENGAGED TIME</span>
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">NEW USERS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1:42</span><span data-v-d6008d9b="" class="delta muted">flat</span></div>
-    <div data-v-d6008d9b="" class="sub">single-page site</div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="sub">Not synced yet</div>
   </div>
-  <div data-v-d6008d9b="" data-v-86945382="" class="card tile ok">
-    <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21.8 10A10 10 0 1 1 17 3.34"></path>
-        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-      </svg><span data-v-d6008d9b="" class="tile-label">SENTRY</span></div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">0</span><span data-v-d6008d9b="" class="delta muted">open issues</span></div>
-    <div data-v-d6008d9b="" class="sub">quiet for 41 days</div>
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
+    <div data-v-d6008d9b="" class="tile-head">
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">OPEN ISSUES</span>
+    </div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">0</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
 </div>"
 `;

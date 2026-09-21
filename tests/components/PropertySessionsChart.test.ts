@@ -30,10 +30,22 @@ describe("PropertySessionsChart", () => {
     expect(wrapper.findAll("circle")).toHaveLength(0);
   });
 
-  it("exposes a static descriptive aria-label", () => {
+  it("defaults to the overview page's static descriptive aria-label", () => {
     const wrapper = mount(PropertySessionsChart, { props: { series } });
     expect(wrapper.attributes("aria-label")).toContain(
       "Daily sessions for five properties",
+    );
+  });
+
+  it("uses a caller-supplied aria-label over the default — the detail page (issue #20) draws just one property's trend", () => {
+    const wrapper = mount(PropertySessionsChart, {
+      props: {
+        series,
+        ariaLabel: "Daily sessions for basin.fm over the last 30 days.",
+      },
+    });
+    expect(wrapper.attributes("aria-label")).toBe(
+      "Daily sessions for basin.fm over the last 30 days.",
     );
   });
 
