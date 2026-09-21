@@ -85,6 +85,7 @@
           v-for="app in cardViewModels"
           :key="app.slug"
           :app="app"
+          :has-error="hasAppsError"
         />
       </div>
     </main>
@@ -95,6 +96,7 @@
 import { APPS, findAppBySlug, sortByAppOrder } from "~/config/apps";
 import { toAppCardViewModel } from "~/utils/appViewModel";
 import { useOverview } from "~/composables/useOverview";
+import { useApps } from "~/composables/useApps";
 import { formatRelativeTime } from "~/utils/relativeTime";
 import { buildSparklinePath } from "~/utils/sparklinePath";
 import {
@@ -125,10 +127,23 @@ const MIN_SPARKLINE_POINTS = 2;
 
 const propertyCount = String(APPS.length).padStart(2, "0");
 
-// GET /api/apps isn't wired here yet (see issue #19) — every card's `card`
-// merges in as `null` for now, so PropertyCard renders its skeleton state
-// rather than pretending to have metrics that were never fetched.
-const cardViewModels = APPS.map((app) => toAppCardViewModel(app, null));
+const { data: appsData, error: appsError } = useApps();
+
+// Merges each property's static identity with its fetched card, keyed by
+// slug rather than assuming the API returns rows in APPS' order. A slug
+// GET /api/apps hasn't returned yet (still loading, or the fetch failed)
+// merges in as `card: null`, so PropertyCard renders its own skeleton/error
+// state instead of a stale or fabricated one.
+const cardViewModels = computed(() =>
+  APPS.map((app) =>
+    toAppCardViewModel(
+      app,
+      appsData.value?.find((card) => card.slug === app.slug) ?? null,
+    ),
+  ),
+);
+
+const hasAppsError = computed(() => !!appsError.value);
 
 function accentFor(slug: string): string {
   return findAppBySlug(slug)?.accent ?? "var(--ink-3)";

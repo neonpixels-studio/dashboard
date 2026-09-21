@@ -6,6 +6,6 @@ exports[`PropertyCardMetricsSkeleton > matches its snapshot 1`] = `
     <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
     <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
     <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
-  </ul><span data-v-8da57ad3="" class="grow"></span>
+  </ul><span data-v-8da57ad3="" class="grow"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block sparkline-skeleton" style="width: 120px; height: 34px; border-radius: var(--r-xs);" aria-hidden="true"></span>
 </div>"
 `;

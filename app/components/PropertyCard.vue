@@ -3,7 +3,7 @@
     :to="`/apps/${app.slug}`"
     class="card prop-card"
     :style="{ borderTopColor: app.accent }"
-    :aria-busy="!app.card"
+    :aria-busy="isLoading"
   >
     <div class="head-row">
       <span
@@ -12,6 +12,13 @@
         :style="healthToneChipStyle(app.card.status.tone)"
       >
         {{ app.card.status.label }}
+      </span>
+      <span
+        v-else-if="hasError"
+        class="status-chip"
+        :style="healthToneChipStyle('danger')"
+      >
+        ERROR
       </span>
       <SkeletonBlock v-else width="52px" height="16px" radius="var(--r-xs)" />
       <span class="category">{{ app.order }} — {{ app.category }}</span>
@@ -39,23 +46,12 @@
 
     <p class="description">{{ app.description }}</p>
 
-    <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
-         tone) and draw a real sparkline path from app.card.sparklines. This
-         generic list/label render is a placeholder, not the final design. -->
-    <PropertyCardMetricsSkeleton v-if="!app.card" />
-    <div v-else class="stats-row">
-      <ul class="stats">
-        <li
-          v-for="metric in visibleMetrics"
-          :key="`${metric.metric}-${metric.period}`"
-          class="stat"
-        >
-          <span class="micro-label">{{ metric.metric }}</span>
-          <span class="stat-value">{{ metric.value }}</span>
-        </li>
-      </ul>
-      <span class="grow"></span>
-    </div>
+    <PropertyCardMetrics
+      :card="app.card"
+      :has-error="hasError"
+      :accent="app.accent"
+      :app-name="app.name"
+    />
 
     <ul v-if="app.card" class="chips">
       <li
@@ -64,30 +60,31 @@
         class="chip-tag"
         :class="integrationHealthTone(integration)"
       >
-        {{ integration.vendor }}
+        {{ integrationChipLabel(integration) }}
       </li>
     </ul>
   </NuxtLink>
 </template>
 
 <script setup lang="ts">
-import {
-  PROPERTY_CARD_STAT_COUNT,
-  type AppCardViewModel,
-} from "~/utils/appViewModel";
+import type { AppCardViewModel } from "~/utils/appViewModel";
+import { integrationChipLabel } from "~/utils/propertyCardMetrics";
 import {
   healthToneChipStyle,
   integrationHealthTone,
 } from "~/utils/statusColor";
 
-const props = defineProps<{ app: AppCardViewModel }>();
+const props = defineProps<{
+  app: AppCardViewModel;
+  // True while the studio-wide GET /api/apps fetch that would have
+  // populated `app.card` has failed. Only rendered when `app.card` is still
+  // null — a card that loaded once and then failed a later refresh keeps
+  // showing its last known data instead, same as DataErrorState's own
+  // "showing the last known state" behavior for the overview rollups.
+  hasError?: boolean;
+}>();
 
-// Bounded to the same count PropertyCardMetricsSkeleton reserves space for —
-// `AppCard.metrics` is a generic, unbounded list, but the card's fixed
-// height and non-wrapping stats row aren't.
-const visibleMetrics = computed(
-  () => props.app.card?.metrics.slice(0, PROPERTY_CARD_STAT_COUNT) ?? [],
-);
+const isLoading = computed(() => !props.app.card && !props.hasError);
 </script>
 
 <style scoped>
@@ -126,31 +123,6 @@ const visibleMetrics = computed(
   font-size: 11px;
   line-height: 1.5;
   color: var(--ink-2);
-}
-.stats-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  margin-top: auto;
-}
-.stats {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  gap: 16px;
-}
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.stat-value {
-  font-family: var(--display);
-  font-weight: 700;
-  font-size: 20px;
-  letter-spacing: -0.02em;
-  line-height: 1;
 }
 .chips {
   margin: 0;

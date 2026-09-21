@@ -14,20 +14,29 @@ import StatList from "../../app/components/StatList.vue";
 import PropertySessionsChart from "../../app/components/PropertySessionsChart.vue";
 import AxisRow from "../../app/components/AxisRow.vue";
 import PropertyCard from "../../app/components/PropertyCard.vue";
+import PropertyCardMetrics from "../../app/components/PropertyCardMetrics.vue";
 import PropertyCardMetricsSkeleton from "../../app/components/PropertyCardMetricsSkeleton.vue";
 import RollupMrrTile from "../../app/components/RollupMrrTile.vue";
 import RollupStatTile from "../../app/components/RollupStatTile.vue";
 import RollupIssuesTile from "../../app/components/RollupIssuesTile.vue";
 import RollupValueRow from "../../app/components/RollupValueRow.vue";
-import type { OverviewResponse } from "../../shared/types/dashboard";
+import type {
+  AppsResponse,
+  OverviewResponse,
+} from "../../shared/types/dashboard";
 
-// index.vue imports useOverview directly (not via the global useFetch
-// auto-import), so it's mocked at the module boundary the same way
-// overview.get.test.ts mocks dashboardQueries — the composable's own
-// contract is covered by tests/composables/useOverview.test.ts.
+// index.vue imports useOverview/useApps directly (not via the global
+// useFetch auto-import), so both are mocked at the module boundary the same
+// way overview.get.test.ts mocks dashboardQueries — each composable's own
+// contract is covered by its own tests/composables/*.test.ts.
 const mockUseOverview = vi.fn();
 vi.mock("../../app/composables/useOverview", () => ({
   useOverview: () => mockUseOverview(),
+}));
+
+const mockUseApps = vi.fn();
+vi.mock("../../app/composables/useApps", () => ({
+  useApps: () => mockUseApps(),
 }));
 
 const GLOBAL_COMPONENTS = {
@@ -43,6 +52,7 @@ const GLOBAL_COMPONENTS = {
   PropertySessionsChart,
   AxisRow,
   PropertyCard,
+  PropertyCardMetrics,
   PropertyCardMetricsSkeleton,
   RollupMrrTile,
   RollupStatTile,
@@ -137,6 +147,20 @@ function mockOverview(overrides: {
   });
 }
 
+function mockApps(overrides: {
+  data?: AppsResponse | null;
+  pending?: boolean;
+  error?: Error | null;
+  refresh?: () => void;
+}) {
+  mockUseApps.mockReturnValue({
+    data: ref(overrides.data ?? null),
+    pending: ref(overrides.pending ?? false),
+    error: ref(overrides.error ?? null),
+    refresh: overrides.refresh ?? vi.fn(),
+  });
+}
+
 function mountPage() {
   return mount(IndexPage, {
     global: { components: GLOBAL_COMPONENTS, stubs: GLOBAL_STUBS },
@@ -145,6 +169,10 @@ function mountPage() {
 
 beforeEach(() => {
   vi.stubGlobal("useHead", vi.fn());
+  // Every rollup-tile test below only cares about useOverview; default the
+  // property grid's fetch to its idle state so mounting the page doesn't
+  // require every one of those tests to also stub useApps.
+  mockApps({});
 });
 
 afterEach(() => {
@@ -375,5 +403,71 @@ describe("index.vue rollup tiles", () => {
     // text depends on wall-clock time via the mount-timing test above)
     // renders in a sibling SectionLabel outside this element entirely.
     expect(mountPage().find(".rollup-grid").html()).toMatchSnapshot();
+  });
+});
+
+describe("index.vue property grid", () => {
+  beforeEach(() => {
+    mockOverview({});
+  });
+
+  function basinCard() {
+    return {
+      slug: "basin",
+      status: { label: "LIVE", tone: "ok" as const },
+      metrics: [
+        {
+          metric: "mrr",
+          period: "current",
+          value: 412,
+          capturedAt: "2026-09-19T00:00:00.000Z",
+        },
+      ],
+      sparklines: [],
+      integrations: [],
+    };
+  }
+
+  it("renders every configured property as a skeleton card while useApps is pending", () => {
+    mockApps({ pending: true });
+
+    const wrapper = mountPage();
+
+    const cards = wrapper.findAllComponents(PropertyCard);
+    expect(cards).toHaveLength(6);
+    expect(wrapper.findAllComponents(PropertyCardMetricsSkeleton)).toHaveLength(
+      6,
+    );
+  });
+
+  it("merges each fetched card into its matching property by slug, not by array position", () => {
+    // basin is declared third in APPS' response-shaped order below, proving
+    // the merge keys off `slug`, not `AppsResponse`'s row order.
+    mockApps({ data: [basinCard()] });
+
+    const wrapper = mountPage();
+
+    const basinPropertyCard = wrapper
+      .findAllComponents(PropertyCard)
+      .find((card) => card.props("app").slug === "basin")!;
+    expect(basinPropertyCard.props("app").card).toEqual(basinCard());
+
+    const markpostPropertyCard = wrapper
+      .findAllComponents(PropertyCard)
+      .find((card) => card.props("app").slug === "markpost")!;
+    expect(markpostPropertyCard.props("app").card).toBeNull();
+  });
+
+  it("passes the fetch error through to every card instead of blocking the whole grid", () => {
+    mockApps({ error: new Error("network down") });
+
+    const wrapper = mountPage();
+
+    const cards = wrapper.findAllComponents(PropertyCard);
+    expect(cards).toHaveLength(6);
+    cards.forEach((card) => {
+      expect(card.props("hasError")).toBe(true);
+    });
+    expect(wrapper.text()).toContain("Couldn't load live data.");
   });
 });

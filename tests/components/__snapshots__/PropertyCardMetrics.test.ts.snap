@@ -1,0 +1,56 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PropertyCardMetrics > matches its snapshot in the error state 1`] = `
+"<!-- Card data wins whenever it exists, even if \`hasError\` is also true (a
+       later refresh failed after an earlier load succeeded) — stale real
+       data beats an error message, same as DataErrorState's own "showing
+       the last known state" behavior for the overview rollups. -->
+<!-- No retry affordance here (unlike DataErrorState): the whole card is
+       itself a NuxtLink, and a nested <button> inside an <a> is invalid
+       HTML content model (interactive-in-interactive) — reloading the page
+       is the only recourse for a per-card fetch failure today. -->
+<div data-v-c0c351bf="" class="stats-row card-error-row"><svg data-v-c0c351bf="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+    <line x1="12" y1="9" x2="12" y2="13"></line>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+  </svg><span data-v-c0c351bf="" class="error-message">Couldn't load live data.</span></div>"
+`;
+
+exports[`PropertyCardMetrics > matches its snapshot in the loading state 1`] = `
+"<!-- Card data wins whenever it exists, even if \`hasError\` is also true (a
+       later refresh failed after an earlier load succeeded) — stale real
+       data beats an error message, same as DataErrorState's own "showing
+       the last known state" behavior for the overview rollups. -->
+<div data-v-8da57ad3="" data-v-c0c351bf="" class="metrics-skeleton">
+  <ul data-v-8da57ad3="" class="stats-skeleton">
+    <li data-v-8da57ad3="" class="stat-skeleton">
+      <skeletonblock data-v-8da57ad3="" width="36px" height="8px"></skeletonblock>
+      <skeletonblock data-v-8da57ad3="" width="44px" height="18px"></skeletonblock>
+    </li>
+    <li data-v-8da57ad3="" class="stat-skeleton">
+      <skeletonblock data-v-8da57ad3="" width="36px" height="8px"></skeletonblock>
+      <skeletonblock data-v-8da57ad3="" width="44px" height="18px"></skeletonblock>
+    </li>
+    <li data-v-8da57ad3="" class="stat-skeleton">
+      <skeletonblock data-v-8da57ad3="" width="36px" height="8px"></skeletonblock>
+      <skeletonblock data-v-8da57ad3="" width="44px" height="18px"></skeletonblock>
+    </li>
+  </ul><span data-v-8da57ad3="" class="grow"></span>
+  <skeletonblock data-v-8da57ad3="" width="120px" height="34px" radius="var(--r-xs)" class="sparkline-skeleton"></skeletonblock>
+</div>"
+`;
+
+exports[`PropertyCardMetrics > matches its snapshot with card data 1`] = `
+"<!-- Card data wins whenever it exists, even if \`hasError\` is also true (a
+       later refresh failed after an earlier load succeeded) — stale real
+       data beats an error message, same as DataErrorState's own "showing
+       the last known state" behavior for the overview rollups. -->
+<div data-v-c0c351bf="" class="stats-row">
+  <ul data-v-c0c351bf="" class="stats">
+    <li data-v-c0c351bf="" class="stat"><span data-v-c0c351bf="" class="micro-label">MRR</span><span data-v-c0c351bf="" class="stat-value" style="color: var(--ink);">$412</span></li>
+  </ul><span data-v-c0c351bf="" class="grow"></span><svg data-v-c0c351bf="" width="120" height="34" viewBox="0 0 120 34" preserveAspectRatio="none" role="img" aria-label="basin.fm trend over the last synced period">
+    <!--v-if-->
+    <path d="M0.00 30.00 L120.00 4.00" fill="none" stroke="#FFB020" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+  </svg>
+</div>"
+`;
