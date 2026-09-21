@@ -1,36 +1,34 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`AppDetailProduct > matches its tile-grid snapshot 1`] = `
-"<div data-v-12a7c813="" class="tile-grid">
-  <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile">
+"<div data-v-71379453="" data-v-12a7c813="" class="tile-grid">
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">MRR</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">$412</span><span data-v-d6008d9b="" class="delta ok">▲ 6.4%</span></div>
-    <div data-v-d6008d9b="" class="sub">$387 last month</div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">$412</span><span data-v-d6008d9b="" class="delta ok">▲ 8.4%</span></div>
+    <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
-  <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile">
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
-      <!--v-if--><span data-v-d6008d9b="" class="tile-label">ACTIVE SUBS</span>
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">ACTIVE SUBSCRIBERS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">96</span><span data-v-d6008d9b="" class="delta ok">▲ 7</span></div>
-    <div data-v-d6008d9b="" class="sub">11 trialing · 3 past due</div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">96</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
-  <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile">
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
-      <!--v-if--><span data-v-d6008d9b="" class="tile-label">CHURN · 30D</span>
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">USERS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2.1%</span><span data-v-d6008d9b="" class="delta ok">▼ 0.4pp</span></div>
-    <div data-v-d6008d9b="" class="sub">2 cancellations</div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1,204</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
-  <div data-v-d6008d9b="" data-v-12a7c813="" class="card tile warn">
-    <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
-        <line x1="12" y1="9" x2="12" y2="13"></line>
-        <line x1="12" y1="17" x2="12.01" y2="17"></line>
-      </svg><span data-v-d6008d9b="" class="tile-label">OPEN ISSUES</span></div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">3</span><span data-v-d6008d9b="" class="delta muted">1 new</span></div>
-    <div data-v-d6008d9b="" class="sub">0 fatal · 3 error</div>
+  <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
+    <div data-v-d6008d9b="" class="tile-head">
+      <!--v-if--><span data-v-d6008d9b="" class="tile-label">OPEN ISSUES</span>
+    </div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="sub">Not synced yet</div>
   </div>
 </div>"
 `;

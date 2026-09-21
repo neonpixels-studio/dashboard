@@ -6,7 +6,7 @@
     viewBox="0 0 900 200"
     preserveAspectRatio="none"
     role="img"
-    aria-label="Daily sessions for five properties over 30 days. danholloran.me rose fastest; grimicorn.dev stayed flat."
+    :aria-label="ariaLabel"
   >
     <line
       x1="0"
@@ -73,9 +73,21 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  series: { slug: string; color: string; path: string; endY: number }[];
-}>();
+// `ariaLabel` defaults to the overview page's original multi-property
+// description (its only caller until issue #20) so that usage stays
+// unchanged; the single-property detail page passes its own description —
+// the default text is specifically wrong ("five properties", a named
+// property "rose fastest") for a chart drawing just one app's own trend.
+const DEFAULT_ARIA_LABEL =
+  "Daily sessions for five properties over 30 days. danholloran.me rose fastest; grimicorn.dev stayed flat.";
+
+withDefaults(
+  defineProps<{
+    series: { slug: string; color: string; path: string; endY: number }[];
+    ariaLabel?: string;
+  }>(),
+  { ariaLabel: DEFAULT_ARIA_LABEL },
+);
 </script>
 
 <style scoped>

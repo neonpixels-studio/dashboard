@@ -655,6 +655,18 @@ h4 {
   letter-spacing: 0.12em;
   color: var(--ink-3);
 }
+/* Marks a panel's content as illustrative, not wired to live data — global
+   rather than scoped per component since it's used identically by every
+   AppDetailProduct sub-panel that has no backing API yet (issue #20: Stripe/
+   Sentry/Clerk detail endpoints don't exist). */
+.sample-chip {
+  padding: 4px 9px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
 .delta {
   font-size: 11px;
   font-weight: 600;

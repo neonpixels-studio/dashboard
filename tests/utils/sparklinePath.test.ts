@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildSparklinePath } from "../../app/utils/sparklinePath";
+import {
+  buildAxisLabels,
+  buildSparklinePath,
+  sparklineEndY,
+} from "../../app/utils/sparklinePath";
 import type { MetricPoint } from "../../shared/types/dashboard";
 
 function point(value: number): MetricPoint {
   return { capturedAt: "2026-09-01T00:00:00Z", value };
+}
+
+function pointAt(capturedAt: string, value = 0): MetricPoint {
+  return { capturedAt, value };
 }
 
 describe("buildSparklinePath", () => {
@@ -48,5 +56,66 @@ describe("buildSparklinePath", () => {
       true,
     );
     expect(commands).toHaveLength(3);
+  });
+});
+
+describe("sparklineEndY", () => {
+  it("returns the vertical center for fewer than two points", () => {
+    expect(sparklineEndY([], 200)).toBe(100);
+    expect(sparklineEndY([point(50)], 200)).toBe(100);
+  });
+
+  it("returns the vertical center for a perfectly flat series", () => {
+    expect(sparklineEndY([point(10), point(10), point(10)], 200)).toBe(100);
+  });
+
+  it("agrees with buildSparklinePath's own last y for a normal series", () => {
+    const points = [point(0), point(50), point(100)];
+    const path = buildSparklinePath(points, 100, 100);
+    const lastY = Number(path.split(" ").at(-1));
+
+    expect(sparklineEndY(points, 100)).toBeCloseTo(lastY, 5);
+  });
+
+  it("places a rising series' endpoint above its starting point (smaller y)", () => {
+    const points = [point(0), point(100)];
+    const endY = sparklineEndY(points, 200);
+    // Lower y is higher on screen — the last (highest-value) point should
+    // sit above the vertical center, not below it.
+    expect(endY).toBeLessThan(100);
+  });
+});
+
+describe("buildAxisLabels", () => {
+  it("returns an empty array for fewer than two points", () => {
+    expect(buildAxisLabels([])).toEqual([]);
+    expect(buildAxisLabels([pointAt("2026-09-19T00:00:00.000Z")])).toEqual([]);
+  });
+
+  it("returns exactly [first, last], not a repeated date, for a 2-point series", () => {
+    const points = [
+      pointAt("2026-09-18T00:00:00.000Z"),
+      pointAt("2026-09-19T00:00:00.000Z"),
+    ];
+    expect(buildAxisLabels(points)).toEqual(["18 SEP", "19 SEP"]);
+  });
+
+  it("picks the first, middle, and last point, formatted without a year", () => {
+    const points = [
+      pointAt("2026-08-20T00:00:00.000Z"),
+      pointAt("2026-09-01T00:00:00.000Z"),
+      pointAt("2026-09-10T00:00:00.000Z"),
+      pointAt("2026-09-15T00:00:00.000Z"),
+      pointAt("2026-09-19T00:00:00.000Z"),
+    ];
+    expect(buildAxisLabels(points)).toEqual(["20 AUG", "10 SEP", "19 SEP"]);
+  });
+
+  it("omits an unparseable timestamp rather than rendering a broken label", () => {
+    const labels = buildAxisLabels([
+      pointAt("not-a-date"),
+      pointAt("2026-09-19T00:00:00.000Z"),
+    ]);
+    expect(labels).toEqual(["19 SEP"]);
   });
 });

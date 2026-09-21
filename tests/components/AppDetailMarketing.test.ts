@@ -1,81 +1,147 @@
-import { describe, expect, it } from "vitest";
-import { mount } from "@vue/test-utils";
+import { describe, expect, it, vi } from "vitest";
 import AppDetailMarketing from "../../app/components/AppDetailMarketing.vue";
-import BarMeter from "../../app/components/BarMeter.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
+import MetricTileSkeleton from "../../app/components/MetricTileSkeleton.vue";
+import DataErrorState from "../../app/components/DataErrorState.vue";
 import SparkLine from "../../app/components/SparkLine.vue";
 import StatList from "../../app/components/StatList.vue";
+import SourcesFooter from "../../app/components/SourcesFooter.vue";
 import { findAppBySlug } from "../../app/config/apps";
-import { DETAIL_COMPONENTS } from "./support/detailComponents";
+import { toAppDetailViewModel } from "../../app/utils/appViewModel";
+import {
+  mountDetailTemplate,
+  type MountDetailOptions,
+} from "./support/mountDetailTemplate";
+import { appDetailFixture } from "../support/appDetailFixture";
+import type { AppDetailResponse } from "../../shared/types/dashboard";
 
-// AppDetailMarketing is a fixed-data template (issue #28 scope note: content
-// isn't prop-driven yet), so these tests exercise the one real prop it takes
-// — `app` — plus the sub-components it composes, mirroring how
-// PropertyCard.test.ts registers the components PropertyCard relies on.
-function mountDetail(slug: string) {
-  return mount(AppDetailMarketing, {
-    props: { app: findAppBySlug(slug)! },
-    global: { components: DETAIL_COMPONENTS },
-  });
+function mountDetail(
+  slug: string,
+  {
+    detail = null,
+    ...options
+  }: { detail?: AppDetailResponse | null } & MountDetailOptions = {},
+) {
+  return mountDetailTemplate(
+    AppDetailMarketing,
+    toAppDetailViewModel(findAppBySlug(slug)!, detail),
+    options,
+  );
 }
 
+const LOADED_DETAIL = appDetailFixture({
+  metrics: [
+    {
+      metric: "sessions",
+      period: "30d",
+      value: 6104,
+      capturedAt: "2026-09-19T00:00:00.000Z",
+    },
+    {
+      metric: "open_issues",
+      period: "current",
+      value: 0,
+      capturedAt: "2026-09-19T00:00:00.000Z",
+    },
+  ],
+  series: [
+    {
+      metric: "sessions",
+      period: "daily",
+      points: [
+        { capturedAt: "2026-09-18T00:00:00.000Z", value: 200 },
+        { capturedAt: "2026-09-19T00:00:00.000Z", value: 260 },
+      ],
+    },
+  ],
+  trafficBreakdown: [
+    { channel: "direct", pct: 38 },
+    { channel: "organic", pct: 17 },
+  ],
+  sources: [
+    {
+      vendor: "ga4",
+      ok: true,
+      lastRunAt: null,
+      lastSuccessAt: "2026-09-19T00:00:00.000Z",
+      error: null,
+    },
+  ],
+});
+
 describe("AppDetailMarketing", () => {
-  it("renders the four headline metric tiles", () => {
-    const wrapper = mountDetail("grimicorn");
-    expect(wrapper.findAllComponents(MetricTile)).toHaveLength(4);
-    expect(wrapper.text()).toContain("SESSIONS");
-    expect(wrapper.text()).toContain("6,104");
+  it("shows four skeleton tiles while pending", () => {
+    const wrapper = mountDetail("grimicorn", { pending: true });
+    expect(wrapper.findAllComponents(MetricTileSkeleton)).toHaveLength(4);
+    expect(wrapper.findAllComponents(MetricTile)).toHaveLength(0);
   });
 
-  it("charts sessions in the app's accent color for a product property", () => {
-    const wrapper = mountDetail("grimicorn");
-    expect(wrapper.findComponent(SparkLine).props("color")).toBe(
-      findAppBySlug("grimicorn")!.accent,
-    );
+  it("shows the error state wired to refresh", async () => {
+    const refresh = vi.fn();
+    const wrapper = mountDetail("grimicorn", {
+      error: new Error("down"),
+      refresh,
+    });
+    expect(wrapper.findComponent(DataErrorState).exists()).toBe(true);
+    await wrapper
+      .findComponent(DataErrorState)
+      .find(".retry-btn")
+      .trigger("click");
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders sessions, users, new users, and open issues tiles from real data", () => {
+    const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
+    const tiles = wrapper.findAllComponents(MetricTile);
+    expect(tiles.map((tile) => tile.props("label"))).toEqual([
+      "SESSIONS",
+      "USERS",
+      "NEW USERS",
+      "OPEN ISSUES",
+    ]);
+    expect(tiles[0]!.props("value")).toBe("6,104");
+    // users/new_users never synced in this fixture — honest placeholders.
+    expect(tiles[1]!.props("value")).toBe("—");
+    expect(tiles[1]!.props("sub")).toBe("Not synced yet");
+  });
+
+  it("charts sessions in the app's accent color for a non-studio property", () => {
+    const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
+    const sparkline = wrapper.findComponent(SparkLine);
+    expect(sparkline.props("color")).toBe(findAppBySlug("grimicorn")!.accent);
+    expect(sparkline.props("path").length).toBeGreaterThan(0);
   });
 
   it("charts sessions in neutral ink for the studio site", () => {
-    const wrapper = mountDetail("neonpixels");
+    const wrapper = mountDetail("neonpixels", { detail: LOADED_DETAIL });
     expect(wrapper.findComponent(SparkLine).props("color")).toBe("var(--ink)");
   });
 
-  it("renders an outbound-click bar per configured slug, labeled and colored from that app's own config", () => {
-    // OUTBOUND_CLICKS is a module-private constant with no unresolvable
-    // slugs today, so the "drops an unresolvable slug" branch in
-    // outboundRows' flatMap isn't reachable from a prop-driven test here.
-    const wrapper = mountDetail("grimicorn");
-    const bars = wrapper.findAllComponents(BarMeter);
-    expect(bars.map((bar) => bar.props("label"))).toEqual([
-      "grimicorn.dev",
-      "wanderist.io",
-      "basin.fm",
-      "markpost.io",
+  it("shows the empty-chart note instead of the sparkline when fewer than two daily points exist", () => {
+    const wrapper = mountDetail("grimicorn", { detail: appDetailFixture() });
+    expect(wrapper.findComponent(SparkLine).exists()).toBe(false);
+    expect(wrapper.text()).toContain(
+      "Not enough synced data for a trend line yet.",
+    );
+  });
+
+  it("renders the real traffic-source split, sorted largest first, and omits the panel when there is none", () => {
+    const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
+    const list = wrapper.findComponent(StatList);
+    expect(list.props("items")).toEqual([
+      { label: "Direct", value: "38%" },
+      { label: "Organic search", value: "17%" },
     ]);
-    // Assert against a bar whose target differs from the mounted app
-    // (grimicorn) — a bar keyed off `props.app.accent` instead of its own
-    // target's accent would still pass on bars[0] by coincidence.
-    expect(bars[0].props("color")).toBe(findAppBySlug("grimicorn")!.accent);
-    expect(bars[1].props("color")).toBe(findAppBySlug("wanderist")!.accent);
+
+    const empty = mountDetail("grimicorn", { detail: appDetailFixture() });
+    expect(empty.findComponent(StatList).exists()).toBe(false);
   });
 
-  it("renders the traffic-source and device stat lists", () => {
-    const wrapper = mountDetail("grimicorn");
-    const lists = wrapper.findAllComponents(StatList);
-    expect(lists).toHaveLength(2);
-    expect(wrapper.text()).toContain("TRAFFIC SOURCES");
-    expect(wrapper.text()).toContain("DEVICE");
-  });
-
-  it("renders the deploy log entries, marking only the font-subset deploy as warn", () => {
-    const wrapper = mountDetail("grimicorn");
-    const entries = wrapper.findAll(".deploys li");
-    expect(entries).toHaveLength(4);
-    expect(wrapper.text()).toContain("copy tweak on hero");
-    expect(
-      entries.map((entry) =>
-        entry.find(".deploy-dot").classes().includes("warn"),
-      ),
-    ).toEqual([false, false, false, true]);
+  it("shows real per-integration sync chips in the sources footer", () => {
+    const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
+    expect(wrapper.findComponent(SourcesFooter).props("sources")).toEqual([
+      { label: "GA4 · 19 SEP 2026", tone: "ok" },
+    ]);
   });
 
   it("matches its tile-grid snapshot", () => {
@@ -84,7 +150,9 @@ describe("AppDetailMarketing", () => {
     // coverage beyond the explicit assertions above; the tile grid is the
     // largest subtree that stays human-reviewable in a diff.
     expect(
-      mountDetail("grimicorn").find(".tile-grid").html(),
+      mountDetail("grimicorn", { detail: LOADED_DETAIL })
+        .find(".tile-grid")
+        .html(),
     ).toMatchSnapshot();
   });
 });
