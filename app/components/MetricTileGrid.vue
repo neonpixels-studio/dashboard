@@ -4,9 +4,9 @@
       <MetricTileSkeleton v-for="index in tileCount" :key="index" />
     </template>
     <MetricTile
-      v-for="tile in tiles"
+      v-for="(tile, index) in tiles"
       v-else
-      :key="tile.label"
+      :key="index"
       :label="tile.label"
       :value="tile.value"
       :delta="tile.delta"
@@ -27,7 +27,7 @@ import type { MetricTileData } from "~/utils/metricTile";
 
 withDefaults(
   defineProps<{
-    tiles: (MetricTileData & { tone?: "warn" | "danger" | "ok" })[];
+    tiles: MetricTileData[];
     pending?: boolean;
     tileCount?: number;
   }>(),

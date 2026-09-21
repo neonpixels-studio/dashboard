@@ -1,67 +1,76 @@
 <template>
-  <div class="auth-grid">
-    <div class="card auth-card">
-      <span class="panel-title">Total users</span>
-      <div class="big-value-row">
-        <span class="display-num big-value">1,204</span>
-        <span class="delta ok">▲ 38 this week</span>
-      </div>
-      <StatList
-        class="auth-list"
-        :divided="false"
-        :items="[
-          { label: 'Verified email', value: '1,147' },
-          { label: 'Active last 7d', value: '418' },
-          { label: 'Converted to paid', value: '8.0%' },
-        ]"
-      />
-    </div>
+  <div class="auth-body">
+    <span
+      class="sample-chip"
+      title="No Clerk detail endpoint exists yet (see PR follow-up)"
+    >
+      SAMPLE DATA — signups trend &amp; sign-in method aren't wired yet
+    </span>
 
-    <div class="card auth-card">
-      <div class="panel-head">
-        <span class="panel-title">Signups</span>
-        <span class="panel-meta">DAILY · 30D</span>
+    <div class="auth-grid">
+      <div class="card auth-card">
+        <span class="panel-title">Total users</span>
+        <div class="big-value-row">
+          <span class="display-num big-value">1,204</span>
+          <span class="delta ok">▲ 38 this week</span>
+        </div>
+        <StatList
+          class="auth-list"
+          :divided="false"
+          :items="[
+            { label: 'Verified email', value: '1,147' },
+            { label: 'Active last 7d', value: '418' },
+            { label: 'Converted to paid', value: '8.0%' },
+          ]"
+        />
       </div>
-      <SparkLine
-        :path="SIGNUPS_PATH"
-        width="100%"
-        :height="76"
-        view-box="0 0 300 60"
-        :color="app.accent"
-        :aria-label="`${app.name} daily signups over the last 30 days`"
-      />
-      <AxisRow :labels="['20 AUG', '04 SEP', '19 SEP']" />
-      <div class="card-foot">
-        <span class="foot-label">Best day · 16 Sep</span>
-        <span class="foot-value">31 signups</span>
-      </div>
-    </div>
 
-    <div class="card auth-card">
-      <span class="panel-title">Sign-in method</span>
-      <div class="method-bars">
-        <BarMeter
-          label="GitHub"
-          pct-label="61%"
-          :pct="61"
+      <div class="card auth-card">
+        <div class="panel-head">
+          <span class="panel-title">Signups</span>
+          <span class="panel-meta">DAILY · 30D</span>
+        </div>
+        <SparkLine
+          :path="SIGNUPS_PATH"
+          width="100%"
+          :height="76"
+          view-box="0 0 300 60"
           :color="app.accent"
+          :aria-label="`${app.name} daily signups over the last 30 days`"
         />
-        <BarMeter
-          label="Google"
-          pct-label="28%"
-          :pct="28"
-          :color="app.accent"
-        />
-        <BarMeter
-          label="Email code"
-          pct-label="11%"
-          :pct="11"
-          :color="app.accent"
-        />
+        <AxisRow :labels="['20 AUG', '04 SEP', '19 SEP']" />
+        <div class="card-foot">
+          <span class="foot-label">Best day · 16 Sep</span>
+          <span class="foot-value">31 signups</span>
+        </div>
       </div>
-      <div class="card-foot">
-        <span class="foot-label">Failed sign-ins · 7d</span>
-        <span class="foot-value">14</span>
+
+      <div class="card auth-card">
+        <span class="panel-title">Sign-in method</span>
+        <div class="method-bars">
+          <BarMeter
+            label="GitHub"
+            pct-label="61%"
+            :pct="61"
+            :color="app.accent"
+          />
+          <BarMeter
+            label="Google"
+            pct-label="28%"
+            :pct="28"
+            :color="app.accent"
+          />
+          <BarMeter
+            label="Email code"
+            pct-label="11%"
+            :pct="11"
+            :color="app.accent"
+          />
+        </div>
+        <div class="card-foot">
+          <span class="foot-label">Failed sign-ins · 7d</span>
+          <span class="foot-value">14</span>
+        </div>
       </div>
     </div>
   </div>
@@ -73,7 +82,9 @@
 // as AppDetailProductMoneyHealthPanel.vue: no per-day signup trend or
 // sign-in-method split exists on AppDetailResponse, only the rolling
 // `users`/`new_users` totals (already wired into the tile grid) — this
-// stays static until a dedicated Clerk detail endpoint exists.
+// stays static until a dedicated Clerk detail endpoint exists. The
+// "SAMPLE DATA" chip keeps these numbers from reading as equally real next
+// to the live tile grid above them.
 import type { DashboardApp } from "~/config/apps";
 
 defineProps<{ app: DashboardApp }>();
@@ -83,6 +94,20 @@ const SIGNUPS_PATH =
 </script>
 
 <style scoped>
+.auth-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sample-chip {
+  align-self: flex-start;
+  padding: 4px 9px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
 .auth-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

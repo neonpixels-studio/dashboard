@@ -1,4 +1,4 @@
-import type { AppDetailResponse } from "../../../shared/types/dashboard";
+import type { AppDetailResponse } from "../../shared/types/dashboard";
 
 // Every AppDetail* test builds its fixture from this shared empty shape
 // (mirrors useApp.test.ts's own DETAIL_RESPONSE) so a future field added to

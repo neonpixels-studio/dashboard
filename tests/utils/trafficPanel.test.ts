@@ -1,22 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildTrafficPanelData } from "../../app/utils/trafficPanel";
-import type { AppDetailResponse } from "../../shared/types/dashboard";
-
-function detailFixture(
-  overrides: Partial<AppDetailResponse> = {},
-): AppDetailResponse {
-  return {
-    slug: "basin",
-    metrics: [],
-    series: [],
-    trafficBreakdown: [],
-    syndication: [],
-    alerts: [],
-    sources: [],
-    lastSyncedAt: null,
-    ...overrides,
-  };
-}
+import { appDetailFixture } from "../support/appDetailFixture";
 
 describe("buildTrafficPanelData", () => {
   it("returns every field empty for a null detail (composable not loaded yet)", () => {
@@ -29,7 +13,7 @@ describe("buildTrafficPanelData", () => {
   });
 
   it("returns empty stats/delta/path/lists when nothing has synced, never fabricated numbers", () => {
-    expect(buildTrafficPanelData(detailFixture())).toEqual({
+    expect(buildTrafficPanelData(appDetailFixture())).toEqual({
       stats: [],
       delta: "—",
       path: "",
@@ -38,7 +22,7 @@ describe("buildTrafficPanelData", () => {
   });
 
   it("builds the headline stat, delta, sparkline path, and traffic-source list from real data", () => {
-    const detail = detailFixture({
+    const detail = appDetailFixture({
       metrics: [
         {
           metric: "sessions",

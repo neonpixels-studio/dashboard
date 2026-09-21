@@ -5,7 +5,12 @@
         <span class="panel-title">Stripe</span>
         <span class="level-chip live-chip">LIVE MODE</span>
         <span class="grow"></span>
-        <span class="panel-meta">SYNCED 2M AGO</span>
+        <span
+          class="sample-chip"
+          title="No Stripe detail endpoint exists yet (see PR follow-up)"
+        >
+          SAMPLE DATA
+        </span>
       </div>
 
       <div class="stripe-charts">
@@ -74,7 +79,12 @@
         <span class="panel-title">Sentry</span>
         <span class="level-chip warn-chip">3 OPEN</span>
         <span class="grow"></span>
-        <a href="#" class="panel-meta">VIEW ALL →</a>
+        <span
+          class="sample-chip"
+          title="No Sentry detail endpoint exists yet (see PR follow-up)"
+        >
+          SAMPLE DATA
+        </span>
       </div>
 
       <div class="error-rate">
@@ -246,6 +256,14 @@ const ISSUES = [
 .warn-chip {
   color: var(--warn);
   background: var(--warn-tint);
+}
+.sample-chip {
+  padding: 4px 9px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
 }
 .stripe-charts {
   display: flex;

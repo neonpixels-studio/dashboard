@@ -4,46 +4,48 @@
     :error="error"
     :last-synced-at="app.detail?.lastSyncedAt ?? null"
     :refresh="refresh"
+    :alerts="app.detail?.alerts ?? []"
+    :has-data="!!app.detail"
   >
     <template #pending>
-      <div class="detail-body">
-        <MetricTileGrid :tiles="[]" pending :tile-count="TILE_COUNT" />
-        <SkeletonBlock height="200px" radius="var(--r-lg)" />
-      </div>
+      <MetricTileGrid :tiles="[]" pending />
+      <SkeletonBlock height="200px" radius="var(--r-lg)" />
     </template>
 
-    <div class="detail-body">
-      <MetricTileGrid :tiles="tiles" />
+    <MetricTileGrid :tiles="tiles" />
 
-      <div class="card sessions-panel">
-        <div class="panel-head">
-          <span class="panel-title">Sessions</span>
-          <span class="panel-meta">GOOGLE ANALYTICS · DAILY</span>
-        </div>
-        <SparkLine
-          :path="sessionsPath"
-          width="100%"
-          :height="130"
-          view-box="0 0 600 130"
-          :color="sessionsColor"
-          :stroke-width="2.4"
-          filled
-          :fill-color="`color-mix(in srgb, ${sessionsColor} 7%, transparent)`"
-          :grid-lines="[12, 51, 90, 129]"
-          :aria-label="`${app.name} daily sessions over the last 30 days`"
-        />
-        <AxisRow />
+    <div class="card sessions-panel">
+      <div class="panel-head">
+        <span class="panel-title">Sessions</span>
+        <span class="panel-meta">GOOGLE ANALYTICS · DAILY</span>
       </div>
-
-      <div v-if="trafficSourceItems.length" class="bottom-row">
-        <div class="card bottom-card">
-          <span class="metric-label">TRAFFIC SOURCES</span>
-          <StatList :items="trafficSourceItems" />
-        </div>
-      </div>
-
-      <SourcesFooter :sources="sourceChips" />
+      <SparkLine
+        v-if="sessionsPath"
+        :path="sessionsPath"
+        width="100%"
+        :height="130"
+        view-box="0 0 600 130"
+        :color="sessionsColor"
+        :stroke-width="2.4"
+        filled
+        :fill-color="`color-mix(in srgb, ${sessionsColor} 7%, transparent)`"
+        :grid-lines="[12, 51, 90, 129]"
+        :aria-label="`${app.name} daily sessions over the last 30 days`"
+      />
+      <p v-else class="empty-chart-note">
+        Not enough synced data for a trend line yet.
+      </p>
+      <AxisRow />
     </div>
+
+    <div v-if="trafficSourceItems.length" class="bottom-row">
+      <div class="card bottom-card">
+        <span class="metric-label">TRAFFIC SOURCES</span>
+        <StatList :items="trafficSourceItems" />
+      </div>
+    </div>
+
+    <SourcesFooter :sources="sourceChips" />
   </DetailStateShell>
 </template>
 
@@ -51,6 +53,7 @@
 import type { AppDetailTemplateProps } from "~/utils/appViewModel";
 import {
   buildMetricTileData,
+  findSeries,
   METRIC_NEW_USERS,
   METRIC_OPEN_ISSUES,
   METRIC_SESSIONS,
@@ -65,9 +68,11 @@ import { buildTrafficSourceItems } from "~/utils/trafficPanel";
 
 const props = defineProps<AppDetailTemplateProps>();
 
-const TILE_COUNT = 4;
 const SESSIONS_VIEWBOX_WIDTH = 600;
 const SESSIONS_VIEWBOX_HEIGHT = 130;
+// A single point has no trend to draw — same minimum AppDetailProduct's own
+// sessions chart requires (see its sessionsChartSeries).
+const MIN_SESSIONS_POINTS = 2;
 
 // The studio site charts sessions in neutral white; product/marketing
 // properties use their own accent.
@@ -87,17 +92,19 @@ const tiles = computed(() => {
 });
 
 const sessionsPath = computed(() => {
-  const dailySessions = props.app.detail?.series.find(
-    (series) =>
-      series.metric === METRIC_SESSIONS && series.period === PERIOD_DAILY,
+  const dailySessions = findSeries(
+    props.app.detail?.series ?? [],
+    METRIC_SESSIONS,
+    PERIOD_DAILY,
   );
-  return dailySessions
-    ? buildSparklinePath(
-        dailySessions.points,
-        SESSIONS_VIEWBOX_WIDTH,
-        SESSIONS_VIEWBOX_HEIGHT,
-      )
-    : "";
+  if (!dailySessions || dailySessions.points.length < MIN_SESSIONS_POINTS) {
+    return "";
+  }
+  return buildSparklinePath(
+    dailySessions.points,
+    SESSIONS_VIEWBOX_WIDTH,
+    SESSIONS_VIEWBOX_HEIGHT,
+  );
 });
 
 const trafficSourceItems = computed(() =>
@@ -110,13 +117,6 @@ const sourceChips = computed(() =>
 </script>
 
 <style scoped>
-.detail-body {
-  flex-grow: 1;
-  padding: 22px 32px 26px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
 .sessions-panel {
   padding: 20px 24px;
   display: flex;
@@ -135,6 +135,11 @@ const sourceChips = computed(() =>
 .panel-meta {
   font-size: 10px;
   letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+.empty-chart-note {
+  margin: 0;
+  font-size: 11px;
   color: var(--ink-3);
 }
 .bottom-row {

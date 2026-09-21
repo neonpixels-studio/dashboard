@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
 import AppDetailWriting from "../../app/components/AppDetailWriting.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
 import MetricTileSkeleton from "../../app/components/MetricTileSkeleton.vue";
@@ -10,27 +9,24 @@ import TrafficPanel from "../../app/components/TrafficPanel.vue";
 import SourcesFooter from "../../app/components/SourcesFooter.vue";
 import { findAppBySlug } from "../../app/config/apps";
 import { toAppDetailViewModel } from "../../app/utils/appViewModel";
-import { DETAIL_COMPONENTS } from "./support/detailComponents";
-import { appDetailFixture } from "./support/appDetailFixture";
+import {
+  mountDetailTemplate,
+  type MountDetailOptions,
+} from "./support/mountDetailTemplate";
+import { appDetailFixture } from "../support/appDetailFixture";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
 const app = findAppBySlug("danholloran")!;
 
 function mountDetail({
   detail = null,
-  pending = false,
-  error = null,
-  refresh = vi.fn(),
-}: {
-  detail?: AppDetailResponse | null;
-  pending?: boolean;
-  error?: unknown;
-  refresh?: () => Promise<void>;
-} = {}) {
-  return mount(AppDetailWriting, {
-    props: { app: toAppDetailViewModel(app, detail), pending, error, refresh },
-    global: { components: DETAIL_COMPONENTS },
-  });
+  ...options
+}: { detail?: AppDetailResponse | null } & MountDetailOptions = {}) {
+  return mountDetailTemplate(
+    AppDetailWriting,
+    toAppDetailViewModel(app, detail),
+    options,
+  );
 }
 
 const LOADED_DETAIL = appDetailFixture({

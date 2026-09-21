@@ -97,7 +97,11 @@ function formatMetricDelta(
   };
 }
 
-function findMetric(
+// Exported so every other (metric, period) lookup in the detail-page layer
+// (trafficPanel.ts, AppDetailProduct/Marketing's own sessions-series lookups)
+// shares this one implementation instead of repeating the same `.find()`
+// predicate at each call site.
+export function findMetric(
   metrics: CurrentMetric[],
   metric: string,
   period: string,
@@ -107,7 +111,7 @@ function findMetric(
   );
 }
 
-function findSeries(
+export function findSeries(
   seriesList: MetricSeries[],
   metric: string,
   period: string,
@@ -123,6 +127,10 @@ export interface MetricTileData {
   delta: string;
   deltaTone: DeltaTone;
   sub: string;
+  // Only ever set by a caller building a tile from something other than a
+  // raw metric (e.g. AppDetailWriting's syndication-derived tiles) —
+  // buildMetricTileData below never sets it itself.
+  tone?: "warn" | "danger" | "ok";
 }
 
 // One MetricTile's worth of props for a (metric, period) pair that may or

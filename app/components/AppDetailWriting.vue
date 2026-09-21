@@ -4,70 +4,68 @@
     :error="error"
     :last-synced-at="app.detail?.lastSyncedAt ?? null"
     :refresh="refresh"
+    :alerts="app.detail?.alerts ?? []"
+    :has-data="!!app.detail"
   >
     <template #pending>
-      <div class="detail-body">
-        <MetricTileGrid :tiles="[]" pending :tile-count="TILE_COUNT" />
-        <SkeletonBlock height="220px" radius="var(--r-lg)" />
-        <SkeletonBlock height="180px" radius="var(--r-lg)" />
-      </div>
+      <MetricTileGrid :tiles="[]" pending />
+      <SkeletonBlock height="220px" radius="var(--r-lg)" />
+      <SkeletonBlock height="180px" radius="var(--r-lg)" />
     </template>
 
-    <div class="detail-body">
-      <SectionLabel label="REACH" meta="NO STRIPE OR CLERK ON THIS PROPERTY" />
+    <SectionLabel label="REACH" meta="NO STRIPE OR CLERK ON THIS PROPERTY" />
 
-      <MetricTileGrid :tiles="tiles" />
+    <MetricTileGrid :tiles="tiles" />
 
-      <div class="card syndication-panel">
-        <div class="panel-head">
-          <span class="panel-title">Syndication</span>
-          <span class="panel-meta">{{ platformsMeta }}</span>
-          <span class="grow"></span>
-          <button type="button" class="retry-btn">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M13.5 8a5.5 5.5 0 1 1-1.9-4.2"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-              <path
-                d="M13.6 2v3.2h-3.2"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            Retry failed
-          </button>
-        </div>
-
-        <SyndicationPostMatrix :platforms="platforms" :posts="posts" />
+    <div class="card syndication-panel">
+      <div class="panel-head">
+        <span class="panel-title">Syndication</span>
+        <span class="panel-meta">{{ platformsMeta }}</span>
+        <span class="grow"></span>
+        <button type="button" class="retry-btn">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M13.5 8a5.5 5.5 0 1 1-1.9-4.2"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+            <path
+              d="M13.6 2v3.2h-3.2"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          Retry failed
+        </button>
       </div>
 
-      <SectionLabel
-        label="TRAFFIC"
-        meta="GOOGLE ANALYTICS · GA4"
-        class="section-gap"
-      />
-
-      <TrafficPanel
-        :app="app"
-        :stats="trafficPanelData.stats"
-        :delta="trafficPanelData.delta"
-        :path="trafficPanelData.path"
-        :lists="trafficPanelData.lists"
-      />
-
-      <SourcesFooter :sources="sourceChips" />
+      <SyndicationPostMatrix :platforms="platforms" :posts="posts" />
     </div>
+
+    <SectionLabel
+      label="TRAFFIC"
+      meta="GOOGLE ANALYTICS · GA4"
+      class="section-gap"
+    />
+
+    <TrafficPanel
+      :app="app"
+      :stats="trafficPanelData.stats"
+      :delta="trafficPanelData.delta"
+      :path="trafficPanelData.path"
+      :lists="trafficPanelData.lists"
+    />
+
+    <SourcesFooter :sources="sourceChips" />
   </DetailStateShell>
 </template>
 
@@ -92,8 +90,6 @@ import { useAppDetailPanels } from "~/composables/useAppDetailPanels";
 
 const props = defineProps<AppDetailTemplateProps>();
 
-const TILE_COUNT = 4;
-
 const syndicationRows = computed(() => props.app.detail?.syndication ?? []);
 const platforms = computed(() => syndicationPlatforms(syndicationRows.value));
 const posts = computed(() =>
@@ -106,11 +102,14 @@ const platformsMeta = computed(() =>
     : "NO PLATFORMS SYNCED YET",
 );
 
-interface WritingTile extends MetricTileData {
-  tone?: "warn" | "danger" | "ok";
+function crossPostFailuresSub(failedCount: number): string {
+  if (failedCount === 0) {
+    return "All synced";
+  }
+  return `${failedCount} failed cross-post${failedCount === 1 ? "" : "s"}`;
 }
 
-const tiles = computed<WritingTile[]>(() => {
+const tiles = computed<MetricTileData[]>(() => {
   const metrics = props.app.detail?.metrics ?? [];
   const series = props.app.detail?.series ?? [];
   const failedCount = syndicationFailedCount(syndicationRows.value);
@@ -124,14 +123,17 @@ const tiles = computed<WritingTile[]>(() => {
       value: String(liveCount),
       delta: NO_VALUE_LABEL,
       deltaTone: "muted",
-      sub: `${platforms.value.length} platform${platforms.value.length === 1 ? "" : "s"} configured`,
+      // "posted to", not "configured" — this counts platforms with at least
+      // one real syndication_post row, not integration_config's enabled set
+      // (that catalog isn't on AppDetailResponse at all; see syncSource.ts).
+      sub: `${platforms.value.length} platform${platforms.value.length === 1 ? "" : "s"} posted to`,
     },
     {
       label: "CROSS-POST FAILURES",
       value: String(failedCount),
       delta: NO_VALUE_LABEL,
       deltaTone: "muted",
-      sub: failedCount > 0 ? "Retry queued" : "All synced",
+      sub: crossPostFailuresSub(failedCount),
       tone: failedCount > 0 ? "warn" : undefined,
     },
   ];
@@ -143,13 +145,6 @@ const { trafficPanelData, sourceChips } = useAppDetailPanels(
 </script>
 
 <style scoped>
-.detail-body {
-  flex-grow: 1;
-  padding: 24px 32px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
 .section-gap {
   margin-top: 6px;
 }

@@ -21,7 +21,7 @@ exports[`AppDetailWriting > matches its tile-grid snapshot 1`] = `
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">PLATFORMS LIVE</span>
     </div>
     <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
-    <div data-v-d6008d9b="" class="sub">3 platforms configured</div>
+    <div data-v-d6008d9b="" class="sub">3 platforms posted to</div>
   </div>
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile warn">
     <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -30,7 +30,7 @@ exports[`AppDetailWriting > matches its tile-grid snapshot 1`] = `
         <line x1="12" y1="17" x2="12.01" y2="17"></line>
       </svg><span data-v-d6008d9b="" class="tile-label">CROSS-POST FAILURES</span></div>
     <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
-    <div data-v-d6008d9b="" class="sub">Retry queued</div>
+    <div data-v-d6008d9b="" class="sub">1 failed cross-post</div>
   </div>
 </div>"
 `;

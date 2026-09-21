@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMetricTileData,
+  findMetric,
+  findSeries,
   METRIC_MRR,
   METRIC_SESSIONS,
   PERIOD_30D,
   PERIOD_CURRENT,
+  PERIOD_DAILY,
   seriesDelta,
 } from "../../app/utils/metricTile";
 import type { CurrentMetric, MetricSeries } from "../../shared/types/dashboard";
@@ -42,6 +45,38 @@ describe("seriesDelta", () => {
       { capturedAt: "2026-09-19T00:00:00.000Z", value: 10 },
     ]);
     expect(delta).toEqual({ value: 10, pct: null });
+  });
+
+  it("reports a negative value and pct for a falling series", () => {
+    const delta = seriesDelta([
+      { capturedAt: "2026-08-20T00:00:00.000Z", value: 200 },
+      { capturedAt: "2026-09-19T00:00:00.000Z", value: 150 },
+    ]);
+    expect(delta).toEqual({ value: -50, pct: -25 });
+  });
+});
+
+describe("findMetric", () => {
+  it("matches on both metric and period, not metric alone", () => {
+    const metrics = [
+      metric({ metric: METRIC_SESSIONS, period: PERIOD_30D, value: 1 }),
+      metric({ metric: METRIC_SESSIONS, period: PERIOD_DAILY, value: 2 }),
+    ];
+    expect(findMetric(metrics, METRIC_SESSIONS, PERIOD_DAILY)?.value).toBe(2);
+  });
+
+  it("returns undefined when nothing matches", () => {
+    expect(findMetric([], METRIC_MRR, PERIOD_CURRENT)).toBeUndefined();
+  });
+});
+
+describe("findSeries", () => {
+  it("matches on both metric and period", () => {
+    const series: MetricSeries[] = [
+      { metric: METRIC_SESSIONS, period: PERIOD_30D, points: [] },
+      { metric: METRIC_SESSIONS, period: PERIOD_DAILY, points: [] },
+    ];
+    expect(findSeries(series, METRIC_SESSIONS, PERIOD_DAILY)).toBe(series[1]);
   });
 });
 
@@ -116,5 +151,29 @@ describe("buildMetricTileData", () => {
     const tile = buildMetricTileData(METRIC_SESSIONS, PERIOD_30D, metrics, []);
     expect(tile.delta).toBe("—");
     expect(tile.deltaTone).toBe("muted");
+  });
+
+  it("shows a down-arrow delta and a non-ok tone when the count metric fell", () => {
+    const metrics = [metric({ value: 900 })];
+    const series: MetricSeries[] = [
+      {
+        metric: METRIC_SESSIONS,
+        period: PERIOD_30D,
+        points: [
+          { capturedAt: "2026-08-20T00:00:00.000Z", value: 1200 },
+          { capturedAt: "2026-09-19T00:00:00.000Z", value: 900 },
+        ],
+      },
+    ];
+
+    const tile = buildMetricTileData(
+      METRIC_SESSIONS,
+      PERIOD_30D,
+      metrics,
+      series,
+    );
+
+    expect(tile.delta).toBe("▼ 300");
+    expect(tile.deltaTone).not.toBe("ok");
   });
 });

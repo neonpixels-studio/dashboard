@@ -30,14 +30,18 @@ const STATUS_VIEWS: Record<
 // than being folded into one of the three real statuses.
 const NOT_POSTED_VIEW: CellView = { label: "— NOT POSTED", tone: "off" };
 
+// Flattens every row's cells into one list — the shared starting point for
+// every function below that needs to look across all posts at once, so none
+// of them nest a `forEach`/`for` inside another.
+function allCells(rows: SyndicationMatrixRow[]): SyndicationMatrixRow["cells"] {
+  return rows.flatMap((row) => row.cells);
+}
+
 // Every platform this app has ever cross-posted to, sorted for a stable
 // column order — the fixed header SyndicationPostMatrix and every post row
 // must agree on.
 export function syndicationPlatforms(rows: SyndicationMatrixRow[]): string[] {
-  const platforms = new Set<string>();
-  rows.forEach((row) =>
-    row.cells.forEach((cell) => platforms.add(cell.platform)),
-  );
+  const platforms = new Set(allCells(rows).map((cell) => cell.platform));
   return [...platforms].sort();
 }
 
@@ -64,11 +68,7 @@ export function syndicationMatrixPosts(
 // Total failed cross-posts across every post/platform — the writing
 // template's "CROSS-POST FAILURES" tile.
 export function syndicationFailedCount(rows: SyndicationMatrixRow[]): number {
-  return rows.reduce(
-    (count, row) =>
-      count + row.cells.filter((cell) => cell.status === "failed").length,
-    0,
-  );
+  return allCells(rows).filter((cell) => cell.status === "failed").length;
 }
 
 // Count of distinct platforms with at least one successfully synced post —
@@ -76,13 +76,8 @@ export function syndicationFailedCount(rows: SyndicationMatrixRow[]): number {
 export function syndicationLivePlatformCount(
   rows: SyndicationMatrixRow[],
 ): number {
-  const live = new Set<string>();
-  rows.forEach((row) =>
-    row.cells.forEach((cell) => {
-      if (cell.status === "synced") {
-        live.add(cell.platform);
-      }
-    }),
-  );
-  return live.size;
+  const live = allCells(rows)
+    .filter((cell) => cell.status === "synced")
+    .map((cell) => cell.platform);
+  return new Set(live).size;
 }

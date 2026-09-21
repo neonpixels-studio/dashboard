@@ -19,6 +19,8 @@ import {
   NO_VALUE_LABEL,
 } from "./rollupFormat";
 import {
+  findMetric,
+  findSeries,
   METRIC_SESSIONS,
   PERIOD_30D,
   PERIOD_DAILY,
@@ -58,17 +60,16 @@ export function buildTrafficPanelData(
     return { stats: [], delta: NO_VALUE_LABEL, path: "", lists: [] };
   }
 
-  const sessions30d = detail.metrics.find(
-    (metric) =>
-      metric.metric === METRIC_SESSIONS && metric.period === PERIOD_30D,
+  const sessions30d = findMetric(detail.metrics, METRIC_SESSIONS, PERIOD_30D);
+  const sessions30dSeries = findSeries(
+    detail.series,
+    METRIC_SESSIONS,
+    PERIOD_30D,
   );
-  const sessions30dSeries = detail.series.find(
-    (series) =>
-      series.metric === METRIC_SESSIONS && series.period === PERIOD_30D,
-  );
-  const sessionsDailySeries = detail.series.find(
-    (series) =>
-      series.metric === METRIC_SESSIONS && series.period === PERIOD_DAILY,
+  const sessionsDailySeries = findSeries(
+    detail.series,
+    METRIC_SESSIONS,
+    PERIOD_DAILY,
   );
 
   // Full comma-separated count (formatCount), not the "/"-page rollup's
