@@ -69,9 +69,20 @@ const card: AppCard = {
   ],
 };
 
-function mountCard(appCard: AppCard | null, hasError = false) {
+function mountCard(
+  appCard: AppCard | null,
+  hasError = false,
+  // Defaults to "still loading" whenever there's no card yet, matching the
+  // overwhelmingly common case these tests exercise — pass `false`
+  // explicitly to test the resolved-but-empty state instead.
+  isPending = appCard === null,
+) {
   return mount(PropertyCard, {
-    props: { app: toAppCardViewModel(config, appCard), hasError },
+    props: {
+      app: toAppCardViewModel(config, appCard),
+      hasError,
+      isPending,
+    },
     global: {
       components: {
         SkeletonBlock,
@@ -113,6 +124,18 @@ describe("PropertyCard", () => {
     expect(wrapper.find(".chips").exists()).toBe(false);
   });
 
+  describe("resolved-empty state", () => {
+    it("shows an honest empty state instead of skeleton-loading forever once the fetch resolves with no row for this slug", () => {
+      const wrapper = mountCard(null, false, false);
+      expect(wrapper.findComponent(PropertyCardMetricsSkeleton).exists()).toBe(
+        false,
+      );
+      expect(wrapper.find(".status-chip").text()).toBe("NO DATA");
+      expect(wrapper.text()).toContain("No data synced yet.");
+      expect(wrapper.attributes("aria-busy")).toBe("false");
+    });
+  });
+
   describe("error state", () => {
     it("shows an inline error message instead of an endless skeleton when the fetch failed", () => {
       const wrapper = mountCard(null, true);
@@ -143,9 +166,10 @@ describe("PropertyCard", () => {
     it("renders real status and the curated stats once card data is available", () => {
       const wrapper = mountCard(card);
       expect(wrapper.text()).toContain("LIVE");
-      expect(wrapper.text()).toContain("$412");
-      expect(wrapper.text()).toContain("96");
-      expect(wrapper.text()).toContain("3");
+      const statValues = wrapper
+        .findAll(".stat-value")
+        .map((node) => node.text());
+      expect(statValues).toEqual(["$412", "96", "3"]);
       expect(wrapper.findComponent(PropertyCardMetricsSkeleton).exists()).toBe(
         false,
       );
@@ -228,6 +252,10 @@ describe("PropertyCard", () => {
 
   it("matches its snapshot in the error state", () => {
     expect(mountCard(null, true).html()).toMatchSnapshot();
+  });
+
+  it("matches its snapshot in the resolved-empty state", () => {
+    expect(mountCard(null, false, false).html()).toMatchSnapshot();
   });
 
   it("matches its snapshot with card data", () => {

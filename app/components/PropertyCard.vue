@@ -20,7 +20,18 @@
       >
         ERROR
       </span>
-      <SkeletonBlock v-else width="52px" height="16px" radius="var(--r-xs)" />
+      <SkeletonBlock
+        v-else-if="isPending"
+        width="52px"
+        height="16px"
+        radius="var(--r-xs)"
+      />
+      <!-- The fetch resolved with no row for this slug (never fabricated —
+           see app.card's own doc comment) — distinct from `isPending` so
+           the chip doesn't skeleton-load forever once the fetch settles. -->
+      <span v-else class="status-chip" :style="healthToneChipStyle('muted')">
+        NO DATA
+      </span>
       <span class="category">{{ app.order }} — {{ app.category }}</span>
       <svg
         width="13"
@@ -49,6 +60,7 @@
     <PropertyCardMetrics
       :card="app.card"
       :has-error="hasError"
+      :is-pending="isPending"
       :accent="app.accent"
       :app-name="app.name"
     />
@@ -82,9 +94,16 @@ const props = defineProps<{
   // showing its last known data instead, same as DataErrorState's own
   // "showing the last known state" behavior for the overview rollups.
   hasError?: boolean;
+  // True while that fetch is still in flight. Distinguishes "still
+  // loading" (show the skeleton) from "resolved successfully with no row
+  // for this slug" (show an honest empty state) — without it, a property
+  // with nothing synced yet would skeleton-load forever.
+  isPending?: boolean;
 }>();
 
-const isLoading = computed(() => !props.app.card && !props.hasError);
+const isLoading = computed(
+  () => !props.app.card && !props.hasError && !!props.isPending,
+);
 </script>
 
 <style scoped>

@@ -35,7 +35,13 @@ const PERIOD_CURRENT = "current";
 const PERIOD_30D = "30d";
 
 interface StatPriorityEntry {
-  metric: string;
+  // Every candidate metric name that fills this ONE slot, in preference
+  // order — e.g. the "audience size" slot accepts either
+  // active_subscribers or users, but never both at once. Kept as a list
+  // (not one entry per candidate) so two candidates can never both surface
+  // as separate stats with the same METRIC_LABELS text (e.g. two "USERS"
+  // columns).
+  metricCandidates: readonly string[];
   preferredPeriod: string;
 }
 
@@ -49,12 +55,14 @@ interface StatPriorityEntry {
 // / ISSUES (matching the original design mockup) rather than bumping
 // ISSUES for a less urgent engagement number.
 const STAT_PRIORITY: readonly StatPriorityEntry[] = [
-  { metric: METRIC_MRR, preferredPeriod: PERIOD_CURRENT },
-  { metric: METRIC_ACTIVE_SUBSCRIBERS, preferredPeriod: PERIOD_CURRENT },
-  { metric: METRIC_USERS, preferredPeriod: PERIOD_CURRENT },
-  { metric: METRIC_OPEN_ISSUES, preferredPeriod: PERIOD_CURRENT },
-  { metric: METRIC_SESSIONS, preferredPeriod: PERIOD_30D },
-  { metric: METRIC_POSTS, preferredPeriod: PERIOD_CURRENT },
+  { metricCandidates: [METRIC_MRR], preferredPeriod: PERIOD_CURRENT },
+  {
+    metricCandidates: [METRIC_ACTIVE_SUBSCRIBERS, METRIC_USERS],
+    preferredPeriod: PERIOD_CURRENT,
+  },
+  { metricCandidates: [METRIC_OPEN_ISSUES], preferredPeriod: PERIOD_CURRENT },
+  { metricCandidates: [METRIC_SESSIONS], preferredPeriod: PERIOD_30D },
+  { metricCandidates: [METRIC_POSTS], preferredPeriod: PERIOD_CURRENT },
 ];
 
 const METRIC_LABELS: Record<string, string> = {
@@ -77,36 +85,43 @@ const METRIC_FORMATTERS: Record<string, (value: number) => string> = {
   [METRIC_POSTS]: formatCount,
 };
 
-// The best row for one priority entry: exact (metric, preferredPeriod) match
-// if the app has one, otherwise whichever period it does have — a metric
-// existing at a different period than usual (e.g. sessions only at "7d" for
-// a brand-new property) is still worth surfacing rather than skipping.
-function bestMatchForMetric(
+// The best row for one priority entry: the first candidate metric name the
+// app actually has data for (in the entry's preference order), at its exact
+// (metric, preferredPeriod) if that exists, otherwise whichever period it
+// does have — a metric existing at a different period than usual (e.g.
+// sessions only at "7d" for a brand-new property) is still worth surfacing
+// rather than skipping.
+function bestMatchForEntry(
   metrics: CurrentMetric[],
   entry: StatPriorityEntry,
 ): CurrentMetric | undefined {
-  const candidates = metrics.filter(
-    (candidate) => candidate.metric === entry.metric,
+  const matchedMetricName = entry.metricCandidates.find((metricName) =>
+    metrics.some((candidate) => candidate.metric === metricName),
   );
-  if (!candidates.length) {
+  if (!matchedMetricName) {
     return undefined;
   }
+  const rowsForMetric = metrics.filter(
+    (candidate) => candidate.metric === matchedMetricName,
+  );
   return (
-    candidates.find(
+    rowsForMetric.find(
       (candidate) => candidate.period === entry.preferredPeriod,
-    ) ?? candidates[0]
+    ) ?? rowsForMetric[0]
   );
 }
 
-// Never returns two entries with the same `metric` name: STAT_PRIORITY has
-// no repeated metric, and bestMatchForMetric picks at most one row per
-// entry — so PropertyCard.vue's `metric-period` render key can never
-// collide within this output. Apps with fewer than PROPERTY_CARD_STAT_COUNT
-// synced metrics simply render fewer stats rather than padding with
-// fabricated ones.
+// Never returns two entries with the same `metric` name: each
+// STAT_PRIORITY entry fills exactly one slot (even one with multiple
+// candidate metric names — e.g. active_subscribers/users never both
+// surface at once), and bestMatchForEntry picks at most one row per entry
+// — so PropertyCard.vue's `metric-period` render key can never collide
+// within this output. Apps with fewer than PROPERTY_CARD_STAT_COUNT synced
+// metrics simply render fewer stats rather than padding with fabricated
+// ones.
 export function selectCardStats(metrics: CurrentMetric[]): CurrentMetric[] {
   const prioritized = STAT_PRIORITY.flatMap((entry) => {
-    const match = bestMatchForMetric(metrics, entry);
+    const match = bestMatchForEntry(metrics, entry);
     return match ? [match] : [];
   });
   return prioritized.slice(0, PROPERTY_CARD_STAT_COUNT);
@@ -135,26 +150,33 @@ export function metricTone(metric: CurrentMetric): HealthTone | undefined {
   return metric.value > 0 ? "danger" : "ok";
 }
 
-// The sparkline beside the stats row draws whichever series the card is
-// already leading with (its first curated stat), so the number and the
-// trend line agree — falls back to the first available series if that exact
-// (metric, period) has no history yet, and to nothing at all if the app has
-// no series data synced.
+// The sparkline beside the stats row draws whichever of the card's own
+// curated stats has history, in the same priority order they're rendered
+// in — so the trend line is always FOR one of the numbers actually shown
+// next to it, never an unrelated metric plucked from wherever
+// AppCard.sparklines happens to start. Returns null (hides the sparkline
+// entirely) when none of the visible stats have series data yet, rather
+// than fabricating a trend for a metric that isn't even on the card.
 export function selectSparklineSeries(
   sparklines: MetricSeries[],
-  primaryStat: CurrentMetric | undefined,
+  visibleMetrics: CurrentMetric[],
 ): MetricSeries | null {
-  if (primaryStat) {
-    const matching = sparklines.find(
+  const matchedMetric = visibleMetrics.find((metric) =>
+    sparklines.some(
       (series) =>
-        series.metric === primaryStat.metric &&
-        series.period === primaryStat.period,
-    );
-    if (matching) {
-      return matching;
-    }
+        series.metric === metric.metric && series.period === metric.period,
+    ),
+  );
+  if (!matchedMetric) {
+    return null;
   }
-  return sparklines[0] ?? null;
+  return (
+    sparklines.find(
+      (series) =>
+        series.metric === matchedMetric.metric &&
+        series.period === matchedMetric.period,
+    ) ?? null
+  );
 }
 
 // "+ CONNECT STRIPE" for a configured-but-disabled vendor (integration_config

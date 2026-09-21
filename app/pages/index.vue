@@ -86,6 +86,7 @@
           :key="app.slug"
           :app="app"
           :has-error="hasAppsError"
+          :is-pending="appsPending"
         />
       </div>
     </main>
@@ -127,13 +128,15 @@ const MIN_SPARKLINE_POINTS = 2;
 
 const propertyCount = String(APPS.length).padStart(2, "0");
 
-const { data: appsData, error: appsError } = useApps();
+const { data: appsData, pending: appsPending, error: appsError } = useApps();
 
 // Merges each property's static identity with its fetched card, keyed by
 // slug rather than assuming the API returns rows in APPS' order. A slug
-// GET /api/apps hasn't returned yet (still loading, or the fetch failed)
-// merges in as `card: null`, so PropertyCard renders its own skeleton/error
-// state instead of a stale or fabricated one.
+// GET /api/apps hasn't returned yet — still loading, the fetch failed, or
+// it resolved with no row for that slug — merges in as `card: null`, so
+// PropertyCard renders its own skeleton/error/empty state (distinguished
+// via the `isPending`/`hasError` props below) instead of a stale or
+// fabricated one.
 const cardViewModels = computed(() =>
   APPS.map((app) =>
     toAppCardViewModel(

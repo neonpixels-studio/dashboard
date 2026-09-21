@@ -8,9 +8,16 @@
        itself a NuxtLink, and a nested <button> inside an <a> is invalid
        HTML content model (interactive-in-interactive) — reloading the page
        is the only recourse for a per-card fetch failure today. -->
-  <div v-else-if="hasError && !card" class="stats-row card-error-row">
+  <div v-else-if="hasError && !card" class="stats-row card-note-row">
     <AppIcon name="triangle" :size="12" :stroke-width="1.5" />
-    <span class="error-message">Couldn't load live data.</span>
+    <span class="note-message">Couldn't load live data.</span>
+  </div>
+  <!-- The fetch resolved successfully but returned no row for this slug
+       (e.g. a brand-new property with nothing synced yet) — distinct from
+       both the loading and error states above, so it can't get stuck
+       showing a skeleton forever. -->
+  <div v-else-if="!card" class="stats-row card-note-row muted">
+    <span class="note-message">No data synced yet.</span>
   </div>
   <div v-else class="stats-row">
     <ul class="stats">
@@ -33,7 +40,7 @@
       :height="SPARKLINE_HEIGHT"
       :view-box="SPARKLINE_VIEW_BOX"
       :color="accent"
-      :aria-label="`${appName} trend over the last synced period`"
+      :aria-label="sparklineAriaLabel"
     />
   </div>
 </template>
@@ -43,6 +50,10 @@
 // the parent's template stays under fallow's per-template complexity
 // budget — this row's own loading/error/loaded branching, curation, and
 // sparkline derivation all live here instead of inline in PropertyCard.
+import {
+  PROPERTY_CARD_SPARKLINE_HEIGHT as SPARKLINE_HEIGHT,
+  PROPERTY_CARD_SPARKLINE_WIDTH as SPARKLINE_WIDTH,
+} from "~/utils/appViewModel";
 import {
   formatMetricValue,
   metricLabel,
@@ -56,24 +67,23 @@ import type { AppCard, CurrentMetric } from "#shared/types/dashboard";
 
 const props = defineProps<{
   card: AppCard | null;
-  // See PropertyCard.vue's own `hasError` prop doc — same "stale data wins"
-  // contract applies here.
+  // See PropertyCard.vue's own `hasError`/`isPending` prop docs — same
+  // "stale data wins, then error, then pending, then resolved-empty"
+  // precedence applies here.
   hasError?: boolean;
+  isPending?: boolean;
   accent: string;
   appName: string;
 }>();
 
-// Sized to match the card's original design (see PropertyCard.vue's git
-// history pre-view-model-seam refactor): small enough to sit beside three
-// stat columns inside the fixed 262px-tall card.
-const SPARKLINE_WIDTH = 120;
-const SPARKLINE_HEIGHT = 34;
 const SPARKLINE_VIEW_BOX = `0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`;
 // A single point has no trend to draw — same reasoning as the "/" MRR
 // rollup sparkline (app/pages/index.vue's MIN_SPARKLINE_POINTS).
 const MIN_SPARKLINE_POINTS = 2;
 
-const isLoading = computed(() => !props.card && !props.hasError);
+const isLoading = computed(
+  () => !props.card && !props.hasError && props.isPending,
+);
 
 // Bounded to the same count PropertyCardMetricsSkeleton reserves space for
 // — `AppCard.metrics` is a generic, unbounded list, but the card's fixed
@@ -89,7 +99,7 @@ function statColor(metric: CurrentMetric): string {
 }
 
 const sparklineSeries = computed(() =>
-  selectSparklineSeries(props.card?.sparklines ?? [], visibleMetrics.value[0]),
+  selectSparklineSeries(props.card?.sparklines ?? [], visibleMetrics.value),
 );
 
 const hasSparkline = computed(
@@ -103,6 +113,13 @@ const sparklinePath = computed(() =>
     SPARKLINE_HEIGHT,
   ),
 );
+
+const sparklineAriaLabel = computed(() => {
+  if (!sparklineSeries.value) {
+    return "";
+  }
+  return `${props.appName} ${metricLabel(sparklineSeries.value.metric)} trend over the last synced period`;
+});
 </script>
 
 <style scoped>
@@ -131,12 +148,15 @@ const sparklinePath = computed(() =>
   letter-spacing: -0.02em;
   line-height: 1;
 }
-.card-error-row {
+.card-note-row {
   align-items: center;
   gap: 7px;
   color: var(--err);
 }
-.error-message {
+.card-note-row.muted {
+  color: var(--ink-3);
+}
+.note-message {
   font-size: 11px;
   font-weight: 600;
 }

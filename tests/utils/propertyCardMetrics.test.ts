@@ -20,7 +20,7 @@ function metric(
 }
 
 describe("selectCardStats", () => {
-  it("prioritizes mrr, active_subscribers, and open_issues over sessions/posts, regardless of input order", () => {
+  it("prioritizes mrr, then audience size, then open_issues, over sessions/posts, regardless of input order", () => {
     const metrics = [
       metric("posts", "current", 4),
       metric("open_issues", "current", 1),
@@ -39,17 +39,41 @@ describe("selectCardStats", () => {
     const metrics = [
       metric("mrr", "current", 1),
       metric("active_subscribers", "current", 2),
-      metric("users", "current", 3),
+      metric("open_issues", "current", 3),
       metric("sessions", "30d", 4),
-      metric("open_issues", "current", 5),
-      metric("posts", "current", 6),
+      metric("posts", "current", 5),
     ];
     expect(selectCardStats(metrics)).toHaveLength(3);
     expect(selectCardStats(metrics).map((row) => row.metric)).toEqual([
       "mrr",
       "active_subscribers",
-      "users",
+      "open_issues",
     ]);
+  });
+
+  it("never surfaces both active_subscribers and users as separate stats — they fill one audience slot, preferring active_subscribers", () => {
+    const metrics = [
+      metric("active_subscribers", "current", 96),
+      metric("users", "current", 1204),
+      metric("mrr", "current", 412),
+    ];
+    const selected = selectCardStats(metrics);
+    expect(selected.map((row) => row.metric)).toEqual([
+      "mrr",
+      "active_subscribers",
+    ]);
+    // Only one metric ever maps to the "USERS" label per card — asserted
+    // here directly, since PropertyCard.vue would otherwise render two
+    // identical "USERS" columns with no way to tell them apart.
+    expect(selected.map((row) => metricLabel(row.metric))).toEqual([
+      "MRR",
+      "USERS",
+    ]);
+  });
+
+  it("falls back to users when active_subscribers isn't synced for this app", () => {
+    const metrics = [metric("users", "current", 1204)];
+    expect(selectCardStats(metrics)).toEqual(metrics);
   });
 
   it("skips metrics the app doesn't have instead of fabricating placeholders", () => {
@@ -140,6 +164,8 @@ describe("metricTone", () => {
 });
 
 describe("selectSparklineSeries", () => {
+  const mrrCurrent = metric("mrr", "current", 412);
+  const sessions30d = metric("sessions", "30d", 8600);
   const mrrSeries: MetricSeries = {
     metric: "mrr",
     period: "current",
@@ -151,29 +177,36 @@ describe("selectSparklineSeries", () => {
     points: [{ capturedAt, value: 2 }],
   };
 
-  it("picks the series matching the card's primary stat", () => {
+  it("picks the series matching the highest-priority visible stat that has one", () => {
     expect(
       selectSparklineSeries(
         [sessionsSeries, mrrSeries],
-        metric("mrr", "current", 412),
+        [mrrCurrent, sessions30d],
       ),
     ).toBe(mrrSeries);
   });
 
-  it("falls back to the first available series when the primary stat has no matching history", () => {
+  it("falls through to a lower-priority visible stat's series when the leading stat has none", () => {
     expect(
-      selectSparklineSeries([sessionsSeries], metric("mrr", "current", 412)),
+      selectSparklineSeries([sessionsSeries], [mrrCurrent, sessions30d]),
     ).toBe(sessionsSeries);
   });
 
-  it("falls back to the first series when there's no primary stat at all", () => {
-    expect(selectSparklineSeries([sessionsSeries, mrrSeries], undefined)).toBe(
-      sessionsSeries,
-    );
+  it("never returns a series for a metric that isn't one of the card's own visible stats", () => {
+    const fatalIssuesSeries: MetricSeries = {
+      metric: "fatal_issues",
+      period: "current",
+      points: [{ capturedAt, value: 1 }],
+    };
+    expect(selectSparklineSeries([fatalIssuesSeries], [mrrCurrent])).toBeNull();
   });
 
-  it("returns null when the app has no series data synced", () => {
-    expect(selectSparklineSeries([], metric("mrr", "current", 412))).toBeNull();
+  it("returns null when none of the visible stats have series data yet", () => {
+    expect(selectSparklineSeries([], [mrrCurrent])).toBeNull();
+  });
+
+  it("returns null when there are no visible stats at all", () => {
+    expect(selectSparklineSeries([mrrSeries], [])).toBeNull();
   });
 });
 

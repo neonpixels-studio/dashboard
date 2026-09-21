@@ -411,15 +411,15 @@ describe("index.vue property grid", () => {
     mockOverview({});
   });
 
-  function basinCard() {
+  function buildCard(slug: string, mrrValue: number) {
     return {
-      slug: "basin",
+      slug,
       status: { label: "LIVE", tone: "ok" as const },
       metrics: [
         {
           metric: "mrr",
           period: "current",
-          value: 412,
+          value: mrrValue,
           capturedAt: "2026-09-19T00:00:00.000Z",
         },
       ],
@@ -438,24 +438,35 @@ describe("index.vue property grid", () => {
     expect(wrapper.findAllComponents(PropertyCardMetricsSkeleton)).toHaveLength(
       6,
     );
+    cards.forEach((card) => {
+      expect(card.props("isPending")).toBe(true);
+    });
   });
 
   it("merges each fetched card into its matching property by slug, not by array position", () => {
-    // basin is declared third in APPS' response-shaped order below, proving
-    // the merge keys off `slug`, not `AppsResponse`'s row order.
-    mockApps({ data: [basinCard()] });
+    // APPS declares basin first and markpost second (app/config/apps.ts),
+    // but the response below reverses that order — a merge that assumed
+    // row order matched APPS' order (e.g. indexing appsData by position)
+    // would hand basin's PropertyCard markpost's data and vice versa. Only
+    // a slug-keyed merge gets both right.
+    mockApps({ data: [buildCard("markpost", 591), buildCard("basin", 412)] });
 
     const wrapper = mountPage();
+    const propertyCardsBySlug = new Map(
+      wrapper
+        .findAllComponents(PropertyCard)
+        .map((card) => [card.props("app").slug, card]),
+    );
 
-    const basinPropertyCard = wrapper
-      .findAllComponents(PropertyCard)
-      .find((card) => card.props("app").slug === "basin")!;
-    expect(basinPropertyCard.props("app").card).toEqual(basinCard());
-
-    const markpostPropertyCard = wrapper
-      .findAllComponents(PropertyCard)
-      .find((card) => card.props("app").slug === "markpost")!;
-    expect(markpostPropertyCard.props("app").card).toBeNull();
+    expect(propertyCardsBySlug.get("basin")!.props("app").card).toEqual(
+      buildCard("basin", 412),
+    );
+    expect(propertyCardsBySlug.get("markpost")!.props("app").card).toEqual(
+      buildCard("markpost", 591),
+    );
+    // A slug the response didn't include at all merges in as null, not
+    // whatever row happened to be left over positionally.
+    expect(propertyCardsBySlug.get("wanderist")!.props("app").card).toBeNull();
   });
 
   it("passes the fetch error through to every card instead of blocking the whole grid", () => {
