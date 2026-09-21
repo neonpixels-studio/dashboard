@@ -80,7 +80,10 @@
 
 <script setup lang="ts">
 import type { AppCardViewModel } from "~/utils/appViewModel";
-import { integrationChipLabel } from "~/utils/propertyCardMetrics";
+import {
+  integrationChipLabel,
+  isCardLoading,
+} from "~/utils/propertyCardMetrics";
 import {
   healthToneChipStyle,
   integrationHealthTone,
@@ -101,8 +104,8 @@ const props = defineProps<{
   isPending?: boolean;
 }>();
 
-const isLoading = computed(
-  () => !props.app.card && !props.hasError && !!props.isPending,
+const isLoading = computed(() =>
+  isCardLoading(props.app.card, props.hasError, props.isPending),
 );
 </script>
 

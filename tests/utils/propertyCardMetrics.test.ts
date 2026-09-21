@@ -3,6 +3,7 @@ import {
   CARD_METRIC_NAMES,
   formatMetricValue,
   integrationChipLabel,
+  isCardLoading,
   metricLabel,
   metricTone,
   selectCardStats,
@@ -16,7 +17,11 @@ import {
   METRIC_SESSIONS,
   METRIC_USERS,
 } from "../../server/utils/dashboardMetrics";
-import type { CurrentMetric, MetricSeries } from "../../shared/types/dashboard";
+import type {
+  AppCard,
+  CurrentMetric,
+  MetricSeries,
+} from "../../shared/types/dashboard";
 
 const capturedAt = "2026-09-20T00:00:00.000Z";
 
@@ -249,5 +254,36 @@ describe("integrationChipLabel", () => {
     expect(integrationChipLabel({ vendor: "stripe", enabled: false })).toBe(
       "+ CONNECT STRIPE",
     );
+  });
+});
+
+describe("isCardLoading", () => {
+  const card: AppCard = {
+    slug: "basin",
+    status: { label: "LIVE", tone: "ok" },
+    metrics: [],
+    sparklines: [],
+    integrations: [],
+  };
+
+  it("is true only while there's no card, no error, and the fetch is pending", () => {
+    expect(isCardLoading(null, false, true)).toBe(true);
+  });
+
+  it("is false once real card data exists, regardless of hasError/isPending", () => {
+    expect(isCardLoading(card, true, true)).toBe(false);
+    expect(isCardLoading(card, false, false)).toBe(false);
+  });
+
+  it("is false when there's no card but the fetch failed", () => {
+    expect(isCardLoading(null, true, true)).toBe(false);
+  });
+
+  it("is false when there's no card and the fetch isn't pending (resolved empty)", () => {
+    expect(isCardLoading(null, false, false)).toBe(false);
+  });
+
+  it("treats an omitted hasError/isPending the same as false", () => {
+    expect(isCardLoading(null, undefined, undefined)).toBe(false);
   });
 });

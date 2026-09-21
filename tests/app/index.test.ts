@@ -547,4 +547,32 @@ describe("index.vue property grid", () => {
 
     expect(markpostCard().props("isPending")).toBe(false);
   });
+
+  it("shows the loading skeleton again when retrying after the very first fetch failed", async () => {
+    // The property never had real data (lastGoodAppsData stays null), so a
+    // retry after an initial failure must NOT fall through to the
+    // resolved-empty "no data synced yet" state — it's genuinely still
+    // loading, same as the first attempt.
+    const { data, pending, error } = mockAppsLive({
+      error: new Error("first attempt failed"),
+    });
+    const wrapper = mountPage();
+    await nextTick();
+
+    const cards = () => wrapper.findAllComponents(PropertyCard);
+    cards().forEach((card) => {
+      expect(card.props("isPending")).toBe(false);
+      expect(card.props("hasError")).toBe(true);
+    });
+
+    // A retry starts: useFetch clears `error` and flips `pending` back on.
+    error.value = null;
+    data.value = null;
+    pending.value = true;
+    await nextTick();
+
+    cards().forEach((card) => {
+      expect(card.props("isPending")).toBe(true);
+    });
+  });
 });

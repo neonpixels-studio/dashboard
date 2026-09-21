@@ -11,6 +11,7 @@
 // (only #shared/ crosses it, and #shared/types/dashboard.ts only types the
 // *shape* of a metric row, not which literal names exist).
 import type {
+  AppCard,
   CurrentMetric,
   HealthTone,
   IntegrationHealth,
@@ -77,23 +78,28 @@ const STAT_PRIORITY: readonly StatPriorityEntry[] = [
   { metricCandidates: [METRIC_POSTS], preferredPeriod: PERIOD_CURRENT },
 ];
 
-const METRIC_LABELS: Record<string, string> = {
-  [METRIC_MRR]: "MRR",
-  [METRIC_ACTIVE_SUBSCRIBERS]: "USERS",
-  [METRIC_USERS]: "USERS",
-  [METRIC_SESSIONS]: "SESSIONS",
-  [METRIC_OPEN_ISSUES]: "ISSUES",
-  [METRIC_POSTS]: "POSTS",
-};
+// `Map` rather than a plain object: `metric.metric` is server-sourced (a
+// `metric_snapshot.metric` column value) and a plain object literal's
+// lookup would return an inherited Object.prototype member (e.g.
+// `"constructor"`/`"toString"`) instead of `undefined` for a name that
+// happens to collide with one — a `Map` has no such prototype surface.
+const METRIC_LABELS = new Map<string, string>([
+  [METRIC_MRR, "MRR"],
+  [METRIC_ACTIVE_SUBSCRIBERS, "USERS"],
+  [METRIC_USERS, "USERS"],
+  [METRIC_SESSIONS, "SESSIONS"],
+  [METRIC_OPEN_ISSUES, "ISSUES"],
+  [METRIC_POSTS, "POSTS"],
+]);
 
-const METRIC_FORMATTERS: Record<string, (value: number) => string> = {
-  [METRIC_MRR]: formatCurrency,
-  [METRIC_ACTIVE_SUBSCRIBERS]: formatCount,
-  [METRIC_USERS]: formatCount,
-  [METRIC_SESSIONS]: formatCompactCount,
-  [METRIC_OPEN_ISSUES]: formatCount,
-  [METRIC_POSTS]: formatCount,
-};
+const METRIC_FORMATTERS = new Map<string, (value: number) => string>([
+  [METRIC_MRR, formatCurrency],
+  [METRIC_ACTIVE_SUBSCRIBERS, formatCount],
+  [METRIC_USERS, formatCount],
+  [METRIC_SESSIONS, formatCompactCount],
+  [METRIC_OPEN_ISSUES, formatCount],
+  [METRIC_POSTS, formatCount],
+]);
 
 // The best row for one priority entry: the first candidate metric name the
 // app actually has data for (in the entry's preference order), at its exact
@@ -138,11 +144,11 @@ export function selectCardStats(metrics: CurrentMetric[]): CurrentMetric[] {
 }
 
 export function metricLabel(metric: string): string {
-  return METRIC_LABELS[metric] ?? metric.replace(/_/g, " ").toUpperCase();
+  return METRIC_LABELS.get(metric) ?? metric.replace(/_/g, " ").toUpperCase();
 }
 
 export function formatMetricValue(metric: CurrentMetric): string {
-  const formatter = METRIC_FORMATTERS[metric.metric] ?? formatCount;
+  const formatter = METRIC_FORMATTERS.get(metric.metric) ?? formatCount;
   return formatter(metric.value);
 }
 
@@ -164,21 +170,24 @@ export function metricTone(metric: CurrentMetric): HealthTone | undefined {
 // AppCard.sparklines happens to start. Returns null (hides the sparkline
 // entirely) when none of the visible stats have series data yet, rather
 // than fabricating a trend for a metric that isn't even on the card.
+function seriesForMetric(
+  sparklines: MetricSeries[],
+  metric: CurrentMetric,
+): MetricSeries | undefined {
+  return sparklines.find(
+    (candidate) =>
+      candidate.metric === metric.metric && candidate.period === metric.period,
+  );
+}
+
 export function selectSparklineSeries(
   sparklines: MetricSeries[],
   visibleMetrics: CurrentMetric[],
 ): MetricSeries | null {
-  for (const metric of visibleMetrics) {
-    const series = sparklines.find(
-      (candidate) =>
-        candidate.metric === metric.metric &&
-        candidate.period === metric.period,
-    );
-    if (series) {
-      return series;
-    }
-  }
-  return null;
+  const matchedSeries = visibleMetrics
+    .map((metric) => seriesForMetric(sparklines, metric))
+    .find((series) => series !== undefined);
+  return matchedSeries ?? null;
 }
 
 // "+ CONNECT STRIPE" for a configured-but-disabled vendor (integration_config
@@ -193,4 +202,19 @@ export function integrationChipLabel(
 ): string {
   const upperVendor = integration.vendor.toUpperCase();
   return integration.enabled ? upperVendor : `+ CONNECT ${upperVendor}`;
+}
+
+// The one "is this card still loading" rule, shared by PropertyCard.vue
+// (its head-row status chip / aria-busy) and PropertyCardMetrics.vue (its
+// skeleton-vs-content branch) so the two can never drift into showing
+// different states for the same card — e.g. an ERROR status chip above a
+// still-loading skeleton. Real card data always wins regardless of
+// `hasError`/`isPending` (stale data beats an error, which beats a loading
+// skeleton); only the absence of a card cares about the other two flags.
+export function isCardLoading(
+  card: AppCard | null,
+  hasError: boolean | undefined,
+  isPending: boolean | undefined,
+): boolean {
+  return !card && !hasError && !!isPending;
 }

@@ -149,23 +149,16 @@ watch(
   { immediate: true },
 );
 
-// True only until the fetch settles for the very first time (success or
-// error) — a later manual refresh flips `appsPending` back to `true`
-// without this staying `true` too, so a property that already resolved to
-// "no data yet" doesn't flash back into its loading skeleton every time
-// the grid refetches.
-const hasAppsResolvedOnce = ref(false);
-watch(
-  appsPending,
-  (pending) => {
-    if (!pending) {
-      hasAppsResolvedOnce.value = true;
-    }
-  },
-  { immediate: true },
-);
+// A property only counts as "still loading" once it has never had good
+// data — driven off `lastGoodAppsData`, not "has the fetch ever settled",
+// so this correctly distinguishes two cases a settle-based flag would
+// conflate: a card that already resolved to "no data yet" doesn't flash
+// back into its skeleton on a later refresh (lastGoodAppsData stays
+// non-null, an empty array counts), while a card whose FIRST load failed
+// and is now retrying correctly shows the skeleton again rather than a
+// fabricated "no data yet" (lastGoodAppsData is still null either way).
 const isAppsPending = computed(
-  () => appsPending.value && !hasAppsResolvedOnce.value,
+  () => appsPending.value && lastGoodAppsData.value === null,
 );
 
 // Merges each property's static identity with its fetched card, keyed by

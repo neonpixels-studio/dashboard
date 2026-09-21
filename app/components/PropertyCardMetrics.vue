@@ -56,6 +56,7 @@ import {
 } from "~/utils/appViewModel";
 import {
   formatMetricValue,
+  isCardLoading,
   metricLabel,
   metricTone,
   selectCardStats,
@@ -81,8 +82,8 @@ const SPARKLINE_VIEW_BOX = `0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`;
 // rollup sparkline (app/pages/index.vue's MIN_SPARKLINE_POINTS).
 const MIN_SPARKLINE_POINTS = 2;
 
-const isLoading = computed(
-  () => !props.card && !props.hasError && props.isPending,
+const isLoading = computed(() =>
+  isCardLoading(props.card, props.hasError, props.isPending),
 );
 
 // Bounded to the same count PropertyCardMetricsSkeleton reserves space for
