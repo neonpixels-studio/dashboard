@@ -65,6 +65,18 @@ export default defineNuxtConfig({
       process.env.NUXT_GA4_PROPERTY_ID_DANHOLLORAN || "",
     ga4PropertyIdGrimicorn: process.env.NUXT_GA4_PROPERTY_ID_GRIMICORN || "",
     ga4PropertyIdNeonpixels: process.env.NUXT_GA4_PROPERTY_ID_NEONPIXELS || "",
+    // The Clerk provider's per-app secret keys
+    // (server/integrations/clerk) — one per product-template app, each its
+    // own Clerk instance (separate from this dashboard's own auth, configured
+    // via the Clerk Nuxt module above). Same reasoning as the Stripe/GA4
+    // entries above: declared here purely so the Netlify preset forwards
+    // each into the deployed function's process.env; an integration_config
+    // row's secret_ref still resolves the actual value
+    // (server/integrations/config.ts's resolveSecret reads process.env
+    // directly), not useRuntimeConfig().
+    clerkSecretKeyBasin: process.env.NUXT_CLERK_SECRET_KEY_BASIN || "",
+    clerkSecretKeyMarkpost: process.env.NUXT_CLERK_SECRET_KEY_MARKPOST || "",
+    clerkSecretKeyWanderist: process.env.NUXT_CLERK_SECRET_KEY_WANDERIST || "",
     // The blog-syndication providers' shared studio-wide credentials
     // (server/integrations/syndication) — same reasoning as the Stripe/GA4
     // entries above: declared here purely so the Netlify preset forwards

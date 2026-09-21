@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APPS, findAppBySlug } from "../../app/config/apps";
+import { APPS, findAppBySlug, sortByAppOrder } from "../../app/config/apps";
 
 const VALID_TEMPLATES = ["product", "writing", "marketing"];
 
@@ -36,5 +36,45 @@ describe("apps config", () => {
   it("finds apps by slug and returns undefined for unknown slugs", () => {
     expect(findAppBySlug("basin")?.name).toBe("basin.fm");
     expect(findAppBySlug("nope")).toBeUndefined();
+  });
+});
+
+describe("sortByAppOrder", () => {
+  it("reorders rows to match APPS' declared order, regardless of input order", () => {
+    const rows = [
+      { slug: "wanderist", value: 75 },
+      { slug: "basin", value: 96 },
+      { slug: "markpost", value: 141 },
+    ];
+
+    expect(sortByAppOrder(rows).map((row) => row.slug)).toEqual([
+      "basin",
+      "markpost",
+      "wanderist",
+    ]);
+  });
+
+  it("doesn't mutate the input array", () => {
+    const rows = [
+      { slug: "markpost", value: 1 },
+      { slug: "basin", value: 2 },
+    ];
+    const original = [...rows];
+
+    sortByAppOrder(rows);
+
+    expect(rows).toEqual(original);
+  });
+
+  it("sorts an unknown slug last rather than throwing", () => {
+    const rows = [
+      { slug: "unknown-app", value: 1 },
+      { slug: "basin", value: 2 },
+    ];
+
+    expect(sortByAppOrder(rows).map((row) => row.slug)).toEqual([
+      "basin",
+      "unknown-app",
+    ]);
   });
 });

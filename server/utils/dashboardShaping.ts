@@ -15,8 +15,10 @@ import type {
   AppStatus,
   CurrentMetric,
   IntegrationHealth,
+  MetricPoint,
   MetricSeries,
-  OverviewMetric,
+  RollupDelta,
+  RollupTotal,
   SyncSource,
   SyndicationMatrixRow,
   TrafficChannelSplit,
@@ -156,7 +158,7 @@ export function metricRollupWithSplit(
   slugs: string[],
   metric: string,
   period: string,
-): OverviewMetric & { byApp: AppMetricSplit[] } {
+): RollupTotal & { byApp: AppMetricSplit[] } {
   const latestPerApp = slugs.flatMap((slug) => {
     const row = latestRowForMetric(rows, slug, metric, period);
     if (!row) {
@@ -184,6 +186,168 @@ export function metricRollupWithSplit(
     period: mostRecent.period,
     capturedAt: toIso(mostRecent.capturedAt),
     byApp,
+  };
+}
+
+// Default comparison window for the overview rollup sparkline/deltas —
+// matches the "over the last 30 days" framing the MRR sparkline's aria-label
+// already used before this was wired to real data.
+export const ROLLUP_WINDOW_DAYS = 30;
+
+// Rounds down to the start of the UTC day `windowDays - 1` days before
+// `now`, so "windowDays=2" genuinely means "today and yesterday" (two whole
+// calendar days) rather than "the last 48 wall-clock hours" — the latter
+// would let a call made at 23:59 pull in a third calendar day's rows and
+// silently widen the window the caller asked for.
+function windowStart(windowDays: number, now: Date): Date {
+  const start = new Date(now);
+  start.setUTCDate(start.getUTCDate() - (windowDays - 1));
+  start.setUTCHours(0, 0, 0, 0);
+  return start;
+}
+
+function toUtcDayKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function groupBySlug(
+  rows: MetricSnapshotRow[],
+): Map<string, MetricSnapshotRow[]> {
+  const bySlug = new Map<string, MetricSnapshotRow[]>();
+  rows.forEach((row) => {
+    const existing = bySlug.get(row.slug) ?? [];
+    existing.push(row);
+    bySlug.set(row.slug, existing);
+  });
+  return bySlug;
+}
+
+// Every UTC calendar day from `start` through `end`, inclusive — the day
+// axis rollupSeriesAcrossApps sums across, one entry per day regardless of
+// whether any row actually landed that day.
+function utcDayKeysThrough(start: Date, end: Date): string[] {
+  const dayKeys: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    dayKeys.push(toUtcDayKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dayKeys;
+}
+
+// The row with the latest capturedAt in a non-empty list — like lastOf, but
+// doesn't assume the list is already sorted ascending. rollupSeriesAcrossApps
+// gets its rows from fetchMetricSnapshotSeries, which does sort ascending
+// today, but "the caller happens to sort it" isn't a contract this function
+// should have to rely on to pick the right row.
+function maxByCapturedAt(rows: MetricSnapshotRow[]): MetricSnapshotRow {
+  return rows.reduce((latest, row) =>
+    row.capturedAt > latest.capturedAt ? row : latest,
+  );
+}
+
+// One app's most recently known row as of the end of `dayKey` — the
+// "carry forward" rollupSeriesAcrossApps needs so a day an app simply
+// didn't poll still counts that app's last real value instead of silently
+// dropping it from that day's sum (see the function's own doc comment for
+// why dropping it is wrong, not just conservative). Considers rows from
+// before the series' display window too (whatever the caller passed in) —
+// otherwise the window's first days would understate the total for any app
+// whose most recent poll happens to land just outside it, which is common
+// with the "yesterday vs. today" 2-day window and not just a rare
+// once-in-a-month edge case.
+function latestRowOnOrBefore(
+  rowsForSlug: MetricSnapshotRow[],
+  dayKey: string,
+): MetricSnapshotRow | undefined {
+  const rowsOnOrBefore = rowsForSlug.filter(
+    (row) => toUtcDayKey(row.capturedAt) <= dayKey,
+  );
+  if (!rowsOnOrBefore.length) {
+    return undefined;
+  }
+  return maxByCapturedAt(rowsOnOrBefore);
+}
+
+// One rollup point per UTC calendar day in the display window, summing each
+// app's most recently known value AS OF that day — not just rows that
+// happen to land on that exact day, and not just rows inside the window
+// either. Without carrying a value forward from an app's last real poll
+// (wherever it falls), a day where only some apps happened to poll would
+// understate the true total and read as a real swing rather than the
+// polling-cadence noise it actually is; with it, the series' last point
+// always agrees with metricRollupWithSplit's headline total (both are "sum
+// of each app's latest known value"), which is what a delta/sparkline is
+// implicitly compared against. A day before ANY app in `slugs` has ever
+// reported this metric/period at all isn't a point — still never a
+// fabricated zero, just genuinely unknown.
+//
+// `windowDays` only controls which days become POINTS in the output, never
+// which rows are eligible to seed one — a row from well before the window
+// can still be the most recent thing known about an app on the window's
+// first day. How far back a stale app's last poll can be and still count
+// is bounded by the caller's own query (fetchMetricSnapshotSeries' fixed
+// lookback), not by anything here.
+export function rollupSeriesAcrossApps(
+  rows: MetricSnapshotRow[],
+  slugs: string[],
+  metric: string,
+  period: string,
+  windowDays: number = ROLLUP_WINDOW_DAYS,
+  now: Date = new Date(),
+): MetricPoint[] {
+  const matching = rows.filter(
+    (row) =>
+      slugs.includes(row.slug) &&
+      row.metric === metric &&
+      row.period === period,
+  );
+  if (!matching.length) {
+    return [];
+  }
+
+  const rowsBySlug = groupBySlug(matching);
+  const start = windowStart(windowDays, now);
+
+  return utcDayKeysThrough(start, now).flatMap((dayKey) => {
+    const rowsToday = slugs.flatMap((slug) => {
+      const row = latestRowOnOrBefore(rowsBySlug.get(slug) ?? [], dayKey);
+      return row ? [row] : [];
+    });
+    if (!rowsToday.length) {
+      return [];
+    }
+    const total = rowsToday.reduce((sum, row) => sum + row.value, 0);
+    return [{ capturedAt: `${dayKey}T00:00:00.000Z`, value: roundTo2(total) }];
+  });
+}
+
+// Change from the earliest to the latest point of a rollup series — the
+// "▲ 8.2%"/"▲ 14" pairing next to every overview tile's headline value.
+// Needs at least two points to describe a change; a single-point (or empty)
+// series has nothing to compare against, so it's null rather than a
+// fabricated zero.
+//
+// Known limitation, not yet worth the added complexity to fix: this
+// compares whichever apps happened to have data on the first vs. last day
+// of the window, not a fixed set. A brand-new app's first sync mid-window
+// (or one app dropping out) shifts the day-to-day *composition* of the sum,
+// which this reports as pure growth/decline — same tradeoff
+// metricRollupWithSplit's single-point total already carries, just visible
+// here as a delta instead of a jump between two independent requests.
+// Confining the comparison to apps present on both ends would need each
+// day's own per-app breakdown, not just its total — a bigger change than
+// this pass covers.
+export function rollupDelta(series: MetricPoint[]): RollupDelta | null {
+  if (series.length < 2) {
+    return null;
+  }
+  const first = firstOf(series).value;
+  const last = lastOf(series).value;
+  const value = roundTo2(last - first);
+  return {
+    value,
+    pct: first !== 0 ? roundTo2((value / first) * 100) : null,
   };
 }
 

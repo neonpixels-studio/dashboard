@@ -87,21 +87,41 @@ export interface SyndicationMatrixRow {
   cells: SyndicationMatrixCell[];
 }
 
-// A rollup metric aggregated across every app. `period`/`capturedAt` mirror
-// whichever underlying row is most recent — both null when no app has any
-// data for the metric yet.
-export interface OverviewMetric {
+// A rollup total aggregated across every app at a single point in time.
+// `period`/`capturedAt` mirror whichever underlying row is most recent —
+// both null when no app has any data for the metric yet.
+export interface RollupTotal {
   value: number | null;
   period: string | null;
   capturedAt: string | null;
+}
+
+// Change in a rollup total between the earliest and latest point of its
+// comparison window (see server/utils/dashboardShaping.ts:rollupDelta).
+// `pct` is null when the earliest point was zero — a percentage change off a
+// zero baseline is undefined, not "infinite" or "0%".
+export interface RollupDelta {
+  value: number;
+  pct: number | null;
+}
+
+// A rollup metric aggregated across every app, paired with how it changed
+// over its comparison window. `delta` is null when there isn't yet a second
+// point to compare against (e.g. a metric with only one snapshot ever, or
+// none at all).
+export interface OverviewMetric extends RollupTotal {
+  delta: RollupDelta | null;
 }
 
 // GET /api/overview. Every rollup pairs its studio-wide total with the
 // per-app numbers it was built from (`mrr` included — the issue only calls
 // out a per-app split as required for active subscribers/open issues, but
 // computing one for MRR is free alongside the total, so it's shipped too).
+// `mrr.series` is the only rollup sparkline the overview tiles draw (the
+// other three tiles only ever show a value + delta), so it's the only one
+// carrying its full point series rather than just the total.
 export interface OverviewResponse {
-  mrr: OverviewMetric & { byApp: AppMetricSplit[] };
+  mrr: OverviewMetric & { byApp: AppMetricSplit[]; series: MetricPoint[] };
   activeSubscribers: OverviewMetric & { byApp: AppMetricSplit[] };
   sessions30d: OverviewMetric & { bySource: TrafficChannelSplit[] };
   openIssues: OverviewMetric & { byApp: AppMetricSplit[] };

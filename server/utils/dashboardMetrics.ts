@@ -7,6 +7,11 @@ export const METRIC_MRR = "mrr";
 export const METRIC_ACTIVE_SUBSCRIBERS = "active_subscribers";
 export const METRIC_SESSIONS = "sessions";
 export const METRIC_OPEN_ISSUES = "open_issues";
+export const METRIC_USERS = "users";
+// The new-users delta for server/integrations/clerk/provider.ts's reporting
+// window — not in the schema's own "e.g." list, but follows that list's
+// snake_case convention (mirrors active_subscribers).
+export const METRIC_NEW_USERS = "new_users";
 // Post count for a blog-syndication platform (Hashnode/DEV.to/Medium) — see
 // server/integrations/syndication. One row per (slug, vendor) here, same as
 // every other metric; a studio-wide/cross-platform rollup (the writing

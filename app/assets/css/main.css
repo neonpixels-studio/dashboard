@@ -663,6 +663,37 @@ h4 {
 .delta.ok {
   color: var(--ok);
 }
+/* Shared by the "/" rollup tiles (RollupMrrTile/RollupStatTile/
+   RollupIssuesTile) — global rather than per-component scoped styles since
+   all three share the exact same card/value-row/spark/list/empty layout. */
+.rollup-tile {
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rollup-tile .value-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.rollup-value {
+  font-size: 40px;
+}
+.rollup-tile .value-row .delta {
+  padding-bottom: 5px;
+}
+.rollup-spark {
+  margin-top: 8px;
+}
+.rollup-list {
+  margin-top: 12px;
+}
+.rollup-empty {
+  margin: auto 0 0;
+  font-size: 11px;
+  color: var(--ink-3);
+}
 .swatch {
   width: 8px;
   height: 8px;

@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RollupValueRow > matches its snapshot 1`] = `"<div class="value-row"><span class="display-num rollup-value">401</span><span class="delta muted">▲ 22</span></div>"`;
