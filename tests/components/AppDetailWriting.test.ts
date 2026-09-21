@@ -127,7 +127,15 @@ describe("AppDetailWriting", () => {
     expect(tiles[3]!.props("tone")).toBe("warn");
   });
 
-  it("shows an all-synced, untoned tile and hides the retry button when nothing has failed", () => {
+  it("never renders a retry button — no retry endpoint exists yet for it to call", () => {
+    // Real failures exist in LOADED_DETAIL; a button that appeared here with
+    // no handler behind it would be worse than no button at all.
+    expect(
+      mountDetail({ detail: LOADED_DETAIL }).find(".retry-btn").exists(),
+    ).toBe(false);
+  });
+
+  it("shows an all-synced, untoned tile when nothing has failed", () => {
     const detail = appDetailFixture({
       syndication: [
         {
@@ -149,7 +157,6 @@ describe("AppDetailWriting", () => {
     expect(failuresTile.props("value")).toBe("0");
     expect(failuresTile.props("sub")).toBe("All synced");
     expect(failuresTile.props("tone")).toBeUndefined();
-    expect(wrapper.find(".retry-btn").exists()).toBe(false);
 
     const platformsTile = wrapper
       .findAllComponents(MetricTile)

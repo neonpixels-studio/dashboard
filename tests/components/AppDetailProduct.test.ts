@@ -63,6 +63,19 @@ const LOADED_DETAIL = appDetailFixture({
         { capturedAt: "2026-09-19T00:00:00.000Z", value: 140 },
       ],
     },
+    // metric_snapshot is append-only (server/integrations/persist.ts inserts,
+    // never upserts), so a "current"-period metric like mrr genuinely
+    // accumulates its own history across repeated polls — this proves the
+    // tile-delta path actually renders a real (non-dash) delta end to end,
+    // not just in metricTile.test.ts's unit-level coverage of the same math.
+    {
+      metric: "mrr",
+      period: "current",
+      points: [
+        { capturedAt: "2026-08-20T00:00:00.000Z", value: 380 },
+        { capturedAt: "2026-09-19T00:00:00.000Z", value: 412 },
+      ],
+    },
   ],
   trafficBreakdown: [{ channel: "organic", pct: 61 }],
   alerts: [
@@ -121,6 +134,15 @@ describe("AppDetailProduct", () => {
     ]);
     expect(tiles[0]!.props("value")).toBe("$412");
     expect(tiles[2]!.props("value")).toBe("1,204");
+  });
+
+  it("renders a real, non-dash delta end to end when the metric has more than one synced point", () => {
+    const wrapper = mountDetail({ detail: LOADED_DETAIL });
+    const mrrTile = wrapper
+      .findAllComponents(MetricTile)
+      .find((tile) => tile.props("label") === "MRR")!;
+    expect(mrrTile.props("delta")).toBe("▲ 8.4%");
+    expect(mrrTile.props("deltaTone")).toBe("ok");
   });
 
   it("shows an honest not-synced placeholder for a metric with no data yet, never a fabricated zero", () => {

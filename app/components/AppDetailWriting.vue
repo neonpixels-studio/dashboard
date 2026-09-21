@@ -22,34 +22,11 @@
         <span class="panel-title">Syndication</span>
         <span class="panel-meta">{{ platformsMeta }}</span>
         <span class="grow"></span>
-        <!-- @todo: no retry endpoint exists yet (POST /api/sync only
-             re-runs every vendor's regular poll, not a single failed
-             cross-post) — hidden until there's something for it to do. -->
-        <button v-if="failedCount > 0" type="button" class="retry-btn">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M13.5 8a5.5 5.5 0 1 1-1.9-4.2"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            />
-            <path
-              d="M13.6 2v3.2h-3.2"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          Retry failed
-        </button>
       </div>
+      <!-- @todo: a "Retry failed" action belongs here once a real retry
+           endpoint exists (POST /api/sync only re-runs every vendor's
+           regular poll, not a single failed cross-post) — omitted rather
+           than shown with no handler behind it. -->
 
       <SyndicationPostMatrix :platforms="platforms" :posts="posts" />
     </div>
@@ -176,19 +153,5 @@ const { trafficPanelData, sourceChips } = useAppDetailPanels(
   font-size: 10px;
   letter-spacing: 0.1em;
   color: var(--ink-3);
-}
-.retry-btn {
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--line-2);
-  border-radius: 6px;
-  background: transparent;
-  font-family: inherit;
-  font-size: 11px;
-  color: var(--ink);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 7px;
 }
 </style>

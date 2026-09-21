@@ -115,7 +115,12 @@ export function buildAxisLabels(points: MetricPoint[]): string[] {
     return [];
   }
   const middleIndex = Math.floor((points.length - 1) / 2);
-  return [points.at(0), points.at(middleIndex), points.at(-1)]
+  // A 2-point series has no distinct middle (middleIndex lands on 0, the
+  // same as the first point) — de-duplicating the index list first keeps
+  // that case to a real [first, last] pair instead of repeating one date.
+  const uniqueIndices = [...new Set([0, middleIndex, points.length - 1])];
+  return uniqueIndices
+    .map((index) => points.at(index))
     .filter((point): point is MetricPoint => point !== undefined)
     .map((point) => formatAxisDate(point.capturedAt))
     .filter((label): label is string => label !== null);

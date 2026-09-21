@@ -92,6 +92,14 @@ describe("buildAxisLabels", () => {
     expect(buildAxisLabels([pointAt("2026-09-19T00:00:00.000Z")])).toEqual([]);
   });
 
+  it("returns exactly [first, last], not a repeated date, for a 2-point series", () => {
+    const points = [
+      pointAt("2026-09-18T00:00:00.000Z"),
+      pointAt("2026-09-19T00:00:00.000Z"),
+    ];
+    expect(buildAxisLabels(points)).toEqual(["18 SEP", "19 SEP"]);
+  });
+
   it("picks the first, middle, and last point, formatted without a year", () => {
     const points = [
       pointAt("2026-08-20T00:00:00.000Z"),

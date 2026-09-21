@@ -79,7 +79,9 @@ describe("buildTrafficPanelData", () => {
     expect(data.stats).toEqual([{ label: "SESSIONS · 30D", value: "8,612" }]);
     expect(data.delta).toBe("▲ 23.0%");
     expect(data.path.length).toBeGreaterThan(0);
-    expect(data.axisLabels).toEqual(["18 SEP", "18 SEP", "19 SEP"]);
+    // A 2-point series has no distinct middle — first and last only, not a
+    // repeated date (see buildAxisLabels' own dedup comment).
+    expect(data.axisLabels).toEqual(["18 SEP", "19 SEP"]);
     // Sorted largest share first, not the API's row order.
     expect(data.lists).toEqual([
       {

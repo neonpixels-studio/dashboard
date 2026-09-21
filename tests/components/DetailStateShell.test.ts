@@ -45,6 +45,17 @@ describe("DetailStateShell", () => {
     expect(wrapper.find(".loaded-slot").exists()).toBe(false);
   });
 
+  it("shows the default slot for the idle useFetch state (pending false, error null, no data yet)", () => {
+    // A real, reachable state — not just pending vs loaded vs errored:
+    // useFetch can resolve to `pending: false, error: null, data: null`
+    // before its first request kicks off client-side. The default slot
+    // (and whatever placeholder its own MetricTile/etc. content renders for
+    // a null detail) is what's expected here, not a loading flash.
+    const wrapper = mountShell({ pending: false, hasData: false });
+    expect(wrapper.find(".loaded-slot").exists()).toBe(true);
+    expect(wrapper.find(".pending-slot").exists()).toBe(false);
+  });
+
   it("keeps showing loaded content during a background refresh, not a loading flash", () => {
     // pending + hasData both true: a refresh is in flight but real data is
     // already on screen — swapping back to the pending slot here would hide

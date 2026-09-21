@@ -6,7 +6,7 @@ exports[`AppDetailProduct > matches its tile-grid snapshot 1`] = `
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">MRR</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">$412</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">$412</span><span data-v-d6008d9b="" class="delta ok">▲ 8.4%</span></div>
     <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
