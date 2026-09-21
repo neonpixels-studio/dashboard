@@ -24,6 +24,14 @@ export interface AppCardViewModel extends DashboardApp {
 // #19 owns curating *which* metrics fill these slots.
 export const PROPERTY_CARD_STAT_COUNT = 3;
 
+// PropertyCard.vue's sparkline footprint, shared with
+// PropertyCardMetricsSkeleton.vue's placeholder block so the loading state
+// reserves exactly the space the real SparkLine will occupy once data
+// loads — sized to match the card's original design (see PropertyCard.vue's
+// git history pre-view-model-seam refactor).
+export const PROPERTY_CARD_SPARKLINE_WIDTH = 120;
+export const PROPERTY_CARD_SPARKLINE_HEIGHT = 34;
+
 export interface AppDetailViewModel extends DashboardApp {
   detail: AppDetailResponse | null;
 }

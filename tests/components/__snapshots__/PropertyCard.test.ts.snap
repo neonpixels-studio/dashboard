@@ -1,5 +1,29 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`PropertyCard > matches its snapshot in the error state 1`] = `
+"<a data-v-feb2cf09="" href="/apps/basin" class="card prop-card" style="border-top-color: #FFB020;" aria-busy="false">
+  <div data-v-feb2cf09="" class="head-row"><span data-v-feb2cf09="" class="status-chip" style="color: var(--err);"> ERROR </span><span data-v-feb2cf09="" class="category">01 — SYNDICATION</span><svg data-v-feb2cf09="" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path data-v-feb2cf09="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="#82828F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></div>
+  <div data-v-feb2cf09="" class="name display-num">basin<span data-v-feb2cf09="" style="color: #FFB020;">.fm</span></div>
+  <p data-v-feb2cf09="" class="description">RSS, podcasts, YouTube and Bluesky in one stream.</p>
+  <!-- Card data wins whenever it exists, even if \`hasError\` is also true (a
+       later refresh failed after an earlier load succeeded) — stale real
+       data beats an error message, same as DataErrorState's own "showing
+       the last known state" behavior for the overview rollups. -->
+  <!-- No retry affordance here (unlike DataErrorState): the whole card is
+       itself a NuxtLink, and a nested <button> inside an <a> is invalid
+       HTML content model (interactive-in-interactive) — reloading the page
+       is the only recourse for a per-card fetch failure today. -->
+  <div data-v-c0c351bf="" data-v-feb2cf09="" class="stats-row card-note-row"><svg data-v-c0c351bf="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+      <line x1="12" y1="9" x2="12" y2="13"></line>
+      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg><span data-v-c0c351bf="" class="note-message">Couldn't load live data.</span></div>
+  <!--v-if-->
+</a>"
+`;
+
 exports[`PropertyCard > matches its snapshot in the loading state 1`] = `
 "<a data-v-feb2cf09="" href="/apps/basin" class="card prop-card" style="border-top-color: #FFB020;" aria-busy="true">
   <div data-v-feb2cf09="" class="head-row"><span data-v-bf48201a="" data-v-feb2cf09="" class="skeleton-block" style="width: 52px; height: 16px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-feb2cf09="" class="category">01 — SYNDICATION</span><svg data-v-feb2cf09="" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -7,16 +31,41 @@ exports[`PropertyCard > matches its snapshot in the loading state 1`] = `
     </svg></div>
   <div data-v-feb2cf09="" class="name display-num">basin<span data-v-feb2cf09="" style="color: #FFB020;">.fm</span></div>
   <p data-v-feb2cf09="" class="description">RSS, podcasts, YouTube and Bluesky in one stream.</p>
-  <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
-         tone) and draw a real sparkline path from app.card.sparklines. This
-         generic list/label render is a placeholder, not the final design. -->
-  <div data-v-8da57ad3="" data-v-feb2cf09="" class="metrics-skeleton">
+  <!-- Card data wins whenever it exists, even if \`hasError\` is also true (a
+       later refresh failed after an earlier load succeeded) — stale real
+       data beats an error message, same as DataErrorState's own "showing
+       the last known state" behavior for the overview rollups. -->
+  <div data-v-8da57ad3="" data-v-c0c351bf="" data-v-feb2cf09="" class="metrics-skeleton">
     <ul data-v-8da57ad3="" class="stats-skeleton">
       <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
       <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
       <li data-v-8da57ad3="" class="stat-skeleton"><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 36px; height: 8px; border-radius: var(--r-xs);" aria-hidden="true"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block" style="width: 44px; height: 18px; border-radius: var(--r-xs);" aria-hidden="true"></span></li>
-    </ul><span data-v-8da57ad3="" class="grow"></span>
+    </ul><span data-v-8da57ad3="" class="grow"></span><span data-v-bf48201a="" data-v-8da57ad3="" class="skeleton-block sparkline-skeleton" style="width: 120px; height: 34px; border-radius: var(--r-xs);" aria-hidden="true"></span>
   </div>
+  <!--v-if-->
+</a>"
+`;
+
+exports[`PropertyCard > matches its snapshot in the resolved-empty state 1`] = `
+"<a data-v-feb2cf09="" href="/apps/basin" class="card prop-card" style="border-top-color: #FFB020;" aria-busy="false">
+  <div data-v-feb2cf09="" class="head-row">
+    <!-- The fetch resolved with no row for this slug (never fabricated —
+           see app.card's own doc comment) — distinct from \`isPending\` so
+           the chip doesn't skeleton-load forever once the fetch settles. --><span data-v-feb2cf09="" class="status-chip" style="color: var(--ink-3);"> NO DATA </span><span data-v-feb2cf09="" class="category">01 — SYNDICATION</span><svg data-v-feb2cf09="" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path data-v-feb2cf09="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="#82828F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </div>
+  <div data-v-feb2cf09="" class="name display-num">basin<span data-v-feb2cf09="" style="color: #FFB020;">.fm</span></div>
+  <p data-v-feb2cf09="" class="description">RSS, podcasts, YouTube and Bluesky in one stream.</p>
+  <!-- Card data wins whenever it exists, even if \`hasError\` is also true (a
+       later refresh failed after an earlier load succeeded) — stale real
+       data beats an error message, same as DataErrorState's own "showing
+       the last known state" behavior for the overview rollups. -->
+  <!-- The fetch resolved successfully but returned no row for this slug
+       (e.g. a brand-new property with nothing synced yet) — distinct from
+       both the loading and error states above, so it can't get stuck
+       showing a skeleton forever. -->
+  <div data-v-c0c351bf="" data-v-feb2cf09="" class="stats-row card-note-row muted"><span data-v-c0c351bf="" class="note-message">No data synced yet.</span></div>
   <!--v-if-->
 </a>"
 `;
@@ -28,20 +77,25 @@ exports[`PropertyCard > matches its snapshot with card data 1`] = `
     </svg></div>
   <div data-v-feb2cf09="" class="name display-num">basin<span data-v-feb2cf09="" style="color: #FFB020;">.fm</span></div>
   <p data-v-feb2cf09="" class="description">RSS, podcasts, YouTube and Bluesky in one stream.</p>
-  <!-- @todo #19: curate which metrics render (MRR/USERS/ISSUES, per-metric
-         tone) and draw a real sparkline path from app.card.sparklines. This
-         generic list/label render is a placeholder, not the final design. -->
-  <div data-v-feb2cf09="" class="stats-row">
-    <ul data-v-feb2cf09="" class="stats">
-      <li data-v-feb2cf09="" class="stat"><span data-v-feb2cf09="" class="micro-label">sessions</span><span data-v-feb2cf09="" class="stat-value">900</span></li>
-      <li data-v-feb2cf09="" class="stat"><span data-v-feb2cf09="" class="micro-label">sessions</span><span data-v-feb2cf09="" class="stat-value">3600</span></li>
-    </ul><span data-v-feb2cf09="" class="grow"></span>
+  <!-- Card data wins whenever it exists, even if \`hasError\` is also true (a
+       later refresh failed after an earlier load succeeded) — stale real
+       data beats an error message, same as DataErrorState's own "showing
+       the last known state" behavior for the overview rollups. -->
+  <div data-v-c0c351bf="" data-v-feb2cf09="" class="stats-row">
+    <ul data-v-c0c351bf="" class="stats">
+      <li data-v-c0c351bf="" class="stat"><span data-v-c0c351bf="" class="micro-label">MRR</span><span data-v-c0c351bf="" class="stat-value" style="color: var(--ink);">$412</span></li>
+      <li data-v-c0c351bf="" class="stat"><span data-v-c0c351bf="" class="micro-label">USERS</span><span data-v-c0c351bf="" class="stat-value" style="color: var(--ink);">96</span></li>
+      <li data-v-c0c351bf="" class="stat"><span data-v-c0c351bf="" class="micro-label">ISSUES</span><span data-v-c0c351bf="" class="stat-value" style="color: var(--err);">3</span></li>
+    </ul><span data-v-c0c351bf="" class="grow"></span><svg data-v-c0c351bf="" width="120" height="34" viewBox="0 0 120 34" preserveAspectRatio="none" role="img" aria-label="basin.fm MRR trend over the last synced period">
+      <!--v-if-->
+      <path d="M0.00 30.00 L120.00 4.00" fill="none" stroke="#FFB020" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
   </div>
   <ul data-v-feb2cf09="" class="chips">
-    <li data-v-feb2cf09="" class="chip-tag ok">stripe</li>
-    <li data-v-feb2cf09="" class="chip-tag danger">sentry</li>
-    <li data-v-feb2cf09="" class="chip-tag warn">clerk</li>
-    <li data-v-feb2cf09="" class="chip-tag muted">medium</li>
+    <li data-v-feb2cf09="" class="chip-tag ok">STRIPE</li>
+    <li data-v-feb2cf09="" class="chip-tag danger">SENTRY</li>
+    <li data-v-feb2cf09="" class="chip-tag warn">CLERK</li>
+    <li data-v-feb2cf09="" class="chip-tag muted">+ CONNECT MEDIUM</li>
   </ul>
 </a>"
 `;

@@ -85,6 +85,8 @@
           v-for="app in cardViewModels"
           :key="app.slug"
           :app="app"
+          :has-error="hasAppsError"
+          :is-pending="isAppsPending"
         />
       </div>
     </main>
@@ -95,6 +97,7 @@
 import { APPS, findAppBySlug, sortByAppOrder } from "~/config/apps";
 import { toAppCardViewModel } from "~/utils/appViewModel";
 import { useOverview } from "~/composables/useOverview";
+import { useApps } from "~/composables/useApps";
 import { formatRelativeTime } from "~/utils/relativeTime";
 import { buildSparklinePath } from "~/utils/sparklinePath";
 import {
@@ -111,7 +114,7 @@ import {
   countGrowthDeltaTone,
   pctGrowthDeltaTone,
 } from "~/utils/rollupFormat";
-import type { AppMetricSplit } from "#shared/types/dashboard";
+import type { AppMetricSplit, AppsResponse } from "#shared/types/dashboard";
 
 useHead({ title: "Overview · Neon Pixels Control" });
 
@@ -125,10 +128,56 @@ const MIN_SPARKLINE_POINTS = 2;
 
 const propertyCount = String(APPS.length).padStart(2, "0");
 
-// GET /api/apps isn't wired here yet (see issue #19) — every card's `card`
-// merges in as `null` for now, so PropertyCard renders its skeleton state
-// rather than pretending to have metrics that were never fetched.
-const cardViewModels = APPS.map((app) => toAppCardViewModel(app, null));
+const { data: appsData, pending: appsPending, error: appsError } = useApps();
+
+// useFetch resets `data` back to its default at the start of every fetch
+// cycle — including a refresh that ultimately errors — so `appsData` alone
+// can't back the "stale data wins over a later error" behavior PropertyCard
+// expects (see its own `hasError` prop doc comment, mirroring
+// DataErrorState's "showing the last known state" for the overview
+// rollups). Keep the last successful response separately and merge from
+// that instead, so a refresh failure doesn't blank out cards that already
+// loaded once.
+const lastGoodAppsData = ref<AppsResponse | null>(null);
+watch(
+  appsData,
+  (value) => {
+    if (value) {
+      lastGoodAppsData.value = value;
+    }
+  },
+  { immediate: true },
+);
+
+// A property only counts as "still loading" once it has never had good
+// data — driven off `lastGoodAppsData`, not "has the fetch ever settled",
+// so this correctly distinguishes two cases a settle-based flag would
+// conflate: a card that already resolved to "no data yet" doesn't flash
+// back into its skeleton on a later refresh (lastGoodAppsData stays
+// non-null, an empty array counts), while a card whose FIRST load failed
+// and is now retrying correctly shows the skeleton again rather than a
+// fabricated "no data yet" (lastGoodAppsData is still null either way).
+const isAppsPending = computed(
+  () => appsPending.value && lastGoodAppsData.value === null,
+);
+
+// Merges each property's static identity with its fetched card, keyed by
+// slug rather than assuming the API returns rows in APPS' order. A slug
+// GET /api/apps hasn't returned yet — still loading, the fetch failed, or
+// it resolved with no row for that slug — merges in as `card: null`, so
+// PropertyCard renders its own skeleton/error/empty state (distinguished
+// via the `isPending`/`hasError` props below) instead of a stale or
+// fabricated one.
+const cardViewModels = computed(() =>
+  APPS.map((app) =>
+    toAppCardViewModel(
+      app,
+      lastGoodAppsData.value?.find((card) => card.slug === app.slug) ?? null,
+    ),
+  ),
+);
+
+const hasAppsError = computed(() => !!appsError.value);
 
 function accentFor(slug: string): string {
   return findAppBySlug(slug)?.accent ?? "var(--ink-3)";

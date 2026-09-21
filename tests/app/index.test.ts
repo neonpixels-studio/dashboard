@@ -14,20 +14,29 @@ import StatList from "../../app/components/StatList.vue";
 import PropertySessionsChart from "../../app/components/PropertySessionsChart.vue";
 import AxisRow from "../../app/components/AxisRow.vue";
 import PropertyCard from "../../app/components/PropertyCard.vue";
+import PropertyCardMetrics from "../../app/components/PropertyCardMetrics.vue";
 import PropertyCardMetricsSkeleton from "../../app/components/PropertyCardMetricsSkeleton.vue";
 import RollupMrrTile from "../../app/components/RollupMrrTile.vue";
 import RollupStatTile from "../../app/components/RollupStatTile.vue";
 import RollupIssuesTile from "../../app/components/RollupIssuesTile.vue";
 import RollupValueRow from "../../app/components/RollupValueRow.vue";
-import type { OverviewResponse } from "../../shared/types/dashboard";
+import type {
+  AppsResponse,
+  OverviewResponse,
+} from "../../shared/types/dashboard";
 
-// index.vue imports useOverview directly (not via the global useFetch
-// auto-import), so it's mocked at the module boundary the same way
-// overview.get.test.ts mocks dashboardQueries — the composable's own
-// contract is covered by tests/composables/useOverview.test.ts.
+// index.vue imports useOverview/useApps directly (not via the global
+// useFetch auto-import), so both are mocked at the module boundary the same
+// way overview.get.test.ts mocks dashboardQueries — each composable's own
+// contract is covered by its own tests/composables/*.test.ts.
 const mockUseOverview = vi.fn();
 vi.mock("../../app/composables/useOverview", () => ({
   useOverview: () => mockUseOverview(),
+}));
+
+const mockUseApps = vi.fn();
+vi.mock("../../app/composables/useApps", () => ({
+  useApps: () => mockUseApps(),
 }));
 
 const GLOBAL_COMPONENTS = {
@@ -43,6 +52,7 @@ const GLOBAL_COMPONENTS = {
   PropertySessionsChart,
   AxisRow,
   PropertyCard,
+  PropertyCardMetrics,
   PropertyCardMetricsSkeleton,
   RollupMrrTile,
   RollupStatTile,
@@ -137,6 +147,36 @@ function mockOverview(overrides: {
   });
 }
 
+function mockApps(overrides: {
+  data?: AppsResponse | null;
+  pending?: boolean;
+  error?: Error | null;
+  refresh?: () => void;
+}) {
+  mockUseApps.mockReturnValue({
+    data: ref(overrides.data ?? null),
+    pending: ref(overrides.pending ?? false),
+    error: ref(overrides.error ?? null),
+    refresh: overrides.refresh ?? vi.fn(),
+  });
+}
+
+// Unlike mockApps (fire-and-forget per test), this hands back the live refs
+// so a test can mutate them after mount — needed to simulate useFetch's
+// real refresh lifecycle (data resets, pending flips, then error/data
+// settles) rather than a single fixed snapshot.
+function mockAppsLive(overrides: {
+  data?: AppsResponse | null;
+  pending?: boolean;
+  error?: Error | null;
+}) {
+  const data = ref<AppsResponse | null>(overrides.data ?? null);
+  const pending = ref(overrides.pending ?? false);
+  const error = ref<Error | null>(overrides.error ?? null);
+  mockUseApps.mockReturnValue({ data, pending, error, refresh: vi.fn() });
+  return { data, pending, error };
+}
+
 function mountPage() {
   return mount(IndexPage, {
     global: { components: GLOBAL_COMPONENTS, stubs: GLOBAL_STUBS },
@@ -145,6 +185,10 @@ function mountPage() {
 
 beforeEach(() => {
   vi.stubGlobal("useHead", vi.fn());
+  // Every rollup-tile test below only cares about useOverview; default the
+  // property grid's fetch to its idle state so mounting the page doesn't
+  // require every one of those tests to also stub useApps.
+  mockApps({});
 });
 
 afterEach(() => {
@@ -375,5 +419,160 @@ describe("index.vue rollup tiles", () => {
     // text depends on wall-clock time via the mount-timing test above)
     // renders in a sibling SectionLabel outside this element entirely.
     expect(mountPage().find(".rollup-grid").html()).toMatchSnapshot();
+  });
+});
+
+describe("index.vue property grid", () => {
+  beforeEach(() => {
+    mockOverview({});
+  });
+
+  function buildCard(slug: string, mrrValue: number) {
+    return {
+      slug,
+      status: { label: "LIVE", tone: "ok" as const },
+      metrics: [
+        {
+          metric: "mrr",
+          period: "current",
+          value: mrrValue,
+          capturedAt: "2026-09-19T00:00:00.000Z",
+        },
+      ],
+      sparklines: [],
+      integrations: [],
+    };
+  }
+
+  it("renders every configured property as a skeleton card while useApps is pending", () => {
+    mockApps({ pending: true });
+
+    const wrapper = mountPage();
+
+    const cards = wrapper.findAllComponents(PropertyCard);
+    expect(cards).toHaveLength(6);
+    expect(wrapper.findAllComponents(PropertyCardMetricsSkeleton)).toHaveLength(
+      6,
+    );
+    cards.forEach((card) => {
+      expect(card.props("isPending")).toBe(true);
+    });
+  });
+
+  it("merges each fetched card into its matching property by slug, not by array position", () => {
+    // APPS declares basin first and markpost second (app/config/apps.ts),
+    // but the response below reverses that order — a merge that assumed
+    // row order matched APPS' order (e.g. indexing appsData by position)
+    // would hand basin's PropertyCard markpost's data and vice versa. Only
+    // a slug-keyed merge gets both right.
+    mockApps({ data: [buildCard("markpost", 591), buildCard("basin", 412)] });
+
+    const wrapper = mountPage();
+    const propertyCardsBySlug = new Map(
+      wrapper
+        .findAllComponents(PropertyCard)
+        .map((card) => [card.props("app").slug, card]),
+    );
+
+    expect(propertyCardsBySlug.get("basin")!.props("app").card).toEqual(
+      buildCard("basin", 412),
+    );
+    expect(propertyCardsBySlug.get("markpost")!.props("app").card).toEqual(
+      buildCard("markpost", 591),
+    );
+    // A slug the response didn't include at all merges in as null, not
+    // whatever row happened to be left over positionally.
+    expect(propertyCardsBySlug.get("wanderist")!.props("app").card).toBeNull();
+  });
+
+  it("passes the fetch error through to every card instead of blocking the whole grid", () => {
+    mockApps({ error: new Error("network down") });
+
+    const wrapper = mountPage();
+
+    const cards = wrapper.findAllComponents(PropertyCard);
+    expect(cards).toHaveLength(6);
+    cards.forEach((card) => {
+      expect(card.props("hasError")).toBe(true);
+    });
+    expect(wrapper.text()).toContain("Couldn't load live data.");
+  });
+
+  it("keeps showing a card's last successful data through a later failed refresh, rather than blanking it out", async () => {
+    // Mirrors useFetch's real refresh lifecycle: `data` resets to null and
+    // `pending` flips true when a refresh starts, then `error` sets once it
+    // fails — Nuxt does not preserve the previous `data` across a refresh
+    // (see this file's lastGoodAppsData comment in index.vue), so this test
+    // fails if index.vue merges straight from `appsData` instead of that
+    // cached copy.
+    const { data, pending, error } = mockAppsLive({
+      data: [buildCard("basin", 412)],
+    });
+    const wrapper = mountPage();
+    await nextTick();
+
+    data.value = null;
+    pending.value = true;
+    await nextTick();
+    pending.value = false;
+    error.value = new Error("network down");
+    await nextTick();
+
+    const basinPropertyCard = wrapper
+      .findAllComponents(PropertyCard)
+      .find((card) => card.props("app").slug === "basin")!;
+    expect(basinPropertyCard.props("app").card).toEqual(
+      buildCard("basin", 412),
+    );
+    expect(basinPropertyCard.props("hasError")).toBe(true);
+  });
+
+  it("doesn't flash a resolved card back into its loading skeleton when a later refresh starts", async () => {
+    const { pending } = mockAppsLive({ data: [], pending: false });
+    const wrapper = mountPage();
+    await nextTick();
+
+    const markpostCard = () =>
+      wrapper
+        .findAllComponents(PropertyCard)
+        .find((card) => card.props("app").slug === "markpost")!;
+    // Resolved already (to "no data synced yet" — an empty AppsResponse),
+    // not pending.
+    expect(markpostCard().props("isPending")).toBe(false);
+
+    // A later refresh puts `pending` back to true — the grid already
+    // resolved once, so cards should NOT skeleton-load again.
+    pending.value = true;
+    await nextTick();
+
+    expect(markpostCard().props("isPending")).toBe(false);
+  });
+
+  it("shows the loading skeleton again when retrying after the very first fetch failed", async () => {
+    // The property never had real data (lastGoodAppsData stays null), so a
+    // retry after an initial failure must NOT fall through to the
+    // resolved-empty "no data synced yet" state — it's genuinely still
+    // loading, same as the first attempt.
+    const { data, pending, error } = mockAppsLive({
+      error: new Error("first attempt failed"),
+    });
+    const wrapper = mountPage();
+    await nextTick();
+
+    const cards = () => wrapper.findAllComponents(PropertyCard);
+    cards().forEach((card) => {
+      expect(card.props("isPending")).toBe(false);
+      expect(card.props("hasError")).toBe(true);
+    });
+
+    // A retry starts: useFetch clears `error` and flips `pending` back on.
+    error.value = null;
+    data.value = null;
+    pending.value = true;
+    await nextTick();
+
+    cards().forEach((card) => {
+      expect(card.props("isPending")).toBe(true);
+    });
   });
 });
