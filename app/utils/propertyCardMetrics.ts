@@ -27,9 +27,21 @@ const METRIC_MRR = "mrr";
 const METRIC_ACTIVE_SUBSCRIBERS = "active_subscribers";
 const METRIC_SESSIONS = "sessions";
 const METRIC_OPEN_ISSUES = "open_issues";
-const METRIC_FATAL_ISSUES = "fatal_issues";
 const METRIC_USERS = "users";
 const METRIC_POSTS = "posts";
+
+// Every metric name this module curates against, exported so a test can
+// assert each one still appears in server/utils/dashboardMetrics.ts's
+// canonical list — nothing at the Nitro/client boundary itself would catch
+// the two silently drifting apart otherwise.
+export const CARD_METRIC_NAMES: readonly string[] = [
+  METRIC_MRR,
+  METRIC_ACTIVE_SUBSCRIBERS,
+  METRIC_SESSIONS,
+  METRIC_OPEN_ISSUES,
+  METRIC_USERS,
+  METRIC_POSTS,
+];
 
 const PERIOD_CURRENT = "current";
 const PERIOD_30D = "30d";
@@ -71,7 +83,6 @@ const METRIC_LABELS: Record<string, string> = {
   [METRIC_USERS]: "USERS",
   [METRIC_SESSIONS]: "SESSIONS",
   [METRIC_OPEN_ISSUES]: "ISSUES",
-  [METRIC_FATAL_ISSUES]: "FATAL",
   [METRIC_POSTS]: "POSTS",
 };
 
@@ -81,7 +92,6 @@ const METRIC_FORMATTERS: Record<string, (value: number) => string> = {
   [METRIC_USERS]: formatCount,
   [METRIC_SESSIONS]: formatCompactCount,
   [METRIC_OPEN_ISSUES]: formatCount,
-  [METRIC_FATAL_ISSUES]: formatCount,
   [METRIC_POSTS]: formatCount,
 };
 
@@ -136,15 +146,12 @@ export function formatMetricValue(metric: CurrentMetric): string {
   return formatter(metric.value);
 }
 
-// Only the two issue-shaped metrics carry a health tone — money/audience
-// stats render in the card's default ink color. Matches the original design
+// Only the issues stat carries a health tone — money/audience stats render
+// in the card's default ink color. Matches the original design
 // (PropertyCard.vue's pre-view-model-seam history): `AppStat.tone` was only
 // ever set on the "ISSUES" stat, never MRR/USERS.
 export function metricTone(metric: CurrentMetric): HealthTone | undefined {
-  if (
-    metric.metric !== METRIC_OPEN_ISSUES &&
-    metric.metric !== METRIC_FATAL_ISSUES
-  ) {
+  if (metric.metric !== METRIC_OPEN_ISSUES) {
     return undefined;
   }
   return metric.value > 0 ? "danger" : "ok";
@@ -161,22 +168,17 @@ export function selectSparklineSeries(
   sparklines: MetricSeries[],
   visibleMetrics: CurrentMetric[],
 ): MetricSeries | null {
-  const matchedMetric = visibleMetrics.find((metric) =>
-    sparklines.some(
-      (series) =>
-        series.metric === metric.metric && series.period === metric.period,
-    ),
-  );
-  if (!matchedMetric) {
-    return null;
+  for (const metric of visibleMetrics) {
+    const series = sparklines.find(
+      (candidate) =>
+        candidate.metric === metric.metric &&
+        candidate.period === metric.period,
+    );
+    if (series) {
+      return series;
+    }
   }
-  return (
-    sparklines.find(
-      (series) =>
-        series.metric === matchedMetric.metric &&
-        series.period === matchedMetric.period,
-    ) ?? null
-  );
+  return null;
 }
 
 // "+ CONNECT STRIPE" for a configured-but-disabled vendor (integration_config

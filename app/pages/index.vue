@@ -86,7 +86,7 @@
           :key="app.slug"
           :app="app"
           :has-error="hasAppsError"
-          :is-pending="appsPending"
+          :is-pending="isAppsPending"
         />
       </div>
     </main>
@@ -114,7 +114,7 @@ import {
   countGrowthDeltaTone,
   pctGrowthDeltaTone,
 } from "~/utils/rollupFormat";
-import type { AppMetricSplit } from "#shared/types/dashboard";
+import type { AppMetricSplit, AppsResponse } from "#shared/types/dashboard";
 
 useHead({ title: "Overview · Neon Pixels Control" });
 
@@ -130,6 +130,44 @@ const propertyCount = String(APPS.length).padStart(2, "0");
 
 const { data: appsData, pending: appsPending, error: appsError } = useApps();
 
+// useFetch resets `data` back to its default at the start of every fetch
+// cycle — including a refresh that ultimately errors — so `appsData` alone
+// can't back the "stale data wins over a later error" behavior PropertyCard
+// expects (see its own `hasError` prop doc comment, mirroring
+// DataErrorState's "showing the last known state" for the overview
+// rollups). Keep the last successful response separately and merge from
+// that instead, so a refresh failure doesn't blank out cards that already
+// loaded once.
+const lastGoodAppsData = ref<AppsResponse | null>(null);
+watch(
+  appsData,
+  (value) => {
+    if (value) {
+      lastGoodAppsData.value = value;
+    }
+  },
+  { immediate: true },
+);
+
+// True only until the fetch settles for the very first time (success or
+// error) — a later manual refresh flips `appsPending` back to `true`
+// without this staying `true` too, so a property that already resolved to
+// "no data yet" doesn't flash back into its loading skeleton every time
+// the grid refetches.
+const hasAppsResolvedOnce = ref(false);
+watch(
+  appsPending,
+  (pending) => {
+    if (!pending) {
+      hasAppsResolvedOnce.value = true;
+    }
+  },
+  { immediate: true },
+);
+const isAppsPending = computed(
+  () => appsPending.value && !hasAppsResolvedOnce.value,
+);
+
 // Merges each property's static identity with its fetched card, keyed by
 // slug rather than assuming the API returns rows in APPS' order. A slug
 // GET /api/apps hasn't returned yet — still loading, the fetch failed, or
@@ -141,7 +179,7 @@ const cardViewModels = computed(() =>
   APPS.map((app) =>
     toAppCardViewModel(
       app,
-      appsData.value?.find((card) => card.slug === app.slug) ?? null,
+      lastGoodAppsData.value?.find((card) => card.slug === app.slug) ?? null,
     ),
   ),
 );

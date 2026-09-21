@@ -161,6 +161,22 @@ function mockApps(overrides: {
   });
 }
 
+// Unlike mockApps (fire-and-forget per test), this hands back the live refs
+// so a test can mutate them after mount — needed to simulate useFetch's
+// real refresh lifecycle (data resets, pending flips, then error/data
+// settles) rather than a single fixed snapshot.
+function mockAppsLive(overrides: {
+  data?: AppsResponse | null;
+  pending?: boolean;
+  error?: Error | null;
+}) {
+  const data = ref<AppsResponse | null>(overrides.data ?? null);
+  const pending = ref(overrides.pending ?? false);
+  const error = ref<Error | null>(overrides.error ?? null);
+  mockUseApps.mockReturnValue({ data, pending, error, refresh: vi.fn() });
+  return { data, pending, error };
+}
+
 function mountPage() {
   return mount(IndexPage, {
     global: { components: GLOBAL_COMPONENTS, stubs: GLOBAL_STUBS },
@@ -480,5 +496,55 @@ describe("index.vue property grid", () => {
       expect(card.props("hasError")).toBe(true);
     });
     expect(wrapper.text()).toContain("Couldn't load live data.");
+  });
+
+  it("keeps showing a card's last successful data through a later failed refresh, rather than blanking it out", async () => {
+    // Mirrors useFetch's real refresh lifecycle: `data` resets to null and
+    // `pending` flips true when a refresh starts, then `error` sets once it
+    // fails — Nuxt does not preserve the previous `data` across a refresh
+    // (see this file's lastGoodAppsData comment in index.vue), so this test
+    // fails if index.vue merges straight from `appsData` instead of that
+    // cached copy.
+    const { data, pending, error } = mockAppsLive({
+      data: [buildCard("basin", 412)],
+    });
+    const wrapper = mountPage();
+    await nextTick();
+
+    data.value = null;
+    pending.value = true;
+    await nextTick();
+    pending.value = false;
+    error.value = new Error("network down");
+    await nextTick();
+
+    const basinPropertyCard = wrapper
+      .findAllComponents(PropertyCard)
+      .find((card) => card.props("app").slug === "basin")!;
+    expect(basinPropertyCard.props("app").card).toEqual(
+      buildCard("basin", 412),
+    );
+    expect(basinPropertyCard.props("hasError")).toBe(true);
+  });
+
+  it("doesn't flash a resolved card back into its loading skeleton when a later refresh starts", async () => {
+    const { pending } = mockAppsLive({ data: [], pending: false });
+    const wrapper = mountPage();
+    await nextTick();
+
+    const markpostCard = () =>
+      wrapper
+        .findAllComponents(PropertyCard)
+        .find((card) => card.props("app").slug === "markpost")!;
+    // Resolved already (to "no data synced yet" — an empty AppsResponse),
+    // not pending.
+    expect(markpostCard().props("isPending")).toBe(false);
+
+    // A later refresh puts `pending` back to true — the grid already
+    // resolved once, so cards should NOT skeleton-load again.
+    pending.value = true;
+    await nextTick();
+
+    expect(markpostCard().props("isPending")).toBe(false);
   });
 });

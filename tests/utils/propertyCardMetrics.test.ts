@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CARD_METRIC_NAMES,
   formatMetricValue,
   integrationChipLabel,
   metricLabel,
@@ -7,6 +8,14 @@ import {
   selectCardStats,
   selectSparklineSeries,
 } from "../../app/utils/propertyCardMetrics";
+import {
+  METRIC_ACTIVE_SUBSCRIBERS,
+  METRIC_MRR,
+  METRIC_OPEN_ISSUES,
+  METRIC_POSTS,
+  METRIC_SESSIONS,
+  METRIC_USERS,
+} from "../../server/utils/dashboardMetrics";
 import type { CurrentMetric, MetricSeries } from "../../shared/types/dashboard";
 
 const capturedAt = "2026-09-20T00:00:00.000Z";
@@ -18,6 +27,27 @@ function metric(
 ): CurrentMetric {
   return { metric: metricName, period, value, capturedAt };
 }
+
+describe("CARD_METRIC_NAMES", () => {
+  it("stays in sync with server/utils/dashboardMetrics.ts's canonical metric names", () => {
+    // app/ can't import server/ code at runtime (Nitro/client boundary —
+    // see this module's top-of-file comment), so the two lists are
+    // maintained by hand. This test is the thing that actually catches
+    // them drifting apart, run in plain Node/vitest where that boundary
+    // doesn't apply.
+    const canonicalMetricNames = [
+      METRIC_MRR,
+      METRIC_ACTIVE_SUBSCRIBERS,
+      METRIC_SESSIONS,
+      METRIC_OPEN_ISSUES,
+      METRIC_USERS,
+      METRIC_POSTS,
+    ];
+    CARD_METRIC_NAMES.forEach((metricName) => {
+      expect(canonicalMetricNames).toContain(metricName);
+    });
+  });
+});
 
 describe("selectCardStats", () => {
   it("prioritizes mrr, then audience size, then open_issues, over sessions/posts, regardless of input order", () => {
@@ -116,7 +146,6 @@ describe("metricLabel", () => {
     ["users", "USERS"],
     ["sessions", "SESSIONS"],
     ["open_issues", "ISSUES"],
-    ["fatal_issues", "FATAL"],
     ["posts", "POSTS"],
   ])("labels %s as %s", (metricName, expected) => {
     expect(metricLabel(metricName)).toBe(expected);
@@ -156,10 +185,9 @@ describe("metricTone", () => {
     ).toBeUndefined();
   });
 
-  it("is ok for zero open/fatal issues and danger once there's at least one", () => {
+  it("is ok for zero open issues and danger once there's at least one", () => {
     expect(metricTone(metric("open_issues", "current", 0))).toBe("ok");
     expect(metricTone(metric("open_issues", "current", 1))).toBe("danger");
-    expect(metricTone(metric("fatal_issues", "current", 2))).toBe("danger");
   });
 });
 
