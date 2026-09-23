@@ -45,12 +45,7 @@ function metricGroupKey(slug: string, metric: string, period: string): string {
 }
 
 // Vendor is deliberately its own key component, never folded into
-// metricGroupKey: the schema allows more than one vendor to report the same
-// (slug, metric, period) — every syndication provider (Hashnode/DEV.to/
-// Medium) writes its own `posts`/`current` row for the same content slug —
-// and those rows must never land in the same bucket as each other before
-// being explicitly summed, or one vendor's row silently overwrites another's
-// (see groupVendorBucketsByMetric).
+// metricGroupKey — see groupVendorBucketsByMetric for why.
 function metricVendorGroupKey(
   slug: string,
   metric: string,
@@ -119,7 +114,11 @@ function groupVendorBucketsByMetric(
 // same "freshest contributor sets the timestamp" rule, just across vendors
 // instead of apps).
 function toCurrentMetric(vendorBuckets: MetricSnapshotRow[][]): CurrentMetric {
-  const latestPerVendor = vendorBuckets.map(lastOf);
+  // maxByCapturedAt, not lastOf: unlike fetchLatestMetricSnapshots's own
+  // DISTINCT ON output, this function makes no assumption about row order,
+  // so picking "the last array element" as a proxy for "the newest row"
+  // isn't safe here.
+  const latestPerVendor = vendorBuckets.map(maxByCapturedAt);
   const { metric, period } = firstOf(latestPerVendor);
   const value = latestPerVendor.reduce((sum, row) => sum + row.value, 0);
   const mostRecent = latestPerVendor.reduce((latest, row) =>
@@ -134,14 +133,13 @@ function toCurrentMetric(vendorBuckets: MetricSnapshotRow[][]): CurrentMetric {
 }
 
 // One sparkline's worth of points for this (slug, metric, period). A single
-// reporting vendor (the common case) keeps today's behavior exactly: one
-// point per raw row, in whatever order the caller's query already sorted
-// them (ascending capturedAt). When more than one vendor reports the same
-// (metric, period) — the `posts` case — a day-bucketed, carry-forward sum
-// across vendors replaces the naive flatten: raw rows from independently
-// polling vendors don't share timestamps, so interleaving them chronologically
-// would plot each vendor's own count in turn (a misleading zigzag) instead of
-// the combined total a "posts" sparkline is supposed to show.
+// reporting vendor (the common case) keeps today's exact behavior: one point
+// per raw row. More than one vendor (the `posts` case) switches to a
+// day-bucketed, carry-forward sum instead of naively flattening — raw rows
+// from independently polling vendors don't share timestamps, so
+// interleaving them chronologically would plot each vendor's own count in
+// turn (a misleading zigzag) rather than the combined total a summed tile
+// implies.
 function toMetricSeries(vendorBuckets: MetricSnapshotRow[][]): MetricSeries {
   const firstBucket = firstOf(vendorBuckets);
   const { metric, period } = firstOf(firstBucket);
@@ -158,37 +156,24 @@ function toMetricSeries(vendorBuckets: MetricSnapshotRow[][]): MetricSeries {
 }
 
 // Every UTC calendar day spanned by `vendorBuckets`, inclusive of the
-// earliest and latest capturedAt across every vendor — the day axis
-// combineVendorSeries sums across. Reuses toUtcDayKey/maxByCapturedAt/
-// latestRowOnOrBefore, defined further down alongside rollupSeriesAcrossApps
-// (function declarations hoist, so the earlier call site here is fine) —
-// same "sum independently-polling sources' latest known value per day,
-// carrying stale ones forward" concern as that function, just keyed by
-// vendor instead of slug, so it reuses the exact same day-bucketing
-// primitives rather than redefining them.
+// earliest and latest capturedAt across every vendor. Reuses
+// utcDayKeysThrough/minByCapturedAt/maxByCapturedAt, defined further down
+// (function declarations hoist, so the earlier call site here is fine).
 function utcDayKeysSpanning(vendorBuckets: MetricSnapshotRow[][]): string[] {
   const allRows = vendorBuckets.flat();
-  const earliest = allRows.reduce((min, row) =>
-    row.capturedAt < min.capturedAt ? row : min,
-  ).capturedAt;
+  const earliest = minByCapturedAt(allRows).capturedAt;
   const latest = maxByCapturedAt(allRows).capturedAt;
 
-  const dayKeys: string[] = [];
-  const cursor = new Date(earliest);
-  cursor.setUTCHours(0, 0, 0, 0);
-  while (toUtcDayKey(cursor) <= toUtcDayKey(latest)) {
-    dayKeys.push(toUtcDayKey(cursor));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return dayKeys;
+  const start = new Date(earliest);
+  start.setUTCHours(0, 0, 0, 0);
+  return utcDayKeysThrough(start, latest);
 }
 
 // Sums every vendor's most recently known value as of each day in the
 // combined span, carrying each vendor's last value forward across days it
 // didn't poll — the multi-vendor equivalent of rollupSeriesAcrossApps, keyed
-// by vendor instead of slug. Shares its actual summing loop with
-// rollupSeriesAcrossApps via sumRowsByDay, defined further down (hoisted) —
-// see that function's doc comment for why the two are the same concern.
+// by vendor instead of slug. Shares its summing loop with
+// rollupSeriesAcrossApps via sumRowsByDay (see that function's doc comment).
 function combineVendorSeries(
   vendorBuckets: MetricSnapshotRow[][],
 ): MetricPoint[] {
@@ -224,6 +209,17 @@ export function latestMetricsBySlug(
 
 // One time series per (metric, period) for one app — the sparkline source
 // data. Takes rows from fetchMetricSnapshotSeries (bounded history).
+//
+// Known limitation, not yet worth the added complexity to fix: unlike
+// latestMetricsBySlug (fed by the unbounded fetchLatestMetricSnapshots),
+// this only sees rows inside the series window (SERIES_WINDOW_DAYS). A
+// multi-vendor metric where one vendor's last poll falls outside that
+// window drops out of the combined sum here even though it still counts in
+// the current-value tile — the two can disagree until that vendor polls
+// again. Fixing it would mean threading the unbounded latest-per-vendor
+// rows in here too (to seed a stale vendor's carry-forward even with zero
+// rows inside the window), which touches both API handlers that call this;
+// out of scope for the `posts`-collision fix this exists for.
 export function metricSeriesBySlug(
   rows: MetricSnapshotRow[],
   slug: string,
@@ -364,6 +360,14 @@ function maxByCapturedAt(rows: MetricSnapshotRow[]): MetricSnapshotRow {
   );
 }
 
+// The mirror image of maxByCapturedAt — used by utcDayKeysSpanning to find
+// where a combined multi-vendor day range starts.
+function minByCapturedAt(rows: MetricSnapshotRow[]): MetricSnapshotRow {
+  return rows.reduce((earliest, row) =>
+    row.capturedAt < earliest.capturedAt ? row : earliest,
+  );
+}
+
 // One entity's (app's, or — via combineVendorSeries above — vendor's) most
 // recently known row as of the end of `dayKey` — the "carry forward"
 // rollupSeriesAcrossApps needs so a day an app simply didn't poll still
@@ -429,6 +433,14 @@ function sumRowsByDay(
 // first day. How far back a stale app's last poll can be and still count
 // is bounded by the caller's own query (fetchMetricSnapshotSeries' fixed
 // lookback), not by anything here.
+//
+// groupBySlug (like latestRowForMetric) assumes exactly one vendor
+// contributes to `metric`/`period` per app — true for every metric routed
+// through the overview rollup today (mrr/active_subscribers/sessions/
+// open_issues, all single-vendor). A future multi-vendor metric routed
+// through here would need the same per-vendor-bucket-then-sum treatment
+// groupVendorBucketsByMetric/combineVendorSeries give `posts`, not this
+// per-app-only grouping.
 export function rollupSeriesAcrossApps(
   rows: MetricSnapshotRow[],
   slugs: string[],

@@ -214,21 +214,24 @@ describe("latestMetricsBySlug", () => {
     // Hashnode's most recent poll (12) is older than DEV.to's (5), but both
     // are each vendor's own latest — the tile must add both, never drop the
     // stale-looking one just because a different vendor polled more
-    // recently.
+    // recently. Hashnode's newer row (12) is listed BEFORE its older row
+    // (8) — deliberately out of chronological order — so this fails if the
+    // per-vendor "latest" pick is ever positional (last array element)
+    // instead of by capturedAt.
     const rows = [
-      metricRow({
-        vendor: "hashnode",
-        metric: "posts",
-        period: "current",
-        value: 8,
-        capturedAt: new Date("2026-09-01T00:00:00Z"),
-      }),
       metricRow({
         vendor: "hashnode",
         metric: "posts",
         period: "current",
         value: 12,
         capturedAt: new Date("2026-09-05T00:00:00Z"),
+      }),
+      metricRow({
+        vendor: "hashnode",
+        metric: "posts",
+        period: "current",
+        value: 8,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
       }),
       metricRow({
         vendor: "devto",
