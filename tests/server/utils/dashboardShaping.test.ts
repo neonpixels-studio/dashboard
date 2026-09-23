@@ -423,6 +423,39 @@ describe("metricRollupWithSplit", () => {
       byApp: [{ slug: "markpost", value: 12400 }],
     });
   });
+
+  it("picks the most recent row by capturedAt when an app has more than one, not the alphabetically-last vendor", () => {
+    // Not reachable via today's single-vendor rollup metrics, but
+    // fetchLatestMetricSnapshots can return more than one row per app for a
+    // metric/period a future multi-vendor metric routes through here (see
+    // groupVendorBucketsByMetric) — "sentry" sorts after "github", but its
+    // row is the older one and must not win just because of vendor name.
+    const rows = [
+      metricRow({
+        slug: "basin",
+        vendor: "sentry",
+        metric: "open_issues",
+        value: 3,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        vendor: "github",
+        metric: "open_issues",
+        value: 40,
+        capturedAt: new Date("2026-09-23T00:00:00Z"),
+      }),
+    ];
+
+    expect(
+      metricRollupWithSplit(rows, ["basin"], "open_issues", "current"),
+    ).toEqual({
+      value: 40,
+      period: "current",
+      capturedAt: new Date("2026-09-23T00:00:00Z").toISOString(),
+      byApp: [{ slug: "basin", value: 40 }],
+    });
+  });
 });
 
 describe("rollupSeriesAcrossApps", () => {
