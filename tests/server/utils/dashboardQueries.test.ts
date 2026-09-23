@@ -1,3 +1,4 @@
+import { desc } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
@@ -132,7 +133,7 @@ describe("fetchLatestMetricSnapshots", () => {
       metricSnapshot.vendor,
       metricSnapshot.metric,
       metricSnapshot.period,
-      expect.anything(),
+      desc(metricSnapshot.capturedAt),
     );
   });
 });

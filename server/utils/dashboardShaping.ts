@@ -110,9 +110,14 @@ function groupVendorBucketsByMetric(
 // this (slug, metric, period): each vendor's own latest row, summed into one
 // total (so Hashnode's 12 posts and DEV.to's 5 both count, rather than one
 // overwriting the other), timestamped with whichever vendor polled most
-// recently (matching metricRollupWithSplit's cross-app "mostRecent" — the
-// same "freshest contributor sets the timestamp" rule, just across vendors
-// instead of apps).
+// recently — deliberately consistent with metricRollupWithSplit's cross-app
+// "mostRecent" convention (same "freshest contributor sets the timestamp"
+// rule, just across vendors instead of apps), not a new choice made here.
+// That convention already accepts, at the app level, that a long-broken
+// contributor's stale-but-still-included value can ride along under a
+// fresh timestamp from whichever *other* contributor just polled; this
+// applies the identical tradeoff to vendors rather than introducing a
+// second, inconsistent "capturedAt means something different here" rule.
 function toCurrentMetric(vendorBuckets: MetricSnapshotRow[][]): CurrentMetric {
   // maxByCapturedAt, not lastOf: unlike fetchLatestMetricSnapshots's own
   // DISTINCT ON output, this function makes no assumption about row order,
@@ -173,6 +178,17 @@ function toMetricSeries(vendorBuckets: MetricSnapshotRow[][]): MetricSeries {
 // earliest and latest capturedAt across every vendor. Reuses
 // utcDayKeysThrough/minByCapturedAt/maxByCapturedAt, defined further down
 // (function declarations hoist, so the earlier call site here is fine).
+//
+// Known limitation, not yet worth the added complexity to fix (same
+// tradeoff rollupDelta's own doc comment carries for apps, just for
+// vendors): starting the span at the single earliest row means a day before
+// a second vendor's first-ever report only sums the vendor(s) that have
+// reported so far, not a fabricated zero for the rest but not the full
+// picture either — a vendor onboarding mid-window can read as a jump in the
+// combined total rather than the new-contributor noise it actually is.
+// Starting the span only once every vendor has reported at least once would
+// avoid that, at the cost of truncating away a lone vendor's perfectly good
+// earlier history every time a second vendor is added.
 function utcDayKeysSpanning(vendorBuckets: MetricSnapshotRow[][]): string[] {
   const allRows = vendorBuckets.flat();
   const earliest = minByCapturedAt(allRows).capturedAt;
@@ -202,14 +218,14 @@ function combineVendorSeries(
   const rowsByDay = new Map<string, MetricSnapshotRow[]>(
     dayKeys.map((dayKey) => [dayKey, []]),
   );
-  for (const bucket of vendorBuckets) {
-    carryForwardByDay(bucket, dayKeys).forEach(({ dayKey, row }) => {
+  vendorBuckets
+    .flatMap((bucket) => carryForwardByDay(bucket, dayKeys))
+    .forEach(({ dayKey, row }) => {
       if (!row) {
         return;
       }
       rowsByDay.get(dayKey)?.push(row);
     });
-  }
 
   return sumRowsByDay(dayKeys, (dayKey) => rowsByDay.get(dayKey) ?? []);
 }
