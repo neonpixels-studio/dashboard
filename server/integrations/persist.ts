@@ -23,6 +23,38 @@ function withSlug<Row>(rows: Row[], slug: string): (Row & { slug: string })[] {
   return rows.map((row) => ({ ...row, slug }));
 }
 
+// A single INSERT ... VALUES whose rows share a conflict target makes
+// Postgres raise "ON CONFLICT DO UPDATE command cannot affect row a second
+// time", failing the whole batched sync — this collapses those before they
+// reach the DB, last row per key wins. `keyOf` is JSON.stringify'd (not
+// joined with a separator) so a free-text column value can't collapse two
+// distinct rows into the same key.
+function warnOnDuplicateConflictKey(
+  rowsByConflictKey: Map<string, unknown>,
+  conflictKey: string,
+): void {
+  if (!rowsByConflictKey.has(conflictKey)) {
+    return;
+  }
+  console.warn(
+    "Dropping duplicate row sharing an upsert conflict key; keeping the last one seen.",
+    { conflictKey },
+  );
+}
+
+function dedupeByConflictKey<Row>(
+  rows: Row[],
+  keyOf: (row: Row) => unknown[],
+): Row[] {
+  const rowsByConflictKey = new Map<string, Row>();
+  for (const row of rows) {
+    const conflictKey = JSON.stringify(keyOf(row));
+    warnOnDuplicateConflictKey(rowsByConflictKey, conflictKey);
+    rowsByConflictKey.set(conflictKey, row);
+  }
+  return [...rowsByConflictKey.values()];
+}
+
 // Ordered oldest-synced-first (a row with no sync_status row at all — never
 // synced — sorts before every row that has one), rather than left in
 // whatever order Postgres happens to return. server/integrations/
@@ -75,9 +107,25 @@ export function persistProviderResult(
   row: IntegrationConfigRow,
   result: ProviderResult,
 ): Promise<unknown> {
-  const metricRows = withSlug(result.metrics, row.slug);
+  const metricRows = dedupeByConflictKey(
+    withSlug(result.metrics, row.slug),
+    (metricRow) => [
+      metricRow.slug,
+      metricRow.vendor,
+      metricRow.metric,
+      metricRow.period,
+      metricRow.capturedAt.toISOString(),
+    ],
+  );
   const trafficRows = withSlug(result.trafficBreakdown, row.slug);
-  const syndicationRows = withSlug(result.syndicationPosts, row.slug);
+  const syndicationRows = dedupeByConflictKey(
+    withSlug(result.syndicationPosts, row.slug),
+    (syndicationRow) => [
+      syndicationRow.slug,
+      syndicationRow.platform,
+      syndicationRow.postRef,
+    ],
+  );
 
   // Left untyped (rather than `: BatchItem<"pg">[]`) so each element keeps
   // its concrete insert-builder type, which — unlike the wider
@@ -87,7 +135,26 @@ export function persistProviderResult(
   // needs the BatchItem<"pg"> shape, so it casts there instead.
   const writes = [
     ...(metricRows.length
-      ? [db.insert(metricSnapshot).values(metricRows)]
+      ? [
+          db
+            .insert(metricSnapshot)
+            .values(metricRows)
+            // GA4's PERIOD_DAILY backfill (server/integrations/ga4/provider.ts)
+            // re-reports up to 30 prior days every sync, each keyed by its own
+            // calendar day — a re-sync must update that day's value in place
+            // rather than duplicate-inserting it. Same excluded-row pattern as
+            // the syndication_post upsert below.
+            .onConflictDoUpdate({
+              target: [
+                metricSnapshot.slug,
+                metricSnapshot.vendor,
+                metricSnapshot.metric,
+                metricSnapshot.period,
+                metricSnapshot.capturedAt,
+              ],
+              set: { value: sql`excluded.value` },
+            }),
+        ]
       : []),
     ...(trafficRows.length
       ? [db.insert(trafficBreakdown).values(trafficRows)]

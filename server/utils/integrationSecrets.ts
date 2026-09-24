@@ -13,7 +13,7 @@ const PAYLOAD_SEGMENT_COUNT = 4;
 const PAYLOAD_FORMAT_VERSION = "v1";
 
 export class IntegrationSecretError extends Error {
-  name = "IntegrationSecretError";
+  override name = "IntegrationSecretError";
 }
 
 function assertKeyLength(encryptionKey: Buffer): void {

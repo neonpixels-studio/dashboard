@@ -31,6 +31,348 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:ci
 
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'app/**'
+              - 'server/**'
+              - 'shared/**'
+              - 'public/**'
+              - 'e2e/**'
+              - 'nuxt.config.ts'
+              - 'playwright.config.ts'
+              - 'drizzle.config.ts'
+              - 'package-lock.json'
+              - 'package.json'
+              - '.nvmrc'
+              - '.env.e2e'
+              - '.github/workflows/ci.yml'
+
+  generate-matrix:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      test-files: ${{ steps.find-tests.outputs.test-files }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - id: find-tests
+        run: |
+          # `-printf '%P\n'` keeps the path relative to `e2e/` (unlike
+          # `basename`, which would flatten `e2e/sub/foo.spec.ts` to `foo`,
+          # colliding with any other `foo.spec.ts` elsewhere and producing a
+          # matrix entry whose "e2e/$TEST_FILE.spec.ts" path doesn't exist).
+          files=$(find e2e -name "*.spec.ts" -printf '%P\n' | sed 's/\.spec\.ts$//' | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          # An empty matrix would make the `e2e` job report `skipped`, which
+          # `e2e-gate` treats as a pass — silently stopping all e2e coverage.
+          # Fail loudly instead so a broken glob can't slip through green.
+          if [ "$files" = "[]" ]; then
+            echo "No e2e spec files found under e2e/ — check the find glob above." >&2
+            exit 1
+          fi
+          echo "test-files=$files" >> $GITHUB_OUTPUT
+
+  e2e:
+    needs: [ci, changes, generate-matrix]
+    if: |
+      !cancelled() &&
+      needs.ci.result == 'success' &&
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.src == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # The budget lives on the "run e2e" step (below), not here: a *job*-level
+    # timeout kills the whole job outright, skipping every remaining step —
+    # including the `if: always()` Delete Neon branch step — so a hung
+    # Playwright run would leak its branch instead of hitting the cleanup
+    # it's there for. This job-level ceiling only exists as a backstop for
+    # something hanging before or after that step (npm ci, playwright
+    # install, the delete step's own retries).
+    timeout-minutes: 25
+    strategy:
+      matrix:
+        test-file: ${{ fromJson(needs.generate-matrix.outputs.test-files) }}
+      fail-fast: false
+    # Required repository secret (Settings → Secrets → Actions):
+    #   DOTENV_PRIVATE_KEY_E2E — decrypts .env.e2e, which holds the e2e Clerk
+    #                            keys plus the Neon API key / project id used
+    #                            for per-run branch create/delete below. No
+    #                            other Actions secrets are needed.
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        env:
+          HUSKY: 0
+      - run: npx playwright install chromium --with-deps
+      # A nested spec (e.g. e2e/sub/foo.spec.ts) keeps its "/" in
+      # matrix.test-file so the run step's path stays correct; branch names
+      # and artifact names can't contain "/", so this is the one place that
+      # gets sanitized, reused by every step below instead of repeating the
+      # substitution three times.
+      - name: Compute branch/artifact slug
+        id: slug
+        run: echo "slug=$(echo "$TEST_FILE" | tr '/' '-')" >> $GITHUB_OUTPUT
+        env:
+          TEST_FILE: ${{ matrix.test-file }}
+      # Neon credentials (API key + project id) live encrypted in .env.e2e and
+      # are decrypted with `dotenvx get` using the single DOTENV_PRIVATE_KEY_E2E
+      # secret, so no standalone Neon secrets are needed.
+      - name: Create Neon branch
+        id: neon
+        run: |
+          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e 2>/dev/null) || NEON_API_KEY=""
+          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e 2>/dev/null) || NEON_PROJECT_ID=""
+          echo "::add-mask::$NEON_API_KEY"
+          echo "::add-mask::$NEON_PROJECT_ID"
+          # Fail loudly and immediately rather than silently skipping e2e —
+          # a soft-skip here would report the job green forever with zero
+          # specs run, which is worse than a clearly-explained red check.
+          # `dotenvx get` also exits non-zero on a missing key in some
+          # versions, so check the exit status (captured above) as well as
+          # emptiness.
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "::error::NEON_API_KEY / NEON_PROJECT_ID missing from .env.e2e — see README 'e2e in CI' required setup for the dotenvx set commands to add them." >&2
+            exit 1
+          fi
+          # A missing/wrong DOTENV_PRIVATE_KEY_E2E doesn't necessarily make
+          # `dotenvx get` return empty — it can pass the raw "encrypted:…"
+          # ciphertext straight through, which would otherwise sail past the
+          # emptiness check above and get sent to Neon as a bogus credential,
+          # showing up as a confusing 401 instead of pointing at the real cause.
+          case "$NEON_API_KEY$NEON_PROJECT_ID" in
+            *encrypted:*)
+              echo "::error::.env.e2e could not be decrypted (got raw ciphertext back) — is DOTENV_PRIVATE_KEY_E2E set correctly?" >&2
+              exit 1
+              ;;
+          esac
+          # Neon API can return 4xx/5xx under concurrent load from parallel spec
+          # jobs. Retry up to 4 times with exponential back-off (2s, 4s, 8s).
+          # `curl -f` discards the response body on an HTTP error, which left
+          # the "Full response" diagnostic below printing nothing — capture
+          # the status code separately with `-w` instead so both the retry
+          # decision and the eventual error message have real data to work
+          # with. The payload goes through `jq -n` rather than string
+          # interpolation so BRANCH_NAME can't break the JSON, and is built
+          # once since BRANCH_NAME is fixed across attempts (see the 409
+          # handling below for why a *different* name per attempt is worse).
+          #
+          # This step runs under `bash -e`, so `raw=$(curl ...)` normally
+          # takes curl's own exit status — a DNS failure or connection reset
+          # (curl exit 6/7/28, no HTTP response at all) would abort the step
+          # before the retry loop ever saw it. The `|| raw=$'\n000'` fallback
+          # keeps that case inside the loop as a synthetic non-2xx status
+          # instead of killing the step outright.
+          max_attempts=4
+          attempt=0
+          response=""
+          http_code=""
+          payload=$(jq -n --arg name "$BRANCH_NAME" '{branch: {name: $name}, endpoints: [{type: "read_write"}]}')
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            raw=$(curl -s -w '\n%{http_code}' \
+              --request POST \
+              --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "$payload") || raw=$'\n000'
+            http_code=$(echo "$raw" | tail -n1)
+            response=$(echo "$raw" | sed '$d')
+            if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ]; then
+              break
+            fi
+            # 401/403/422 mean bad credentials or a malformed request — retrying
+            # the same call four times just delays an unavoidable failure.
+            #
+            # 409 (Neon's BRANCH_ALREADY_EXISTS, confirmed against the live
+            # API) means this exact name was already created — almost always
+            # by an earlier attempt in *this* loop whose success response got
+            # lost to a transport failure above. Posting a different name on
+            # retry would "fix" that by creating a second, untracked branch
+            # that never gets deleted (only one branch_id ever reaches
+            # $GITHUB_OUTPUT) — a silent leak that's worse than this loud,
+            # rare failure. Fail fast instead; the orphaned branch from the
+            # lost-response attempt is a known, visible gap here (Neon's API
+            # doesn't return created-but-unconfirmed branches any other way)
+            # rather than a silently multiplying one.
+            if [ "$http_code" = "401" ] || [ "$http_code" = "403" ] || [ "$http_code" = "422" ] || [ "$http_code" = "409" ]; then
+              echo "Neon API returned non-retryable status $http_code." >&2
+              break
+            fi
+            if [ $attempt -lt $max_attempts ]; then
+              delay=$((2 ** attempt))
+              echo "Attempt $attempt failed (HTTP $http_code). Waiting ${delay}s before retry..."
+              sleep "$delay"
+            fi
+          done
+          branch_id=$(echo "$response" | jq -r '.branch.id // empty' 2>/dev/null || true)
+          # Written as soon as it's known, before the db_url check below can
+          # exit 1 — otherwise a response with a branch id but an unexpected
+          # connection_uris shape orphans the branch: the always()-run delete
+          # step gets an empty BRANCH_ID and has nothing to clean up.
+          if [ -n "$branch_id" ]; then
+            echo "branch_id=$branch_id" >> $GITHUB_OUTPUT
+          fi
+          db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler // .connection_uris[0].connection_uri // empty' 2>/dev/null || true)
+          echo "::add-mask::$db_url"
+          if [ -z "$branch_id" ] || [ -z "$db_url" ]; then
+            echo "Neon API did not return a connection URI (last HTTP status: $http_code). Full response:"
+            echo "$response" | jq 'del(.connection_uris)' 2>/dev/null || echo "(response was not valid JSON)"
+            exit 1
+          fi
+          echo "db_url=$db_url" >> $GITHUB_OUTPUT
+        env:
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
+          BRANCH_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.slug.outputs.slug }}
+      # `npm run e2e` is `dotenvx run -f .env.e2e -- playwright test`; the spec
+      # path is appended after `--`. dotenvx decrypts the Clerk keys from
+      # .env.e2e, while E2E_DATABASE_URL below (the fresh Neon branch)
+      # overrides the file's value — a value already in the env wins.
+      # `global-setup.ts` migrates this fresh branch and provisions the Clerk
+      # test user before any project's tests run.
+      - run: npm run e2e -- "e2e/$TEST_FILE.spec.ts"
+        timeout-minutes: 15
+        env:
+          TEST_FILE: ${{ matrix.test-file }}
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
+          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+      # `if: failure()` alone is also true when "Create Neon branch" failed,
+      # before playwright ever ran — e2e/report/ doesn't exist yet, so
+      # upload-artifact would log a "no files found" warning on every
+      # credential/API failure instead of just on a real test failure.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure() && steps.neon.outputs.db_url != ''
+        with:
+          name: playwright-report-${{ steps.slug.outputs.slug }}
+          path: e2e/report/
+          retention-days: 7
+      - name: Delete Neon branch
+        if: always()
+        run: |
+          # BRANCH_ID is only set when "Create Neon branch" got far enough to
+          # parse one (see the comment there) — nothing was ever created if
+          # it's empty, and DELETE-ing "…/branches/" would just fail the
+          # cleanup step on top of whatever already failed above.
+          if [ -z "$BRANCH_ID" ]; then
+            echo "No Neon branch id recorded; nothing to delete."
+            exit 0
+          fi
+          # Guarded the same way as the create step (empty-string fallback
+          # rather than a bare `dotenvx get`): this step runs under `bash -e`
+          # and is meant to only ever *warn* on failure, per the comment
+          # below — an unguarded, unhandled non-zero exit here would fail the
+          # step (and the job) instead, contradicting that design.
+          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e 2>/dev/null) || NEON_API_KEY=""
+          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e 2>/dev/null) || NEON_PROJECT_ID=""
+          echo "::add-mask::$NEON_API_KEY"
+          echo "::add-mask::$NEON_PROJECT_ID"
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "::warning::Can't read Neon credentials to delete branch $BRANCH_ID; it will need manual cleanup."
+            exit 0
+          fi
+          # Neon can 423 while the branch's endpoint is still shutting down
+          # right after the test run ends, so this gets the same retry/back-off
+          # as creation. A cleanup failure after all retries is reported as a
+          # warning, not a step failure — a leaked branch shouldn't turn an
+          # otherwise-green test run red; it's surfaced for a human to sweep up.
+          # `|| http_code="000"` covers a transport failure (no HTTP response
+          # at all) the same way the create step's `|| raw=$'\n000'` does.
+          max_attempts=4
+          attempt=0
+          http_code=""
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            http_code=$(curl -s -o /dev/null -w '%{http_code}' \
+              --request DELETE \
+              --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
+              --header "Authorization: Bearer ${NEON_API_KEY}") || http_code="000"
+            if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ]; then
+              echo "Deleted Neon branch $BRANCH_ID."
+              exit 0
+            fi
+            # 404 means it's already gone (e.g. a workflow re-run, or someone
+            # cleaned it up manually) — nothing left to do. 401/403 mean bad
+            # credentials, which retrying won't fix. Neither is worth burning
+            # the remaining back-off on, and retrying 404 in particular would
+            # print a false "needs manual cleanup" warning for a branch that
+            # doesn't exist.
+            if [ "$http_code" = "404" ]; then
+              echo "Neon branch $BRANCH_ID already absent; nothing to delete."
+              exit 0
+            fi
+            if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+              echo "::warning::Neon rejected the delete for branch $BRANCH_ID (HTTP $http_code); it will need manual cleanup."
+              exit 0
+            fi
+            if [ $attempt -lt $max_attempts ]; then
+              delay=$((2 ** attempt))
+              echo "Delete attempt $attempt failed (HTTP $http_code). Waiting ${delay}s before retry..."
+              sleep "$delay"
+            fi
+          done
+          echo "::warning::Failed to delete Neon branch $BRANCH_ID after $max_attempts attempts (last HTTP status: $http_code). It will need manual cleanup."
+        env:
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
+          BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+
+  e2e-gate:
+    name: E2E Gate
+    needs: [e2e, ci, changes, generate-matrix]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Report status
+        env:
+          RESULT: ${{ needs.e2e.result }}
+          CI_RESULT: ${{ needs.ci.result }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          MATRIX_RESULT: ${{ needs.generate-matrix.result }}
+        run: |
+          # `e2e`'s `if:` requires `ci` and `changes` to succeed, and reads
+          # `generate-matrix`'s output via `fromJson(...)` — so a `ci` or
+          # `changes` failure makes `e2e` report `skipped`, while a
+          # `generate-matrix` failure makes `e2e` itself error out evaluating
+          # `fromJson('')`. Either way, checking `needs.e2e.result` alone
+          # isn't enough: a `skipped` would read as a pass here, silently
+          # swallowing exactly the kind of broken filter/glob/lint failure
+          # this gate exists to catch. Check every upstream job's actual
+          # result directly instead of inferring anything from e2e's.
+          if [[ "$CI_RESULT" != "success" || "$CHANGES_RESULT" != "success" || "$MATRIX_RESULT" != "success" ]]; then
+            echo "Upstream job failed (ci: $CI_RESULT, changes: $CHANGES_RESULT, generate-matrix: $MATRIX_RESULT)"
+            exit 1
+          fi
+          if [[ "$RESULT" == "success" || "$RESULT" == "skipped" ]]; then
+            echo "E2E: $RESULT"
+          else
+            echo "E2E failed with result: $RESULT"
+            exit 1
+          fi
+
   secrets:
     runs-on: ubuntu-latest
     steps:

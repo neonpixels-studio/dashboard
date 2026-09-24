@@ -272,6 +272,183 @@ describe("persistProviderResult", () => {
       "excluded.synced_at",
     ]);
   });
+
+  it("upserts metric_snapshot on (slug, vendor, metric, period, captured_at) instead of duplicating a re-run backfill row", async () => {
+    const { db, insert, onConflictDoUpdate } = createFakeDb();
+    const row = configRow({ slug: "basin", vendor: "ga4" });
+    const capturedAt = new Date("2026-09-01T00:00:00Z");
+    const result: ProviderResult = {
+      ...EMPTY_RESULT,
+      metrics: [
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 123,
+          period: "daily",
+          capturedAt,
+        },
+      ],
+    };
+
+    await persistProviderResult(db, row, result);
+
+    // metric_snapshot is the only populated table in this fixture, which is
+    // what makes `onConflictDoUpdate.mock.calls[0]` below unambiguous —
+    // `createFakeDb` shares one onConflictDoUpdate mock across every
+    // upserting table, so this guard makes that assumption loud (a failing
+    // test) rather than a silent false pass if a later edit adds a second
+    // populated array (e.g. syndicationPosts) to this fixture.
+    expect(insert.mock.calls).toHaveLength(1);
+    expect(insert).toHaveBeenCalledWith(metricSnapshot);
+    expect(onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: [
+          metricSnapshot.slug,
+          metricSnapshot.vendor,
+          metricSnapshot.metric,
+          metricSnapshot.period,
+          metricSnapshot.capturedAt,
+        ],
+      }),
+    );
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    // The update side must pull the newly-proposed value from `excluded`, not
+    // a fixed/stale one — otherwise a bulk backfill of several days would
+    // write the same value to every conflicting row.
+    expect(conflictArgs.set.value).toBeInstanceOf(SQL);
+    expect(conflictArgs.set.value.queryChunks[0].value).toEqual([
+      "excluded.value",
+    ]);
+  });
+
+  it("dedupes metric rows sharing a conflict key before inserting, keeping the last value, while leaving distinct-key rows untouched", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { db, values } = createFakeDb();
+    const row = configRow({ slug: "basin", vendor: "ga4" });
+    const capturedAt = new Date("2026-09-01T00:00:00Z");
+    const otherDay = new Date("2026-09-02T00:00:00Z");
+    const result: ProviderResult = {
+      ...EMPTY_RESULT,
+      metrics: [
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 1,
+          period: "daily",
+          capturedAt,
+        },
+        // Same (vendor, metric, period, capturedAt) as above — the duplicate
+        // conflict key this test is pinning the dedupe behavior on.
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 2,
+          period: "daily",
+          capturedAt,
+        },
+        // A distinct capturedAt: a different conflict key, so it must
+        // survive untouched. Without this row, a dedupe implementation that
+        // collapsed every row down to one (e.g. `rows.slice(-1)`) would also
+        // make this test pass.
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 9,
+          period: "daily",
+          capturedAt: otherDay,
+        },
+      ],
+    };
+
+    await persistProviderResult(db, row, result);
+
+    // A single INSERT ... VALUES whose rows share a conflict target makes
+    // Postgres raise "ON CONFLICT DO UPDATE command cannot affect row a
+    // second time" — deduping before the insert (rather than relying on the
+    // DB) keeps a same-key duplicate from failing the whole batched sync.
+    expect(values).toHaveBeenCalledWith([
+      {
+        vendor: "ga4",
+        metric: "sessions",
+        value: 2,
+        period: "daily",
+        capturedAt,
+        slug: "basin",
+      },
+      {
+        vendor: "ga4",
+        metric: "sessions",
+        value: 9,
+        period: "daily",
+        capturedAt: otherDay,
+        slug: "basin",
+      },
+    ]);
+    // The drop must be logged (never silent — see dedupeByConflictKey's
+    // comment), exactly once, and only for the colliding pair — the
+    // surviving otherDay row's key must never be reported as dropped.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        conflictKey: JSON.stringify([
+          "basin",
+          "ga4",
+          "sessions",
+          "daily",
+          capturedAt.toISOString(),
+        ]),
+      }),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("dedupes syndication_post rows sharing a conflict key before inserting, keeping the last status", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { db, values } = createFakeDb();
+    const row = configRow();
+    const result: ProviderResult = {
+      ...EMPTY_RESULT,
+      syndicationPosts: [
+        {
+          platform: "devto",
+          postRef: "post-1",
+          status: "pending",
+          syncedAt: null,
+        },
+        // Same (slug, platform, postRef) — an offset-paginated provider
+        // (e.g. devto/hashnode draining pages with no dedupe of their own)
+        // can return the same post twice if a new post shifts the page
+        // window mid-drain.
+        {
+          platform: "devto",
+          postRef: "post-1",
+          status: "synced",
+          syncedAt: new Date("2026-09-01T00:00:00Z"),
+        },
+      ],
+    };
+
+    await persistProviderResult(db, row, result);
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        platform: "devto",
+        postRef: "post-1",
+        status: "synced",
+        syncedAt: new Date("2026-09-01T00:00:00Z"),
+        slug: row.slug,
+      },
+    ]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        conflictKey: JSON.stringify([row.slug, "devto", "post-1"]),
+      }),
+    );
+    warnSpy.mockRestore();
+  });
 });
 
 describe("recordSyncStatus", () => {
