@@ -7,6 +7,12 @@
 -- "duplicate key value violates unique constraint" error on any such
 -- database. This keeps the newest row (highest id) per key, matching the
 -- upsert's own "last write wins" semantics.
+--
+-- Both statements below take an ACCESS EXCLUSIVE lock on metric_snapshot for
+-- their duration (the DELETE via its self-join scan, CREATE UNIQUE INDEX
+-- inherently) and block all reads/writes to it meanwhile. Fine at this
+-- table's current size; once the daily backfill has been running a long
+-- while, run this during a maintenance window rather than mid-traffic.
 DELETE FROM "metric_snapshot" older
 USING "metric_snapshot" newer
 WHERE older."slug" = newer."slug"

@@ -23,25 +23,25 @@ function withSlug<Row>(rows: Row[], slug: string): (Row & { slug: string })[] {
   return rows.map((row) => ({ ...row, slug }));
 }
 
-// Postgres raises "ON CONFLICT DO UPDATE command cannot affect row a second
-// time" if a single INSERT's VALUES list contains two rows that resolve to
-// the same conflict target — that fails the whole batched sync (see
-// persistProviderResult's db.batch comment), not just the duplicate row.
-// Shared by both upserting arrays below (metric_snapshot and
-// syndication_post) rather than writing the same collapse-by-key loop twice
-// for the same concern. `syndicationPost` has a real trigger for this: a
-// devto/hashnode provider draining offset-paginated pages with no dedupe of
-// its own (unlike server/integrations/syndication/medium/provider.ts's
-// dedupeByPostRefKeepingLatest) can return the same (slug, platform,
-// postRef) twice if a post lands mid-drain and shifts the page window.
-// `keyOf` is JSON.stringify'd rather than joined with a separator so a
-// free-text column value containing the separator (e.g. `vendor`, which
-// schema.ts documents as free text) can't collapse two distinct rows.
-// Last row for a given key wins, matching the upsert's own "excluded (the
-// newly-proposed row) wins" semantics; every drop is logged since silently
-// discarding a row a provider actually returned would otherwise leave no
-// trace anywhere (this file's neighbors — ga4/provider.ts, mapping.ts — fail
-// loud rather than silently drop/undercount for the same reason).
+// A single INSERT ... VALUES whose rows share a conflict target makes
+// Postgres raise "ON CONFLICT DO UPDATE command cannot affect row a second
+// time", failing the whole batched sync — this collapses those before they
+// reach the DB, last row per key wins. `keyOf` is JSON.stringify'd (not
+// joined with a separator) so a free-text column value can't collapse two
+// distinct rows into the same key.
+function warnOnDuplicateConflictKey(
+  rowsByConflictKey: Map<string, unknown>,
+  conflictKey: string,
+): void {
+  if (!rowsByConflictKey.has(conflictKey)) {
+    return;
+  }
+  console.warn(
+    "Dropping duplicate row sharing an upsert conflict key; keeping the last one seen.",
+    { conflictKey },
+  );
+}
+
 function dedupeByConflictKey<Row>(
   rows: Row[],
   keyOf: (row: Row) => unknown[],
@@ -49,12 +49,7 @@ function dedupeByConflictKey<Row>(
   const rowsByConflictKey = new Map<string, Row>();
   for (const row of rows) {
     const conflictKey = JSON.stringify(keyOf(row));
-    if (rowsByConflictKey.has(conflictKey)) {
-      console.warn(
-        "Dropping duplicate row sharing an upsert conflict key; keeping the last one seen.",
-        { conflictKey },
-      );
-    }
+    warnOnDuplicateConflictKey(rowsByConflictKey, conflictKey);
     rowsByConflictKey.set(conflictKey, row);
   }
   return [...rowsByConflictKey.values()];

@@ -276,6 +276,7 @@ describe("persistProviderResult", () => {
   });
 
   it("dedupes metric rows sharing a conflict key before inserting, keeping the last value, while leaving distinct-key rows untouched", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { db, values } = createFakeDb();
     const row = configRow({ slug: "basin", vendor: "ga4" });
     const capturedAt = new Date("2026-09-01T00:00:00Z");
@@ -337,9 +338,27 @@ describe("persistProviderResult", () => {
         slug: "basin",
       },
     ]);
+    // The drop must be logged (never silent — see dedupeByConflictKey's
+    // comment), exactly once, and only for the colliding pair — the
+    // surviving otherDay row's key must never be reported as dropped.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        conflictKey: JSON.stringify([
+          "basin",
+          "ga4",
+          "sessions",
+          "daily",
+          capturedAt.toISOString(),
+        ]),
+      }),
+    );
+    warnSpy.mockRestore();
   });
 
   it("dedupes syndication_post rows sharing a conflict key before inserting, keeping the last status", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { db, values } = createFakeDb();
     const row = configRow();
     const result: ProviderResult = {
@@ -375,6 +394,14 @@ describe("persistProviderResult", () => {
         slug: row.slug,
       },
     ]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        conflictKey: JSON.stringify([row.slug, "devto", "post-1"]),
+      }),
+    );
+    warnSpy.mockRestore();
   });
 });
 
