@@ -228,7 +228,7 @@ describe("persistProviderResult", () => {
   });
 
   it("upserts metric_snapshot on (slug, vendor, metric, period, captured_at) instead of duplicating a re-run backfill row", async () => {
-    const { db, onConflictDoUpdate } = createFakeDb();
+    const { db, insert, onConflictDoUpdate } = createFakeDb();
     const row = configRow({ slug: "basin", vendor: "ga4" });
     const capturedAt = new Date("2026-09-01T00:00:00Z");
     const result: ProviderResult = {
@@ -246,6 +246,14 @@ describe("persistProviderResult", () => {
 
     await persistProviderResult(db, row, result);
 
+    // metric_snapshot is the only populated table in this fixture, which is
+    // what makes `onConflictDoUpdate.mock.calls[0]` below unambiguous —
+    // `createFakeDb` shares one onConflictDoUpdate mock across every
+    // upserting table, so this guard makes that assumption loud (a failing
+    // test) rather than a silent false pass if a later edit adds a second
+    // populated array (e.g. syndicationPosts) to this fixture.
+    expect(insert.mock.calls).toHaveLength(1);
+    expect(insert).toHaveBeenCalledWith(metricSnapshot);
     expect(onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         target: [
@@ -264,6 +272,48 @@ describe("persistProviderResult", () => {
     expect(conflictArgs.set.value).toBeInstanceOf(SQL);
     expect(conflictArgs.set.value.queryChunks[0].value).toEqual([
       "excluded.value",
+    ]);
+  });
+
+  it("dedupes metric rows sharing a conflict key before inserting, keeping the last value", async () => {
+    const { db, values } = createFakeDb();
+    const row = configRow({ slug: "basin", vendor: "ga4" });
+    const capturedAt = new Date("2026-09-01T00:00:00Z");
+    const result: ProviderResult = {
+      ...EMPTY_RESULT,
+      metrics: [
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 1,
+          period: "daily",
+          capturedAt,
+        },
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 2,
+          period: "daily",
+          capturedAt,
+        },
+      ],
+    };
+
+    await persistProviderResult(db, row, result);
+
+    // A single INSERT ... VALUES whose rows share a conflict target makes
+    // Postgres raise "ON CONFLICT DO UPDATE command cannot affect row a
+    // second time" — deduping before the insert (rather than relying on the
+    // DB) keeps a same-key duplicate from failing the whole batched sync.
+    expect(values).toHaveBeenCalledWith([
+      {
+        vendor: "ga4",
+        metric: "sessions",
+        value: 2,
+        period: "daily",
+        capturedAt,
+        slug: "basin",
+      },
     ]);
   });
 });

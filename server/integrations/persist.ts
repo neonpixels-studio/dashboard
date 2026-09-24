@@ -23,6 +23,41 @@ function withSlug<Row>(rows: Row[], slug: string): (Row & { slug: string })[] {
   return rows.map((row) => ({ ...row, slug }));
 }
 
+// Postgres raises "ON CONFLICT DO UPDATE command cannot affect row a second
+// time" if a single INSERT's VALUES list contains two rows that resolve to
+// the same (slug, vendor, metric, period, capturedAt) conflict target — that
+// would fail the whole batched sync (see persistProviderResult's db.batch
+// comment), not just skip the duplicate. No current provider emits two rows
+// for the same key in one result (GA4's PERIOD_DAILY backfill in
+// server/integrations/ga4/provider.ts gives every row a distinct calendar
+// day), but the shape that would trigger it — one shared `capturedAt`, N
+// metric rows — is this codebase's house pattern for a provider result, so
+// it's cheap insurance against a future provider doing that by accident.
+// Last row for a given key wins, matching the upsert's own "excluded (the
+// newly-proposed row) wins" semantics.
+function dedupeMetricRowsByConflictKey<
+  Row extends {
+    slug: string;
+    vendor: string;
+    metric: string;
+    period: string;
+    capturedAt: Date;
+  },
+>(rows: Row[]): Row[] {
+  const rowsByConflictKey = new Map<string, Row>();
+  for (const row of rows) {
+    const conflictKey = [
+      row.slug,
+      row.vendor,
+      row.metric,
+      row.period,
+      row.capturedAt.toISOString(),
+    ].join("|");
+    rowsByConflictKey.set(conflictKey, row);
+  }
+  return [...rowsByConflictKey.values()];
+}
+
 export function listEnabledIntegrationConfigs(
   db: DrizzleDb,
 ): Promise<IntegrationConfigRow[]> {
@@ -46,7 +81,9 @@ export function persistProviderResult(
   row: IntegrationConfigRow,
   result: ProviderResult,
 ): Promise<unknown> {
-  const metricRows = withSlug(result.metrics, row.slug);
+  const metricRows = dedupeMetricRowsByConflictKey(
+    withSlug(result.metrics, row.slug),
+  );
   const trafficRows = withSlug(result.trafficBreakdown, row.slug);
   const syndicationRows = withSlug(result.syndicationPosts, row.slug);
 
