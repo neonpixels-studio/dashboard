@@ -37,13 +37,14 @@ export interface IntegrationConfig {
 // optional at the DB/InferInsertModel level: persist.ts's upsert key (and
 // GA4's daily-backfill semantics, see ga4/provider.ts) depend on every
 // provider stamping its own explicit per-row timestamp rather than letting
-// Postgres default it to "now" for every row in a batch.
+// Postgres default it to "now" for every row in a batch. `Required<Pick<...>>`
+// (rather than hardcoding `capturedAt: Date`) keeps the column's own type
+// derived from the table definition, same as every other field here.
 export type MetricSnapshotInput = Omit<
   InferInsertModel<typeof metricSnapshot>,
   "id" | "slug"
-> & {
-  capturedAt: Date;
-};
+> &
+  Required<Pick<InferInsertModel<typeof metricSnapshot>, "capturedAt">>;
 export type TrafficBreakdownInput = Omit<
   InferInsertModel<typeof trafficBreakdown>,
   "id" | "slug"
