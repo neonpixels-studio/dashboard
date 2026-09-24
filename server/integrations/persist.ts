@@ -2,7 +2,7 @@
 // orchestration loop in orchestrator.ts — the loop takes these as injected
 // functions, so it never imports this module (or drizzle) directly, and
 // this module never needs a fake provider or a fake clock to be exercised.
-import { eq, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
   integrationConfig,
@@ -55,13 +55,42 @@ function dedupeByConflictKey<Row>(
   return [...rowsByConflictKey.values()];
 }
 
+// Ordered oldest-synced-first (a row with no sync_status row at all — never
+// synced — sorts before every row that has one), rather than left in
+// whatever order Postgres happens to return. server/integrations/
+// orchestrator.ts's runSync can cut a run short under its own time budget,
+// leaving a tail of enabled rows unattempted; without this ordering, an
+// unordered/heap-order result set would leave the *same* tail behind every
+// time the budget is hit, rather than rotating which rows lose out. The
+// join is at most one sync_status row per (slug, vendor) — enforced by
+// sync_status_slug_vendor_idx in schema.ts — so it can't fan this query out
+// to duplicate integration_config rows.
+//
+// integration_config.vendor is the integration_vendor Postgres enum, while
+// sync_status.vendor is plain text (schema.ts: sync_status also tracks
+// vendors with no integration_config row at all, e.g. GitHub issue counts —
+// see that table's own comment — so it can't use the enum type). Postgres
+// has no implicit enum<->text cast for a column-to-column comparison, so the
+// enum side is cast explicitly here or this join fails outright at query
+// time (`operator does not exist: text = integration_vendor`) — every
+// /api/sync invocation, not just the ordering feature.
 export function listEnabledIntegrationConfigs(
   db: DrizzleDb,
 ): Promise<IntegrationConfigRow[]> {
   return db
-    .select()
+    .select(getTableColumns(integrationConfig))
     .from(integrationConfig)
-    .where(eq(integrationConfig.enabled, true));
+    .leftJoin(
+      syncStatus,
+      and(
+        eq(syncStatus.slug, integrationConfig.slug),
+        eq(syncStatus.vendor, sql`${integrationConfig.vendor}::text`),
+      ),
+    )
+    .where(eq(integrationConfig.enabled, true))
+    .orderBy(
+      sql`${syncStatus.lastRunAt} asc nulls first, ${integrationConfig.id} asc`,
+    );
 }
 
 // Every row a provider's fetch() returned, stamped with the slug the

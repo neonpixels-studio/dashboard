@@ -24,8 +24,21 @@ export interface SyncOutcome {
   error?: string;
 }
 
+export interface SyncSkippedRow {
+  slug: string;
+  vendor: string;
+}
+
 export interface SyncSummary {
   outcomes: SyncOutcome[];
+  // Enabled rows the run budget cut off before they were ever attempted —
+  // distinct from a `SyncOutcome` with ok:false, which means the row *was*
+  // attempted and failed. Never silently dropped: a non-empty array here
+  // means this run did less work than there was to do, and callers
+  // (server/api/sync.post.ts's HTTP response, netlify/functions/
+  // scheduled-sync.ts's invocation log) should be able to tell the
+  // difference from "everything enabled got synced."
+  skipped: SyncSkippedRow[];
 }
 
 // Everything the orchestration loop needs, injected rather than imported
@@ -44,6 +57,55 @@ export interface SyncOrchestratorDeps {
   ) => Promise<unknown>;
   recordSyncStatus: (status: SyncStatusWrite) => Promise<unknown>;
   now?: () => Date;
+  // Wall-clock budget (ms) runSync's own batching loop may spend admitting
+  // new batches — see BATCH_SIZE/DEFAULT_RUN_BUDGET_MS below for why this
+  // exists and how it's applied. Overridable per-call (tests use this to
+  // force the skip path deterministically); production wiring
+  // (syncDeps.ts) leaves it unset and gets DEFAULT_RUN_BUDGET_MS.
+  runBudgetMs?: number;
+  // Monotonic millisecond clock the budget above is measured against —
+  // separate from `now` (which stamps `runAt`/sync_status and can be a
+  // fixed value in tests) because this one must actually advance and never
+  // step backward. Defaults to performance.now() (unlike Date.now(), not
+  // subject to wall-clock/NTP adjustments, which could otherwise make the
+  // budget check never trip on a backward step, or end the run early on a
+  // forward one); tests inject a counter instead of spying on the global.
+  monotonicNow?: () => number;
+}
+
+// How many (slug, vendor) rows run concurrently within one batch. Bounds
+// per-batch resource contention (DB connections, outbound sockets) so a
+// growing enabled-row count doesn't itself inflate one batch's latency —
+// deliberately a small fixed number, not scaled to row count (issue #51:
+// "don't over-engineer a full queueing system for the current provider
+// count").
+const BATCH_SIZE = 5;
+
+// Ceiling on how long runSync's batching loop may keep *admitting new
+// batches*, in ms — it does not bound how long an already-admitted batch
+// takes to finish. Netlify's default synchronous Function execution limit
+// is ~10s (see netlify/functions/scheduled-sync.ts's FETCH_TIMEOUT_MS
+// comment); this sits below that function's own 9s client-side abort so
+// /api/sync stops starting new work with room to spare, rather than either
+// racing the platform's hard kill or the caller's own timeout. It does NOT
+// bound a single provider's own request timeout (each vendor client sets
+// its own, e.g. STRIPE_REQUEST_TIMEOUT_MS/GA4_REQUEST_TIMEOUT_MS at 20s) —
+// a row that hangs its full 20s can still push a run past this ceiling on
+// its own, batch count aside. Threading a shared deadline into
+// provider.fetch would close that gap; out of scope here (issue #51 is
+// specifically about fan-out growing with provider *count*, not any one
+// provider's own latency) — see this PR's follow-up suggestions.
+const DEFAULT_RUN_BUDGET_MS = 7_000;
+
+// `size` has exactly one call site below, passing the module constant
+// BATCH_SIZE (always >= 1) — no size < 1 guard, since that branch could
+// never fire and would be untestable without exporting this function.
+function chunk<Row>(rows: Row[], size: number): Row[][] {
+  const batches: Row[][] = [];
+  for (let start = 0; start < rows.length; start += size) {
+    batches.push(rows.slice(start, start + size));
+  }
+  return batches;
 }
 
 function errorMessage(cause: unknown): string {
@@ -132,17 +194,84 @@ async function syncOneIntegration(
 }
 
 // The orchestration loop: every enabled integration_config row is synced
-// independently and concurrently, sharing one `runAt` so every row from this
-// run records the same last_run_at. A plain Promise.all (not
-// Promise.allSettled) is safe: syncOneIntegration never rejects, per
-// recordSyncStatusBestEffort's comment above.
+// independently, in fixed-size concurrent batches (BATCH_SIZE), sharing one
+// `runAt` so every row from this run records the same last_run_at. Within a
+// batch, a plain Promise.all (not Promise.allSettled) is safe:
+// syncOneIntegration never rejects, per recordSyncStatusBestEffort's comment
+// above.
+//
+// Between batches, the loop checks DEFAULT_RUN_BUDGET_MS (or the deps
+// override): once the budget is spent, remaining rows are left unattempted
+// for *this* run rather than started, and reported back in
+// SyncSummary.skipped rather than silently vanishing from the response.
+// That's deliberately not tracked as a `SyncOutcome` failure —
+// listEnabledIntegrationConfigs (server/integrations/persist.ts) orders
+// rows oldest-synced-first, so an unattempted row is both eligible for and
+// favored by the very next scheduled invocation (every 15 minutes; see
+// netlify/functions/scheduled-sync.ts), rotating which rows a routinely-hit
+// budget leaves behind rather than starving the same tail forever, with no
+// deferred-work state needed here. This rotation guarantee has two known
+// gaps, both stemming from ordering on a value (last_run_at) that's only
+// ever advanced *after* an attempt completes: (1) a row whose provider
+// hangs long enough for Netlify to kill the whole /api/sync invocation
+// never reaches recordSyncStatusBestEffort at all, and (2) a row whose
+// sync_status upsert itself keeps failing never advances last_run_at either
+// (recordSyncStatusBestEffort swallows write failures by design — see its
+// own comment). Either way the row's last_run_at is never advanced, so it
+// re-occupies the same always-admitted first-batch slot on every subsequent
+// run — with enough such rows (BATCH_SIZE), no other enabled row is ever
+// synced again, while the response still reports a routine `skipped`
+// warning with no signal distinguishing this from healthy rotation.
+// Stamping an attempt timestamp before provider.fetch (rather than only
+// recording the outcome after) would close both; out of scope here — see
+// this PR's follow-up suggestions.
+//
+// The very first batch is ALWAYS admitted regardless of elapsed time (the
+// budget check below is skipped while admittedRowCount is still 0) —
+// otherwise a slow listEnabledConfigRows() call alone (a Neon cold start,
+// pool contention) could exhaust the whole budget before any row is ever
+// attempted, and every subsequent invocation would repeat that same
+// zero-progress outcome forever. Guaranteeing forward progress matters more
+// than strictly enforcing the ceiling on that first batch.
+//
+// This bounds how long runSync's own loop spends *admitting* work
+// regardless of how many providers are enabled; see DEFAULT_RUN_BUDGET_MS's
+// comment for what it does not bound.
 export async function runSync(
   deps: SyncOrchestratorDeps,
 ): Promise<SyncSummary> {
+  const monotonicNow = deps.monotonicNow ?? (() => performance.now());
+  const startedAt = monotonicNow();
+
   const rows = await deps.listEnabledConfigRows();
   const runAt = (deps.now ?? (() => new Date()))();
-  const outcomes = await Promise.all(
-    rows.map((row) => syncOneIntegration(row, deps, runAt)),
-  );
-  return { outcomes };
+  const runBudgetMs = deps.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS;
+
+  const outcomes: SyncOutcome[] = [];
+  const batches = chunk(rows, BATCH_SIZE);
+  let admittedRowCount = 0;
+
+  for (const batch of batches) {
+    const isFirstBatch = admittedRowCount === 0;
+    const budgetSpent = monotonicNow() - startedAt >= runBudgetMs;
+    if (!isFirstBatch && budgetSpent) {
+      break;
+    }
+    const batchOutcomes = await Promise.all(
+      batch.map((row) => syncOneIntegration(row, deps, runAt)),
+    );
+    outcomes.push(...batchOutcomes);
+    admittedRowCount += batch.length;
+  }
+
+  const skipped: SyncSkippedRow[] = rows
+    .slice(admittedRowCount)
+    .map(({ slug, vendor }) => ({ slug, vendor }));
+  if (skipped.length > 0) {
+    console.warn(
+      `runSync: budget (${runBudgetMs}ms) spent; ${skipped.length} of ${rows.length} enabled row(s) left unattempted this run`,
+    );
+  }
+
+  return { outcomes, skipped };
 }
