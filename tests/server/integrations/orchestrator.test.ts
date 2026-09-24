@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { runSync } from "../../../server/integrations/orchestrator";
 import type {
   SyncOrchestratorDeps,
@@ -10,6 +10,13 @@ import type {
   IntegrationProvider,
   ProviderResult,
 } from "../../../server/integrations/types";
+
+// Belt-and-suspenders alongside each test's own mockRestore(): if a test's
+// assertions throw before reaching its restore call, this still stops a
+// stubbed console.error/warn from leaking into every later test in the file.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function configRow(
   overrides: Partial<IntegrationConfigRow> = {},
@@ -407,5 +414,101 @@ describe("runSync", () => {
     );
     expect(new Set(runAts).size).toBe(1);
     expect(deps.recordSyncStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("batches concurrent fetches in groups of exactly 5 rather than awaiting every row at once", async () => {
+    const rows = Array.from({ length: 12 }, (_, index) =>
+      configRow({ slug: `app-${index}`, vendor: "stripe" }),
+    );
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const fetch = vi.fn().mockImplementation(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return EMPTY_RESULT;
+    });
+    const deps = createDeps({
+      listEnabledConfigRows: async () => rows,
+      registry: { get: () => stubProvider("stripe", fetch) },
+    });
+
+    const summary = await runSync(deps);
+
+    expect(summary.outcomes).toHaveLength(12);
+    expect(summary.skipped).toEqual([]);
+    // 12 rows / BATCH_SIZE 5 gives two full batches of 5 before the
+    // trailing batch of 2, so peak concurrency must hit exactly 5 — not
+    // just "at most 5", which would also pass for a regression down to
+    // fully serial (maxInFlight 1).
+    expect(maxInFlight).toBe(5);
+  });
+
+  it("always admits the first batch even with an already-spent budget, so a slow listEnabledConfigRows() can't starve every run to zero progress", async () => {
+    const rows = Array.from({ length: 7 }, (_, index) =>
+      configRow({ slug: `app-${index}`, vendor: "stripe" }),
+    );
+    const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const deps = createDeps({
+      listEnabledConfigRows: async () => rows,
+      registry: { get: () => stubProvider("stripe", fetch) },
+      // A budget of -1 is already "spent" before the loop's very first
+      // check — if that check gated the first batch the same as every
+      // later one, this run (and every run after it, since the DB latency
+      // that ate the budget would repeat) would sync nothing, forever. The
+      // first batch runs regardless; only the second is cut off.
+      runBudgetMs: -1,
+    });
+
+    const summary = await runSync(deps);
+
+    expect(summary.outcomes).toHaveLength(5);
+    expect(summary.skipped).toEqual(
+      rows.slice(5).map(({ slug, vendor }) => ({ slug, vendor })),
+    );
+    expect(fetch).toHaveBeenCalledTimes(5);
+    expect(deps.persistProviderResult).toHaveBeenCalledTimes(5);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("2 of 7 enabled row(s) left unattempted"),
+    );
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("admits a batch already in flight's worth of work, then stops before the next batch once the budget is spent mid-run", async () => {
+    const rows = Array.from({ length: 7 }, (_, index) =>
+      configRow({ slug: `app-${index}`, vendor: "stripe" }),
+    );
+    const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
+    // monotonicNow() is called once for startedAt, then once per per-batch
+    // budget check (7 rows / BATCH_SIZE 5 = 2 batches, so 2 checks): 0ms
+    // elapsed for the first check (batch one proceeds), 150ms elapsed for
+    // the second (batch two is skipped, given a 100ms budget below). A
+    // plain counter over a fixture array, rather than spying on the global
+    // Date, so this doesn't leak into other tests and doesn't hard-code
+    // runSync's exact internal call count via mockReturnValueOnce chaining.
+    const elapsedFixture = [0, 0, 150];
+    let tick = 0;
+    const monotonicNow = () =>
+      elapsedFixture[tick++] ?? elapsedFixture.at(-1) ?? 0;
+    const deps = createDeps({
+      listEnabledConfigRows: async () => rows,
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: 100,
+      monotonicNow,
+    });
+
+    const summary = await runSync(deps);
+
+    // Only the first batch (5 rows) ran; the trailing 2-row batch was never
+    // started once the budget check saw it was spent.
+    expect(summary.outcomes).toHaveLength(5);
+    expect(summary.skipped).toEqual(
+      rows.slice(5).map(({ slug, vendor }) => ({ slug, vendor })),
+    );
+    expect(fetch).toHaveBeenCalledTimes(5);
   });
 });

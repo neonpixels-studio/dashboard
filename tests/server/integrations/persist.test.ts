@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { SQL } from "drizzle-orm";
+import { getTableColumns, SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import {
   listEnabledIntegrationConfigs,
   persistProviderResult,
@@ -32,8 +33,13 @@ function thenableQuery(resolvedValue: unknown = undefined) {
 
 function createFakeDb() {
   const batch = vi.fn().mockResolvedValue(undefined);
-  const where = vi.fn().mockResolvedValue([]);
-  const from = vi.fn().mockReturnValue({ where });
+  // listEnabledIntegrationConfigs' chain: select -> from -> leftJoin ->
+  // where -> orderBy, with orderBy's return value being what's actually
+  // awaited (a plain resolved array stands in for the real query result).
+  const orderBy = vi.fn().mockResolvedValue([]);
+  const where = vi.fn().mockReturnValue({ orderBy });
+  const leftJoin = vi.fn().mockReturnValue({ where });
+  const from = vi.fn().mockReturnValue({ leftJoin });
   const select = vi.fn().mockReturnValue({ from });
 
   const onConflictDoUpdate = vi.fn().mockReturnValue(thenableQuery());
@@ -51,7 +57,9 @@ function createFakeDb() {
     db: { select, insert, batch } as unknown as FakeDb,
     select,
     from,
+    leftJoin,
     where,
+    orderBy,
     insert,
     values,
     onConflictDoUpdate,
@@ -76,15 +84,53 @@ function configRow(
   };
 }
 
+// Renders a drizzle SQL fragment to literal query text without a live
+// connection, so this test can assert on the *actual* join/order-by SQL
+// (including the integration_vendor -> text cast — see persist.ts's
+// comment on why it's required) rather than `expect.any(Object)`, which
+// would pass just as well for a broken query as a correct one.
+function renderSql(fragment: SQL): string {
+  return new PgDialect().sqlToQuery(fragment).sql;
+}
+
 describe("listEnabledIntegrationConfigs", () => {
-  it("selects only enabled integration_config rows", async () => {
-    const { db, select, from, where } = createFakeDb();
+  it("selects every integration_config column, joined to sync_status, filtered to enabled rows, ordered oldest-synced-first", async () => {
+    const { db, select, from, leftJoin, where, orderBy } = createFakeDb();
 
     await listEnabledIntegrationConfigs(db);
 
-    expect(select).toHaveBeenCalledTimes(1);
+    // Explicit column selection (not select()'s no-arg "everything,
+    // including the join's columns" form) is what keeps the return shape
+    // flat as IntegrationConfigRow despite the leftJoin below.
+    expect(select).toHaveBeenCalledWith(getTableColumns(integrationConfig));
     expect(from).toHaveBeenCalledWith(integrationConfig);
+
+    // integration_config.vendor is the integration_vendor Postgres enum;
+    // sync_status.vendor is plain text. Without the explicit ::text cast
+    // this join fails outright against a real database (`operator does not
+    // exist: text = integration_vendor`) even though it type-checks and
+    // this exact mock-based assertion would still pass without it — so the
+    // cast is asserted on the rendered SQL text, not just "a condition was
+    // passed."
+    const [joinTarget, joinCondition] = leftJoin.mock.calls[0] as [
+      unknown,
+      SQL,
+    ];
+    expect(joinTarget).toBe(syncStatus);
+    expect(renderSql(joinCondition)).toBe(
+      '("sync_status"."slug" = "integration_config"."slug" and "sync_status"."vendor" = "integration_config"."vendor"::text)',
+    );
+
     expect(where).toHaveBeenCalledTimes(1);
+
+    // Nulls (never synced) first, then oldest-synced first, with the row id
+    // as a stable tiebreaker — this is what lets runSync's budget-limited
+    // skip path (orchestrator.ts) rotate which rows lose out instead of
+    // starving the same tail every time the budget is hit.
+    const [orderByArg] = orderBy.mock.calls[0] as [SQL];
+    expect(renderSql(orderByArg)).toBe(
+      '"sync_status"."last_run_at" asc nulls first, "integration_config"."id" asc',
+    );
   });
 });
 

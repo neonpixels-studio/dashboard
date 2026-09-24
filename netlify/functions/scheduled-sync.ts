@@ -1,7 +1,11 @@
 // Type-only — erased at build time, so this doesn't pull the Nuxt server
 // bundle into this separately-built Netlify Function (see the file-level
 // comment below on why this can't call the orchestrator in-process at all).
-import type { SyncSummary } from "../../server/integrations/orchestrator";
+import type {
+  SyncOutcome,
+  SyncSkippedRow,
+  SyncSummary,
+} from "../../server/integrations/orchestrator";
 
 // A Netlify Scheduled Function (https://docs.netlify.com/functions/scheduled-functions/),
 // bundled independently of the Nuxt/Nitro app by Netlify's own Functions
@@ -59,11 +63,15 @@ function requireTriggerSecret(): string {
 // Netlify's default synchronous function execution limit (10s as of this
 // writing) rather than some larger "generous" value — if it were longer,
 // Netlify would kill the whole function first and this abort would never
-// fire, defeating the point. /api/sync itself currently has no per-vendor
-// timeout and awaits every enabled provider concurrently in one request
-// (see server/integrations/orchestrator.ts's runSync), so as more providers
-// land this ceiling gets tight — see this PR's follow-up suggestions for
-// splitting that fan-out instead of just widening the number here.
+// fire, defeating the point. /api/sync's own runSync (see
+// server/integrations/orchestrator.ts) batches providers and stops
+// *admitting new batches* once its own DEFAULT_RUN_BUDGET_MS (7s, below
+// this ceiling) is spent — rows it doesn't get to are simply left for the
+// next scheduled invocation (see SyncSummary.skipped). That bounds fan-out
+// growth from provider *count*, but not an individual provider's own
+// request timeout (each vendor client sets its own, up to 20s) — a single
+// slow row can still exceed this ceiling on its own; see runSync's
+// DEFAULT_RUN_BUDGET_MS comment.
 const FETCH_TIMEOUT_MS = 9_000;
 
 // Returns null (rather than throwing) when the request itself never
@@ -90,11 +98,46 @@ async function postSync(
 // transport problem, so this function's own response would otherwise report
 // a healthy invocation for a total outage with nothing else watching for
 // it. Parsed defensively: an unparseable body is treated as "can't tell",
-// not as "everything failed".
-async function allVendorsFailed(response: Response): Promise<boolean> {
-  const summary: SyncSummary | null = await response.json().catch(() => null);
-  const outcomes = summary?.outcomes ?? [];
-  return outcomes.length > 0 && outcomes.every((outcome) => !outcome.ok);
+// not as "everything failed". Parsed once and passed to both this and
+// logSkippedRows below, since Response#json() can only be read once.
+async function parseSyncSummary(
+  response: Response,
+): Promise<SyncSummary | null> {
+  return response.json().catch(() => null);
+}
+
+// `summary` came from parsing an HTTP response body — a proxy, error page,
+// or future contract change could hand back JSON that isn't shaped like
+// SyncSummary at all (e.g. `outcomes`/`skipped` present but not arrays, or
+// containing items missing the fields below). Both accessors go through
+// this for the outer array shape, and use optional chaining on individual
+// items, so a malformed body degrades to "treat as empty/unknown" instead
+// of throwing and crashing an invocation whose actual sync already
+// succeeded.
+function safeArray<Item>(value: unknown): Item[] {
+  return Array.isArray(value) ? (value as Item[]) : [];
+}
+
+function allVendorsFailed(summary: SyncSummary | null): boolean {
+  const outcomes = safeArray<SyncOutcome>(summary?.outcomes);
+  return outcomes.length > 0 && outcomes.every((outcome) => !outcome?.ok);
+}
+
+// A non-empty `skipped` means runSync's own budget cut the run short (see
+// server/integrations/orchestrator.ts) — expected behavior as the enabled
+// provider count grows, not a failure, so this only logs rather than
+// affecting the response status below.
+function logSkippedRows(summary: SyncSummary | null): void {
+  const skipped = safeArray<SyncSkippedRow>(summary?.skipped);
+  if (skipped.length === 0) {
+    return;
+  }
+  const identifiers = skipped
+    .map((row) => `${row?.slug ?? "unknown"}:${row?.vendor ?? "unknown"}`)
+    .join(", ");
+  console.warn(
+    `scheduled-sync: run budget spent; ${skipped.length} enabled row(s) left unattempted this run: ${identifiers}`,
+  );
 }
 
 export default async function scheduledSync(): Promise<Response> {
@@ -120,7 +163,10 @@ export default async function scheduledSync(): Promise<Response> {
     return new Response("sync trigger failed", { status: 502 });
   }
 
-  if (await allVendorsFailed(response)) {
+  const summary = await parseSyncSummary(response);
+  logSkippedRows(summary);
+
+  if (allVendorsFailed(summary)) {
     console.error("scheduled-sync: every enabled integration failed");
     return new Response("every enabled integration failed", { status: 502 });
   }

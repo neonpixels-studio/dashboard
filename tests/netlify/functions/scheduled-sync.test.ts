@@ -8,6 +8,11 @@ const originalFetch = globalThis.fetch;
 afterEach(() => {
   vi.unstubAllEnvs();
   globalThis.fetch = originalFetch;
+  // Restores any console spy a test installed (e.g. the console.warn spy
+  // below) even if that test's own assertions failed before reaching its
+  // own restore call — otherwise a stubbed console leaks into every
+  // subsequent test in this file.
+  vi.restoreAllMocks();
 });
 
 describe("scheduled-sync config", () => {
@@ -164,5 +169,34 @@ describe("scheduledSync", () => {
     const response = await scheduledSync();
 
     expect(response.status).toBe(200);
+  });
+
+  it("logs (but still returns 200 for) a summary reporting rows the run budget left unattempted", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const summary = {
+      outcomes: [{ slug: "basin", vendor: "stripe", ok: true }],
+      skipped: [{ slug: "wanderist", vendor: "sentry" }],
+    };
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(summary), { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    const response = await scheduledSync();
+
+    // Skipped rows are expected system behavior under budget pressure, not
+    // a scheduler-level failure — the run still answers 200 — but they must
+    // be visible in the invocation log, not silently dropped.
+    expect(response.status).toBe(200);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("wanderist:sentry"),
+    );
+    // Restoration is handled by the file-level afterEach above, even if
+    // the assertions above this line fail.
   });
 });
