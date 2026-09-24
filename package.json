@@ -17,7 +17,7 @@
     "lint": "prettier --check . && eslint . && fallow audit",
     "lint:ci": "prettier --check . && eslint . && fallow audit --base origin/${BASE_BRANCH:-main}",
     "lint:fix": "prettier --write . && eslint . --fix && fallow fix --yes",
-    "typecheck": "nuxt typecheck --checker vue-tsc",
+    "typecheck": "nuxt prepare && vue-tsc -b --noEmit tsconfig.json",
     "prepare": "husky",
     "db:generate": "dotenvx run -f .env -- drizzle-kit generate",
     "db:migrate": "dotenvx run -f .env -- drizzle-kit migrate",

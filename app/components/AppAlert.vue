@@ -33,22 +33,22 @@ const emit = defineEmits<{
 }>();
 
 const iconName = computed(() => {
-  const map: Record<Tone, string> = {
+  const map = {
     err: "triangle",
     warn: "triangle",
     ok: "checkCircle",
     info: "info",
-  };
+  } satisfies Record<Tone, string>;
   return map[props.tone];
 });
 
 const toneLabel = computed(() => {
-  const map: Record<Tone, string> = {
+  const map = {
     err: "Error",
     warn: "Warning",
     ok: "Success",
     info: "Info",
-  };
+  } satisfies Record<Tone, string>;
   return map[props.tone];
 });
 </script>
