@@ -16,20 +16,6 @@
 <script setup lang="ts">
 type Tone = "err" | "warn" | "ok" | "info";
 
-const ICON_BY_TONE: Record<Tone, string> = {
-  err: "triangle",
-  warn: "triangle",
-  ok: "checkCircle",
-  info: "info",
-};
-
-const LABEL_BY_TONE: Record<Tone, string> = {
-  err: "Error",
-  warn: "Warning",
-  ok: "Success",
-  info: "Info",
-};
-
 const props = withDefaults(
   defineProps<{
     tone?: Tone;
@@ -46,6 +32,23 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const iconName = computed(() => ICON_BY_TONE[props.tone]);
-const toneLabel = computed(() => LABEL_BY_TONE[props.tone]);
+const iconName = computed(() => {
+  const map: Record<Tone, string> = {
+    err: "triangle",
+    warn: "triangle",
+    ok: "checkCircle",
+    info: "info",
+  };
+  return map[props.tone];
+});
+
+const toneLabel = computed(() => {
+  const map: Record<Tone, string> = {
+    err: "Error",
+    warn: "Warning",
+    ok: "Success",
+    info: "Info",
+  };
+  return map[props.tone];
+});
 </script>
