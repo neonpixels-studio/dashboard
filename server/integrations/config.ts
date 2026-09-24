@@ -13,7 +13,7 @@ import type { IntegrationConfig, IntegrationConfigRow } from "./types";
 // row and mark it misconfigured"; a secret error more likely means the
 // shared encryption key itself is broken, which is a bigger deal.
 export class IntegrationConfigError extends Error {
-  name = "IntegrationConfigError";
+  override name = "IntegrationConfigError";
 }
 
 // Every app slug this studio knows about, uppercased for comparison against
