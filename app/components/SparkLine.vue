@@ -62,7 +62,7 @@ const fillPath = computed(
 
 const a11yAttrs = computed(() => {
   if (props.ariaLabel) {
-    return { role: "img", "aria-label": props.ariaLabel };
+    return { role: "img" as const, "aria-label": props.ariaLabel };
   }
   return { "aria-hidden": "true" as const };
 });

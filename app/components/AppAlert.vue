@@ -14,9 +14,25 @@
 </template>
 
 <script setup lang="ts">
+type Tone = "err" | "warn" | "ok" | "info";
+
+const ICON_BY_TONE: Record<Tone, string> = {
+  err: "triangle",
+  warn: "triangle",
+  ok: "checkCircle",
+  info: "info",
+};
+
+const LABEL_BY_TONE: Record<Tone, string> = {
+  err: "Error",
+  warn: "Warning",
+  ok: "Success",
+  info: "Info",
+};
+
 const props = withDefaults(
   defineProps<{
-    tone?: "err" | "warn" | "ok" | "info";
+    tone?: Tone;
     title?: string;
     closeable?: boolean;
   }>(),
@@ -30,25 +46,6 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-type Tone = "err" | "warn" | "ok" | "info";
-
-const iconName = computed(() => {
-  const map: Record<Tone, string> = {
-    err: "triangle",
-    warn: "triangle",
-    ok: "checkCircle",
-    info: "info",
-  };
-  return map[props.tone];
-});
-
-const toneLabel = computed(() => {
-  const map: Record<Tone, string> = {
-    err: "Error",
-    warn: "Warning",
-    ok: "Success",
-    info: "Info",
-  };
-  return map[props.tone];
-});
+const iconName = computed(() => ICON_BY_TONE[props.tone]);
+const toneLabel = computed(() => LABEL_BY_TONE[props.tone]);
 </script>
