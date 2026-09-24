@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "metric_snapshot_slug_vendor_metric_period_captured_at_idx" ON "metric_snapshot" USING btree ("slug","vendor","metric","period","captured_at");

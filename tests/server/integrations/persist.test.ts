@@ -226,6 +226,46 @@ describe("persistProviderResult", () => {
       "excluded.synced_at",
     ]);
   });
+
+  it("upserts metric_snapshot on (slug, vendor, metric, period, captured_at) instead of duplicating a re-run backfill row", async () => {
+    const { db, onConflictDoUpdate } = createFakeDb();
+    const row = configRow({ slug: "basin", vendor: "ga4" });
+    const capturedAt = new Date("2026-09-01T00:00:00Z");
+    const result: ProviderResult = {
+      ...EMPTY_RESULT,
+      metrics: [
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 123,
+          period: "daily",
+          capturedAt,
+        },
+      ],
+    };
+
+    await persistProviderResult(db, row, result);
+
+    expect(onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: [
+          metricSnapshot.slug,
+          metricSnapshot.vendor,
+          metricSnapshot.metric,
+          metricSnapshot.period,
+          metricSnapshot.capturedAt,
+        ],
+      }),
+    );
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    // The update side must pull the newly-proposed value from `excluded`, not
+    // a fixed/stale one — otherwise a bulk backfill of several days would
+    // write the same value to every conflicting row.
+    expect(conflictArgs.set.value).toBeInstanceOf(SQL);
+    expect(conflictArgs.set.value.queryChunks[0].value).toEqual([
+      "excluded.value",
+    ]);
+  });
 });
 
 describe("recordSyncStatus", () => {

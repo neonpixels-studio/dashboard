@@ -58,7 +58,26 @@ export function persistProviderResult(
   // needs the BatchItem<"pg"> shape, so it casts there instead.
   const writes = [
     ...(metricRows.length
-      ? [db.insert(metricSnapshot).values(metricRows)]
+      ? [
+          db
+            .insert(metricSnapshot)
+            .values(metricRows)
+            // GA4's PERIOD_DAILY backfill (server/integrations/ga4/provider.ts)
+            // re-reports up to 30 prior days every sync, each keyed by its own
+            // calendar day — a re-sync must update that day's value in place
+            // rather than duplicate-inserting it. Same excluded-row pattern as
+            // the syndication_post upsert below.
+            .onConflictDoUpdate({
+              target: [
+                metricSnapshot.slug,
+                metricSnapshot.vendor,
+                metricSnapshot.metric,
+                metricSnapshot.period,
+                metricSnapshot.capturedAt,
+              ],
+              set: { value: sql`excluded.value` },
+            }),
+        ]
       : []),
     ...(trafficRows.length
       ? [db.insert(trafficBreakdown).values(trafficRows)]
