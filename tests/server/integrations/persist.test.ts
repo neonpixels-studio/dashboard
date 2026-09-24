@@ -275,10 +275,11 @@ describe("persistProviderResult", () => {
     ]);
   });
 
-  it("dedupes metric rows sharing a conflict key before inserting, keeping the last value", async () => {
+  it("dedupes metric rows sharing a conflict key before inserting, keeping the last value, while leaving distinct-key rows untouched", async () => {
     const { db, values } = createFakeDb();
     const row = configRow({ slug: "basin", vendor: "ga4" });
     const capturedAt = new Date("2026-09-01T00:00:00Z");
+    const otherDay = new Date("2026-09-02T00:00:00Z");
     const result: ProviderResult = {
       ...EMPTY_RESULT,
       metrics: [
@@ -289,12 +290,25 @@ describe("persistProviderResult", () => {
           period: "daily",
           capturedAt,
         },
+        // Same (vendor, metric, period, capturedAt) as above — the duplicate
+        // conflict key this test is pinning the dedupe behavior on.
         {
           vendor: "ga4",
           metric: "sessions",
           value: 2,
           period: "daily",
           capturedAt,
+        },
+        // A distinct capturedAt: a different conflict key, so it must
+        // survive untouched. Without this row, a dedupe implementation that
+        // collapsed every row down to one (e.g. `rows.slice(-1)`) would also
+        // make this test pass.
+        {
+          vendor: "ga4",
+          metric: "sessions",
+          value: 9,
+          period: "daily",
+          capturedAt: otherDay,
         },
       ],
     };
@@ -313,6 +327,52 @@ describe("persistProviderResult", () => {
         period: "daily",
         capturedAt,
         slug: "basin",
+      },
+      {
+        vendor: "ga4",
+        metric: "sessions",
+        value: 9,
+        period: "daily",
+        capturedAt: otherDay,
+        slug: "basin",
+      },
+    ]);
+  });
+
+  it("dedupes syndication_post rows sharing a conflict key before inserting, keeping the last status", async () => {
+    const { db, values } = createFakeDb();
+    const row = configRow();
+    const result: ProviderResult = {
+      ...EMPTY_RESULT,
+      syndicationPosts: [
+        {
+          platform: "devto",
+          postRef: "post-1",
+          status: "pending",
+          syncedAt: null,
+        },
+        // Same (slug, platform, postRef) — an offset-paginated provider
+        // (e.g. devto/hashnode draining pages with no dedupe of their own)
+        // can return the same post twice if a new post shifts the page
+        // window mid-drain.
+        {
+          platform: "devto",
+          postRef: "post-1",
+          status: "synced",
+          syncedAt: new Date("2026-09-01T00:00:00Z"),
+        },
+      ],
+    };
+
+    await persistProviderResult(db, row, result);
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        platform: "devto",
+        postRef: "post-1",
+        status: "synced",
+        syncedAt: new Date("2026-09-01T00:00:00Z"),
+        slug: row.slug,
       },
     ]);
   });

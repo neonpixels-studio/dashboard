@@ -25,34 +25,36 @@ function withSlug<Row>(rows: Row[], slug: string): (Row & { slug: string })[] {
 
 // Postgres raises "ON CONFLICT DO UPDATE command cannot affect row a second
 // time" if a single INSERT's VALUES list contains two rows that resolve to
-// the same (slug, vendor, metric, period, capturedAt) conflict target — that
-// would fail the whole batched sync (see persistProviderResult's db.batch
-// comment), not just skip the duplicate. No current provider emits two rows
-// for the same key in one result (GA4's PERIOD_DAILY backfill in
-// server/integrations/ga4/provider.ts gives every row a distinct calendar
-// day), but the shape that would trigger it — one shared `capturedAt`, N
-// metric rows — is this codebase's house pattern for a provider result, so
-// it's cheap insurance against a future provider doing that by accident.
+// the same conflict target — that fails the whole batched sync (see
+// persistProviderResult's db.batch comment), not just the duplicate row.
+// Shared by both upserting arrays below (metric_snapshot and
+// syndication_post) rather than writing the same collapse-by-key loop twice
+// for the same concern. `syndicationPost` has a real trigger for this: a
+// devto/hashnode provider draining offset-paginated pages with no dedupe of
+// its own (unlike server/integrations/syndication/medium/provider.ts's
+// dedupeByPostRefKeepingLatest) can return the same (slug, platform,
+// postRef) twice if a post lands mid-drain and shifts the page window.
+// `keyOf` is JSON.stringify'd rather than joined with a separator so a
+// free-text column value containing the separator (e.g. `vendor`, which
+// schema.ts documents as free text) can't collapse two distinct rows.
 // Last row for a given key wins, matching the upsert's own "excluded (the
-// newly-proposed row) wins" semantics.
-function dedupeMetricRowsByConflictKey<
-  Row extends {
-    slug: string;
-    vendor: string;
-    metric: string;
-    period: string;
-    capturedAt: Date;
-  },
->(rows: Row[]): Row[] {
+// newly-proposed row) wins" semantics; every drop is logged since silently
+// discarding a row a provider actually returned would otherwise leave no
+// trace anywhere (this file's neighbors — ga4/provider.ts, mapping.ts — fail
+// loud rather than silently drop/undercount for the same reason).
+function dedupeByConflictKey<Row>(
+  rows: Row[],
+  keyOf: (row: Row) => unknown[],
+): Row[] {
   const rowsByConflictKey = new Map<string, Row>();
   for (const row of rows) {
-    const conflictKey = [
-      row.slug,
-      row.vendor,
-      row.metric,
-      row.period,
-      row.capturedAt.toISOString(),
-    ].join("|");
+    const conflictKey = JSON.stringify(keyOf(row));
+    if (rowsByConflictKey.has(conflictKey)) {
+      console.warn(
+        "Dropping duplicate row sharing an upsert conflict key; keeping the last one seen.",
+        { conflictKey },
+      );
+    }
     rowsByConflictKey.set(conflictKey, row);
   }
   return [...rowsByConflictKey.values()];
@@ -81,11 +83,25 @@ export function persistProviderResult(
   row: IntegrationConfigRow,
   result: ProviderResult,
 ): Promise<unknown> {
-  const metricRows = dedupeMetricRowsByConflictKey(
+  const metricRows = dedupeByConflictKey(
     withSlug(result.metrics, row.slug),
+    (metricRow) => [
+      metricRow.slug,
+      metricRow.vendor,
+      metricRow.metric,
+      metricRow.period,
+      metricRow.capturedAt.toISOString(),
+    ],
   );
   const trafficRows = withSlug(result.trafficBreakdown, row.slug);
-  const syndicationRows = withSlug(result.syndicationPosts, row.slug);
+  const syndicationRows = dedupeByConflictKey(
+    withSlug(result.syndicationPosts, row.slug),
+    (syndicationRow) => [
+      syndicationRow.slug,
+      syndicationRow.platform,
+      syndicationRow.postRef,
+    ],
+  );
 
   // Left untyped (rather than `: BatchItem<"pg">[]`) so each element keeps
   // its concrete insert-builder type, which — unlike the wider
