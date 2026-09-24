@@ -58,8 +58,10 @@ jobs:
               - 'package-lock.json'
               - 'package.json'
               - '.nvmrc'
+              - '.github/workflows/ci.yml'
 
   generate-matrix:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,6 +74,13 @@ jobs:
       - id: find-tests
         run: |
           files=$(find e2e -maxdepth 1 -name "*.spec.ts" -exec basename {} .spec.ts \; | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          # An empty matrix would make the `e2e` job report `skipped`, which
+          # `e2e-gate` treats as a pass — silently stopping all e2e coverage.
+          # Fail loudly instead so a broken glob can't slip through green.
+          if [ "$files" = "[]" ]; then
+            echo "No e2e spec files found under e2e/ — check the find glob above." >&2
+            exit 1
+          fi
           echo "test-files=$files" >> $GITHUB_OUTPUT
 
   e2e:
@@ -84,6 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    timeout-minutes: 20
     strategy:
       matrix:
         test-file: ${{ fromJson(needs.generate-matrix.outputs.test-files) }}
@@ -113,6 +123,13 @@ jobs:
         run: |
           NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
           NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
+          echo "::add-mask::$NEON_API_KEY"
+          # Fail fast with a pointer to the fix rather than burning 4 retries
+          # against Neon with an empty bearer token (see README "e2e in CI").
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "NEON_API_KEY / NEON_PROJECT_ID missing from .env.e2e — see README 'e2e in CI' required setup." >&2
+            exit 1
+          fi
           # Neon API can return 4xx/5xx under concurrent load from parallel spec
           # jobs. Retry up to 4 times with exponential back-off (2s, 4s, 8s).
           max_attempts=4
@@ -135,13 +152,20 @@ jobs:
             fi
           done
           branch_id=$(echo "$response" | jq -r '.branch.id // empty' 2>/dev/null || true)
+          # Written as soon as it's known, before the db_url check below can
+          # exit 1 — otherwise a response with a branch id but an unexpected
+          # connection_uris shape orphans the branch: the always()-run delete
+          # step gets an empty BRANCH_ID and has nothing to clean up.
+          if [ -n "$branch_id" ]; then
+            echo "branch_id=$branch_id" >> $GITHUB_OUTPUT
+          fi
           db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler // .connection_uris[0].connection_uri // empty' 2>/dev/null || true)
+          echo "::add-mask::$db_url"
           if [ -z "$branch_id" ] || [ -z "$db_url" ]; then
             echo "Neon API did not return a connection URI after $max_attempts attempts. Full response:"
-            echo "$response"
+            echo "$response" | jq 'del(.connection_uris)' 2>/dev/null || echo "(response was not valid JSON)"
             exit 1
           fi
-          echo "branch_id=$branch_id" >> $GITHUB_OUTPUT
           echo "db_url=$db_url" >> $GITHUB_OUTPUT
         env:
           DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
@@ -166,8 +190,17 @@ jobs:
       - name: Delete Neon branch
         if: always()
         run: |
+          # BRANCH_ID is only set when "Create Neon branch" got far enough to
+          # parse one (see the comment there) — nothing was ever created if
+          # it's empty, and DELETE-ing "…/branches/" would just fail the
+          # cleanup step on top of whatever already failed above.
+          if [ -z "$BRANCH_ID" ]; then
+            echo "No Neon branch id recorded; nothing to delete."
+            exit 0
+          fi
           NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
           NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
+          echo "::add-mask::$NEON_API_KEY"
           curl -sf \
             --request DELETE \
             --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
