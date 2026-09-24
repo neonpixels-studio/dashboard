@@ -30,8 +30,10 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+type Tone = "err" | "warn" | "ok" | "info";
+
 const iconName = computed(() => {
-  const map: Record<string, string> = {
+  const map: Record<Tone, string> = {
     err: "triangle",
     warn: "triangle",
     ok: "checkCircle",
@@ -41,7 +43,7 @@ const iconName = computed(() => {
 });
 
 const toneLabel = computed(() => {
-  const map: Record<string, string> = {
+  const map: Record<Tone, string> = {
     err: "Error",
     warn: "Warning",
     ok: "Success",

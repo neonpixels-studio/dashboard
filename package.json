@@ -17,7 +17,7 @@
     "lint": "prettier --check . && eslint . && fallow audit",
     "lint:ci": "prettier --check . && eslint . && fallow audit --base origin/${BASE_BRANCH:-main}",
     "lint:fix": "prettier --write . && eslint . --fix && fallow fix --yes",
-    "typecheck": "nuxt prepare && tsc -p .nuxt/tsconfig.server.json --noEmit",
+    "typecheck": "nuxt typecheck",
     "prepare": "husky",
     "db:generate": "dotenvx run -f .env -- drizzle-kit generate",
     "db:migrate": "dotenvx run -f .env -- drizzle-kit migrate",
@@ -71,6 +71,7 @@
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8",
-    "vue-eslint-parser": "^10.4.1"
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.3.11"
   }
 }

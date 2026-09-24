@@ -64,7 +64,7 @@ const a11yAttrs = computed(() => {
   if (props.ariaLabel) {
     return { role: "img", "aria-label": props.ariaLabel };
   }
-  return { "aria-hidden": "true" };
+  return { "aria-hidden": "true" as const };
 });
 
 function gridStroke(index: number): string {

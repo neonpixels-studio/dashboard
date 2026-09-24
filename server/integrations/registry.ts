@@ -1,7 +1,7 @@
 import type { IntegrationProvider } from "./types";
 
 export class DuplicateProviderError extends Error {
-  name = "DuplicateProviderError";
+  override name = "DuplicateProviderError";
 }
 
 export interface ProviderRegistry {
