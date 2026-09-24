@@ -210,14 +210,21 @@ async function syncOneIntegration(
 // favored by the very next scheduled invocation (every 15 minutes; see
 // netlify/functions/scheduled-sync.ts), rotating which rows a routinely-hit
 // budget leaves behind rather than starving the same tail forever, with no
-// deferred-work state needed here. This rotation guarantee has one known
-// gap: a row whose provider hangs long enough for Netlify to kill the whole
-// /api/sync invocation never reaches recordSyncStatusBestEffort at all, so
-// its last_run_at is never advanced and it re-occupies the same
-// always-admitted first-batch slot on every subsequent run. Bounding
-// per-provider latency against this budget (see DEFAULT_RUN_BUDGET_MS's own
-// comment and this PR's follow-up suggestions) would close it; out of scope
-// here.
+// deferred-work state needed here. This rotation guarantee has two known
+// gaps, both stemming from ordering on a value (last_run_at) that's only
+// ever advanced *after* an attempt completes: (1) a row whose provider
+// hangs long enough for Netlify to kill the whole /api/sync invocation
+// never reaches recordSyncStatusBestEffort at all, and (2) a row whose
+// sync_status upsert itself keeps failing never advances last_run_at either
+// (recordSyncStatusBestEffort swallows write failures by design — see its
+// own comment). Either way the row's last_run_at is never advanced, so it
+// re-occupies the same always-admitted first-batch slot on every subsequent
+// run — with enough such rows (BATCH_SIZE), no other enabled row is ever
+// synced again, while the response still reports a routine `skipped`
+// warning with no signal distinguishing this from healthy rotation.
+// Stamping an attempt timestamp before provider.fetch (rather than only
+// recording the outcome after) would close both; out of scope here — see
+// this PR's follow-up suggestions.
 //
 // The very first batch is ALWAYS admitted regardless of elapsed time (the
 // budget check below is skipped while admittedRowCount is still 0) —

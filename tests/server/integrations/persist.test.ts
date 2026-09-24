@@ -93,6 +93,14 @@ function renderSql(fragment: SQL): string {
   return new PgDialect().sqlToQuery(fragment).sql;
 }
 
+// `enabled = $1` renders identically whether $1 binds true or false, so any
+// assertion that only checks the SQL text (renderSql above) is blind to
+// exactly the flip that would sync integrations the owner disabled. Params
+// are asserted separately from SQL text here for that reason.
+function renderSqlParams(fragment: SQL): unknown[] {
+  return new PgDialect().sqlToQuery(fragment).params;
+}
+
 describe("listEnabledIntegrationConfigs", () => {
   it("selects every integration_config column, joined to sync_status, filtered to enabled rows, ordered oldest-synced-first", async () => {
     const { db, select, from, leftJoin, where, orderBy } = createFakeDb();
@@ -121,12 +129,13 @@ describe("listEnabledIntegrationConfigs", () => {
       '("sync_status"."slug" = "integration_config"."slug" and "sync_status"."vendor" = "integration_config"."vendor"::text)',
     );
 
-    // Asserted on the rendered SQL text (not just "where was called") so a
-    // predicate that filtered on the wrong column, or the wrong boolean,
-    // couldn't pass silently — that would sync integrations the owner
-    // explicitly disabled.
+    // Asserted on the rendered SQL text AND its bound param (not just
+    // "where was called") so a predicate that filtered on the wrong column,
+    // or bound `false` instead of `true`, couldn't pass silently — either
+    // would sync integrations the owner explicitly disabled.
     const [whereArg] = where.mock.calls[0] as [SQL];
     expect(renderSql(whereArg)).toBe('"integration_config"."enabled" = $1');
+    expect(renderSqlParams(whereArg)).toEqual([true]);
 
     // Nulls (never synced) first, then oldest-synced first, with the row id
     // as a stable tiebreaker — this is what lets runSync's budget-limited

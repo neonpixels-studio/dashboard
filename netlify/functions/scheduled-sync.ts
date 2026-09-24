@@ -141,9 +141,10 @@ function allAttemptedVendorsFailed(outcomes: SyncOutcome[]): boolean {
 // A non-empty `skipped` means runSync's own budget cut the run short (see
 // server/integrations/orchestrator.ts) — expected behavior as the enabled
 // provider count grows, not a failure, so this only logs rather than
-// affecting the response status below.
-function logSkippedRows(summary: SyncSummary | null): void {
-  const skipped = safeArray<SyncSkippedRow>(summary?.skipped);
+// affecting the response status below. Takes the already-derived array
+// (rather than re-deriving it from `summary` itself) so there's exactly one
+// place that decides what "skipped" means for this invocation.
+function logSkippedRows(skipped: SyncSkippedRow[]): void {
   if (skipped.length === 0) {
     return;
   }
@@ -154,6 +155,16 @@ function logSkippedRows(summary: SyncSummary | null): void {
     `scheduled-sync: run budget spent; ${skipped.length} enabled row(s) left unattempted this run: ${identifiers}`,
   );
 }
+
+// A full batch's worth of attempts failing end to end is a confirmed
+// outage, not a small-sample artifact, even when the run's budget was also
+// spent elsewhere — see allFailed's own use below. Duplicates
+// server/integrations/orchestrator.ts's BATCH_SIZE as a literal rather than
+// importing it: that module pulls in the Nuxt server bundle (db, registry,
+// etc.), which this independently-built Netlify Function's bundle can't
+// include (see this file's header comment on why /api/sync is called over
+// HTTP instead of in-process).
+const MIN_ATTEMPTED_FOR_OUTAGE_ALERT = 5;
 
 export default async function scheduledSync(): Promise<Response> {
   const siteUrl = requireSiteUrl();
@@ -179,10 +190,10 @@ export default async function scheduledSync(): Promise<Response> {
   }
 
   const summary = await parseSyncSummary(response);
-  logSkippedRows(summary);
-
   const outcomes = safeArray<SyncOutcome>(summary?.outcomes);
   const skipped = safeArray<SyncSkippedRow>(summary?.skipped);
+  logSkippedRows(skipped);
+
   const allFailed = allAttemptedVendorsFailed(outcomes);
 
   if (allFailed) {
@@ -197,11 +208,18 @@ export default async function scheduledSync(): Promise<Response> {
     );
   }
 
-  // Only escalates the *response status* when the run was also complete
-  // (nothing skipped) — an all-failed subset while other enabled rows were
-  // never attempted is budget pressure, not a confirmed total outage. It's
-  // still logged as an error above either way.
-  if (allFailed && skipped.length === 0) {
+  // Escalates the *response status* when either the run was complete
+  // (nothing skipped — every enabled row failed) or a full batch's worth of
+  // attempts failed end to end (see MIN_ATTEMPTED_FOR_OUTAGE_ALERT) — the
+  // latter catches a real but slow-failing outage that trips the run budget
+  // before the whole enabled set is attempted, which would otherwise be
+  // indistinguishable in the response status from routine budget pressure.
+  // A smaller all-failed sample stays a log-only signal: too easily a
+  // small, unlucky batch rather than a confirmed outage.
+  if (
+    allFailed &&
+    (skipped.length === 0 || outcomes.length >= MIN_ATTEMPTED_FOR_OUTAGE_ALERT)
+  ) {
     return new Response("every attempted integration failed", {
       status: 502,
     });

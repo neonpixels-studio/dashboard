@@ -152,6 +152,30 @@ describe("scheduledSync", () => {
     );
   });
 
+  it("returns a 502 when a full batch's worth of attempts all failed, even though the budget also left rows skipped — a slow-failing outage shouldn't hide behind budget pressure", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    const summary = {
+      outcomes: [
+        { slug: "basin", vendor: "stripe", ok: false, error: "500" },
+        { slug: "markpost", vendor: "stripe", ok: false, error: "500" },
+        { slug: "wanderist", vendor: "stripe", ok: false, error: "500" },
+        { slug: "grimicorn", vendor: "stripe", ok: false, error: "500" },
+        { slug: "neonpixels", vendor: "stripe", ok: false, error: "500" },
+      ],
+      skipped: [{ slug: "danholloran", vendor: "ga4" }],
+    };
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(summary), { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    const response = await scheduledSync();
+
+    expect(response.status).toBe(502);
+  });
+
   it("still returns 200 (no crash) when outcomes/skipped aren't arrays at all — a malformed contract degrades to 'can't tell', not 'everything failed'", async () => {
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
