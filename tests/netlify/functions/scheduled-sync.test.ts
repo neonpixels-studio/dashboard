@@ -123,6 +123,26 @@ describe("scheduledSync", () => {
     expect(response.status).toBe(502);
   });
 
+  it("still returns 200 when every attempted outcome failed but the budget also left rows skipped — that's budget pressure, not a total outage", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    const summary = {
+      outcomes: [
+        { slug: "basin", vendor: "stripe", ok: false, error: "expired key" },
+      ],
+      skipped: [{ slug: "wanderist", vendor: "sentry" }],
+    };
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(summary), { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    const response = await scheduledSync();
+
+    expect(response.status).toBe(200);
+  });
+
   it("still returns 200 when only some outcomes failed — that's normal per-vendor isolation, not a scheduler-level problem", async () => {
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");

@@ -118,9 +118,20 @@ function safeArray<Item>(value: unknown): Item[] {
   return Array.isArray(value) ? (value as Item[]) : [];
 }
 
-function allVendorsFailed(summary: SyncSummary | null): boolean {
+// Requires a *complete* run (no skipped rows) before escalating: with
+// batching, `outcomes` only covers the rows this invocation actually
+// attempted, not every enabled row. If the run budget cut things short
+// (SyncSummary.skipped non-empty), a small unlucky batch could be
+// all-failed while most enabled rows were never tried — that's budget
+// pressure, already logged by logSkippedRows, not a total outage.
+function allAttemptedVendorsFailed(summary: SyncSummary | null): boolean {
   const outcomes = safeArray<SyncOutcome>(summary?.outcomes);
-  return outcomes.length > 0 && outcomes.every((outcome) => !outcome?.ok);
+  const skipped = safeArray<SyncSkippedRow>(summary?.skipped);
+  return (
+    skipped.length === 0 &&
+    outcomes.length > 0 &&
+    outcomes.every((outcome) => !outcome?.ok)
+  );
 }
 
 // A non-empty `skipped` means runSync's own budget cut the run short (see
@@ -166,9 +177,11 @@ export default async function scheduledSync(): Promise<Response> {
   const summary = await parseSyncSummary(response);
   logSkippedRows(summary);
 
-  if (allVendorsFailed(summary)) {
-    console.error("scheduled-sync: every enabled integration failed");
-    return new Response("every enabled integration failed", { status: 502 });
+  if (allAttemptedVendorsFailed(summary)) {
+    console.error("scheduled-sync: every attempted integration failed");
+    return new Response("every attempted integration failed", {
+      status: 502,
+    });
   }
 
   return new Response("ok", { status: 200 });

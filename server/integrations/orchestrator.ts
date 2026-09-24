@@ -65,8 +65,11 @@ export interface SyncOrchestratorDeps {
   runBudgetMs?: number;
   // Monotonic millisecond clock the budget above is measured against —
   // separate from `now` (which stamps `runAt`/sync_status and can be a
-  // fixed value in tests) because this one must actually advance. Defaults
-  // to Date.now; tests inject a counter instead of spying on the global.
+  // fixed value in tests) because this one must actually advance and never
+  // step backward. Defaults to performance.now() (unlike Date.now(), not
+  // subject to wall-clock/NTP adjustments, which could otherwise make the
+  // budget check never trip on a backward step, or end the run early on a
+  // forward one); tests inject a counter instead of spying on the global.
   monotonicNow?: () => number;
 }
 
@@ -94,10 +97,10 @@ const BATCH_SIZE = 5;
 // provider's own latency) — see this PR's follow-up suggestions.
 const DEFAULT_RUN_BUDGET_MS = 7_000;
 
+// `size` has exactly one call site below, passing the module constant
+// BATCH_SIZE (always >= 1) — no size < 1 guard, since that branch could
+// never fire and would be untestable without exporting this function.
 function chunk<Row>(rows: Row[], size: number): Row[][] {
-  if (size < 1) {
-    throw new Error(`chunk() requires size >= 1, got ${size}.`);
-  }
   const batches: Row[][] = [];
   for (let start = 0; start < rows.length; start += size) {
     batches.push(rows.slice(start, start + size));
@@ -223,7 +226,7 @@ async function syncOneIntegration(
 export async function runSync(
   deps: SyncOrchestratorDeps,
 ): Promise<SyncSummary> {
-  const monotonicNow = deps.monotonicNow ?? Date.now;
+  const monotonicNow = deps.monotonicNow ?? (() => performance.now());
   const startedAt = monotonicNow();
 
   const rows = await deps.listEnabledConfigRows();

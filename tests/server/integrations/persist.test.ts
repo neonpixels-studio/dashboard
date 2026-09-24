@@ -121,7 +121,12 @@ describe("listEnabledIntegrationConfigs", () => {
       '("sync_status"."slug" = "integration_config"."slug" and "sync_status"."vendor" = "integration_config"."vendor"::text)',
     );
 
-    expect(where).toHaveBeenCalledTimes(1);
+    // Asserted on the rendered SQL text (not just "where was called") so a
+    // predicate that filtered on the wrong column, or the wrong boolean,
+    // couldn't pass silently — that would sync integrations the owner
+    // explicitly disabled.
+    const [whereArg] = where.mock.calls[0] as [SQL];
+    expect(renderSql(whereArg)).toBe('"integration_config"."enabled" = $1');
 
     // Nulls (never synced) first, then oldest-synced first, with the row id
     // as a stable tiebreaker — this is what lets runSync's budget-limited
