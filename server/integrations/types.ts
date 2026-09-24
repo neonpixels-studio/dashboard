@@ -32,10 +32,19 @@ export interface IntegrationConfig {
 // `slug` (the orchestrator already knows which app it's syncing). Deriving
 // from the table definitions — rather than hand-listing fields — means a
 // schema change to any of these tables is reflected here automatically.
+//
+// `capturedAt` is re-widened to required even though `defaultNow()` makes it
+// optional at the DB/InferInsertModel level: persist.ts's upsert key (and
+// GA4's daily-backfill semantics, see ga4/provider.ts) depend on every
+// provider stamping its own explicit per-row timestamp rather than letting
+// Postgres default it to "now" for every row in a batch. `Required<Pick<...>>`
+// (rather than hardcoding `capturedAt: Date`) keeps the column's own type
+// derived from the table definition, same as every other field here.
 export type MetricSnapshotInput = Omit<
   InferInsertModel<typeof metricSnapshot>,
   "id" | "slug"
->;
+> &
+  Required<Pick<InferInsertModel<typeof metricSnapshot>, "capturedAt">>;
 export type TrafficBreakdownInput = Omit<
   InferInsertModel<typeof trafficBreakdown>,
   "id" | "slug"

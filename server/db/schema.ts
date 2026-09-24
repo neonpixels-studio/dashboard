@@ -133,6 +133,20 @@ export const metricSnapshot = pgTable(
       table.metric,
       table.capturedAt.desc(),
     ),
+    // A row is uniquely identified by (slug, vendor, metric, period,
+    // captured_at) — e.g. GA4's PERIOD_DAILY backfill in
+    // server/integrations/ga4/provider.ts re-reports up to 30 prior days
+    // every sync, each with its calendar day as `capturedAt`, not the sync
+    // time. Without this, a re-sync duplicate-inserts every one of those
+    // rows instead of updating them in place (see persist.ts's upsert on
+    // this key, mirroring syndication_post's precedent).
+    uniqueIndex("metric_snapshot_slug_vendor_metric_period_captured_at_idx").on(
+      table.slug,
+      table.vendor,
+      table.metric,
+      table.period,
+      table.capturedAt,
+    ),
   ],
 );
 
