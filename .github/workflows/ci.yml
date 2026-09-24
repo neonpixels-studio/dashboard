@@ -99,7 +99,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 20
+    # The budget lives on the "run e2e" step (below), not here: a *job*-level
+    # timeout kills the whole job outright, skipping every remaining step —
+    # including the `if: always()` Delete Neon branch step — so a hung
+    # Playwright run would leak its branch instead of hitting the cleanup
+    # it's there for. This job-level ceiling only exists as a backstop for
+    # something hanging before or after that step (npm ci, playwright
+    # install, the delete step's own retries).
+    timeout-minutes: 25
     strategy:
       matrix:
         test-file: ${{ fromJson(needs.generate-matrix.outputs.test-files) }}
@@ -169,14 +176,9 @@ jobs:
           # the status code separately with `-w` instead so both the retry
           # decision and the eventual error message have real data to work
           # with. The payload goes through `jq -n` rather than string
-          # interpolation so BRANCH_NAME can't break the JSON.
-          #
-          # The attempt number is folded into the branch name and the payload
-          # rebuilt each iteration: a retry after a *transport* failure (the
-          # request reached Neon and created the branch, but the response was
-          # lost) would otherwise repost the same name, get rejected as a
-          # duplicate, and leak the first branch forever with no branch_id to
-          # clean it up.
+          # interpolation so BRANCH_NAME can't break the JSON, and is built
+          # once since BRANCH_NAME is fixed across attempts (see the 409
+          # handling below for why a *different* name per attempt is worse).
           #
           # This step runs under `bash -e`, so `raw=$(curl ...)` normally
           # takes curl's own exit status — a DNS failure or connection reset
@@ -188,10 +190,9 @@ jobs:
           attempt=0
           response=""
           http_code=""
+          payload=$(jq -n --arg name "$BRANCH_NAME" '{branch: {name: $name}, endpoints: [{type: "read_write"}]}')
           while [ $attempt -lt $max_attempts ]; do
             attempt=$((attempt + 1))
-            attempt_branch_name="${BRANCH_NAME}-${attempt}"
-            payload=$(jq -n --arg name "$attempt_branch_name" '{branch: {name: $name}, endpoints: [{type: "read_write"}]}')
             raw=$(curl -s -w '\n%{http_code}' \
               --request POST \
               --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
@@ -205,7 +206,19 @@ jobs:
             fi
             # 401/403/422 mean bad credentials or a malformed request — retrying
             # the same call four times just delays an unavoidable failure.
-            if [ "$http_code" = "401" ] || [ "$http_code" = "403" ] || [ "$http_code" = "422" ]; then
+            #
+            # 409 (Neon's BRANCH_ALREADY_EXISTS, confirmed against the live
+            # API) means this exact name was already created — almost always
+            # by an earlier attempt in *this* loop whose success response got
+            # lost to a transport failure above. Posting a different name on
+            # retry would "fix" that by creating a second, untracked branch
+            # that never gets deleted (only one branch_id ever reaches
+            # $GITHUB_OUTPUT) — a silent leak that's worse than this loud,
+            # rare failure. Fail fast instead; the orphaned branch from the
+            # lost-response attempt is a known, visible gap here (Neon's API
+            # doesn't return created-but-unconfirmed branches any other way)
+            # rather than a silently multiplying one.
+            if [ "$http_code" = "401" ] || [ "$http_code" = "403" ] || [ "$http_code" = "422" ] || [ "$http_code" = "409" ]; then
               echo "Neon API returned non-retryable status $http_code." >&2
               break
             fi
@@ -241,12 +254,17 @@ jobs:
       # `global-setup.ts` migrates this fresh branch and provisions the Clerk
       # test user before any project's tests run.
       - run: npm run e2e -- "e2e/$TEST_FILE.spec.ts"
+        timeout-minutes: 15
         env:
           TEST_FILE: ${{ matrix.test-file }}
           DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
           E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+      # `if: failure()` alone is also true when "Create Neon branch" failed,
+      # before playwright ever ran — e2e/report/ doesn't exist yet, so
+      # upload-artifact would log a "no files found" warning on every
+      # credential/API failure instead of just on a real test failure.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: failure() && steps.neon.outputs.db_url != ''
         with:
           name: playwright-report-${{ steps.slug.outputs.slug }}
           path: e2e/report/
@@ -293,6 +311,20 @@ jobs:
               --header "Authorization: Bearer ${NEON_API_KEY}") || http_code="000"
             if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ]; then
               echo "Deleted Neon branch $BRANCH_ID."
+              exit 0
+            fi
+            # 404 means it's already gone (e.g. a workflow re-run, or someone
+            # cleaned it up manually) — nothing left to do. 401/403 mean bad
+            # credentials, which retrying won't fix. Neither is worth burning
+            # the remaining back-off on, and retrying 404 in particular would
+            # print a false "needs manual cleanup" warning for a branch that
+            # doesn't exist.
+            if [ "$http_code" = "404" ]; then
+              echo "Neon branch $BRANCH_ID already absent; nothing to delete."
+              exit 0
+            fi
+            if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+              echo "::warning::Neon rejected the delete for branch $BRANCH_ID (HTTP $http_code); it will need manual cleanup."
               exit 0
             fi
             if [ $attempt -lt $max_attempts ]; then

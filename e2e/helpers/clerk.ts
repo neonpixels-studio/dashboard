@@ -76,8 +76,8 @@ export async function getOrCreateTestClerkUser() {
 
 async function findTestClerkUserWithRetry(
   clerk: ReturnType<typeof clerkClient>,
-  attempts = 3,
-  delayMs = 500,
+  attempts = 5,
+  baseDelayMs = 500,
 ) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const found = await findTestClerkUser(clerk);
@@ -85,7 +85,13 @@ async function findTestClerkUserWithRetry(
       return found;
     }
     if (attempt < attempts) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      // Exponential, not fixed: three CI shards can hit getUserList within
+      // seconds of each other (see the comment above isIdentifierExistsError),
+      // and a fixed 500ms delay only gave this ~1s total to clear read-after-
+      // write lag before giving up.
+      await new Promise((resolve) =>
+        setTimeout(resolve, baseDelayMs * 2 ** (attempt - 1)),
+      );
     }
   }
   return undefined;
