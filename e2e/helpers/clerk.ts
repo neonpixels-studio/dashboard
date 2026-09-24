@@ -25,11 +25,29 @@ export async function getOrCreateTestClerkUser() {
     return existing[0];
   }
 
-  return clerk.users.createUser({
-    emailAddress: [TEST_USER_EMAIL],
-    password: TEST_USER_PASSWORD,
-    firstName: "E2E",
-    lastName: "Test",
-    skipPasswordChecks: true,
-  });
+  // CI runs multiple e2e matrix shards in parallel (see .github/workflows/
+  // ci.yml's `e2e` job), each calling this from its own globalSetup within
+  // seconds of the others. The check above is check-then-create with no
+  // locking, so more than one shard can see `existing.length === 0` and race
+  // to create the same user; Clerk accepts the first and rejects the rest
+  // with a "form_identifier_exists" error. Recover by re-fetching instead of
+  // treating that as a real failure — only a genuinely different error
+  // (bad credentials, Clerk outage, etc.) should still throw.
+  try {
+    return await clerk.users.createUser({
+      emailAddress: [TEST_USER_EMAIL],
+      password: TEST_USER_PASSWORD,
+      firstName: "E2E",
+      lastName: "Test",
+      skipPasswordChecks: true,
+    });
+  } catch (error) {
+    const { data: racedCreation } = await clerk.users.getUserList({
+      emailAddress: [TEST_USER_EMAIL],
+    });
+    if (racedCreation.length > 0) {
+      return racedCreation[0];
+    }
+    throw error;
+  }
 }
