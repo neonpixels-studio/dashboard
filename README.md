@@ -349,7 +349,10 @@ so specs never collide on shared state.
 `NEON_PROJECT_ID` (only `E2E_DATABASE_URL`, a single static branch, is set).
 Until someone with Neon console access adds them —
 `npx dotenvx set NEON_API_KEY "<key>" -f .env.e2e` and the same for
-`NEON_PROJECT_ID` — the `e2e` job's "Create Neon branch" step will fail with
-`MISSING_KEY`. The `DOTENV_PRIVATE_KEY_E2E` repository secret itself already
-exists in GitHub Actions, so no new Actions secret is needed — only those two
-encrypted values inside `.env.e2e`.
+`NEON_PROJECT_ID` — the `e2e` job's "Create Neon branch" step detects the gap,
+prints a `::warning::` annotation, and exits successfully without running any
+specs (rather than hard-failing every PR that touches e2e-relevant paths).
+The `DOTENV_PRIVATE_KEY_E2E` repository secret itself already exists in
+GitHub Actions, so no new Actions secret is needed — only those two
+encrypted values inside `.env.e2e`. Once they're added, the job runs specs
+for real on the next PR with no further changes needed.
