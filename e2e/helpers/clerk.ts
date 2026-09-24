@@ -1,4 +1,5 @@
 import { createClerkClient } from "@clerk/backend";
+import { isClerkAPIResponseError } from "@clerk/backend/errors";
 
 // A dedicated test user provisioned automatically via the Clerk Backend API.
 // No separate Clerk account or credential env vars are needed — the app's
@@ -14,25 +15,34 @@ function clerkClient() {
   return createClerkClient({ secretKey });
 }
 
+async function findTestClerkUser(clerk: ReturnType<typeof clerkClient>) {
+  const { data: matches } = await clerk.users.getUserList({
+    emailAddress: [TEST_USER_EMAIL],
+  });
+  return matches[0];
+}
+
+// CI runs multiple e2e matrix shards in parallel (see .github/workflows/
+// ci.yml's `e2e` job), each calling this from its own globalSetup within
+// seconds of the others. `getOrCreateTestClerkUser`'s lookup is
+// check-then-create with no locking, so more than one shard can see no
+// existing user and race to create it; Clerk accepts the first and rejects
+// the rest with this "form_identifier_exists" error.
+function isIdentifierExistsError(error: unknown) {
+  return (
+    isClerkAPIResponseError(error) &&
+    error.errors.some((apiError) => apiError.code === "form_identifier_exists")
+  );
+}
+
 export async function getOrCreateTestClerkUser() {
   const clerk = clerkClient();
 
-  const { data: existing } = await clerk.users.getUserList({
-    emailAddress: [TEST_USER_EMAIL],
-  });
-
-  if (existing.length > 0) {
-    return existing[0];
+  const existing = await findTestClerkUser(clerk);
+  if (existing) {
+    return existing;
   }
 
-  // CI runs multiple e2e matrix shards in parallel (see .github/workflows/
-  // ci.yml's `e2e` job), each calling this from its own globalSetup within
-  // seconds of the others. The check above is check-then-create with no
-  // locking, so more than one shard can see `existing.length === 0` and race
-  // to create the same user; Clerk accepts the first and rejects the rest
-  // with a "form_identifier_exists" error. Recover by re-fetching instead of
-  // treating that as a real failure — only a genuinely different error
-  // (bad credentials, Clerk outage, etc.) should still throw.
   try {
     return await clerk.users.createUser({
       emailAddress: [TEST_USER_EMAIL],
@@ -42,12 +52,17 @@ export async function getOrCreateTestClerkUser() {
       skipPasswordChecks: true,
     });
   } catch (error) {
-    const { data: racedCreation } = await clerk.users.getUserList({
-      emailAddress: [TEST_USER_EMAIL],
-    });
-    if (racedCreation.length > 0) {
-      return racedCreation[0];
+    // Only recover from the lost half of the create race above — any other
+    // error (bad credentials, Clerk outage, a real validation failure) is a
+    // genuine failure and must still throw, not get masked by an empty
+    // re-fetch or silently swallowed.
+    if (!isIdentifierExistsError(error)) {
+      throw error;
     }
-    throw error;
+    const racedCreation = await findTestClerkUser(clerk);
+    if (!racedCreation) {
+      throw error;
+    }
+    return racedCreation;
   }
 }

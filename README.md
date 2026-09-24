@@ -345,14 +345,11 @@ changed), mirroring the pattern in `basin`/`markpost`/`wanderist`: it decrypts
 fresh Neon branch per shard (deleted again in a final `if: always()` step)
 so specs never collide on shared state.
 
-**Required setup:** `.env.e2e` does not yet carry `NEON_API_KEY` /
-`NEON_PROJECT_ID` (only `E2E_DATABASE_URL`, a single static branch, is set).
-Until someone with Neon console access adds them —
-`npx dotenvx set NEON_API_KEY "<key>" -f .env.e2e` and the same for
-`NEON_PROJECT_ID` — the `e2e` job's "Create Neon branch" step fails fast with
-a clear `::error::` pointing back to this section, so every PR touching
-`app/`, `server/`, `e2e/`, etc. shows a red (not silently-passing) e2e check
-until this is done. The `DOTENV_PRIVATE_KEY_E2E` repository secret itself
-already exists in GitHub Actions, so no new Actions secret is needed — only
-those two encrypted values inside `.env.e2e`. Once they're added, the job
-runs specs for real on the next PR with no further changes needed.
+`NEON_API_KEY` and `NEON_PROJECT_ID` both live encrypted inside `.env.e2e`
+alongside `E2E_DATABASE_URL`. The `DOTENV_PRIVATE_KEY_E2E` repository secret
+is the only Actions secret needed — it decrypts all three. If either value
+is ever missing (e.g. a rotated key wasn't re-added), the `e2e` job's
+"Create Neon branch" step fails fast with a clear `::error::` pointing back
+to this section instead of silently skipping coverage. To rotate a value:
+`npx dotenvx set NEON_API_KEY "<key>" -f .env.e2e` (same for
+`NEON_PROJECT_ID`), then commit the re-encrypted `.env.e2e`.

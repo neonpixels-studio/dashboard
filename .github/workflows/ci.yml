@@ -74,7 +74,11 @@ jobs:
           persist-credentials: false
       - id: find-tests
         run: |
-          files=$(find e2e -name "*.spec.ts" -exec basename {} .spec.ts \; | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          # `-printf '%P\n'` keeps the path relative to `e2e/` (unlike
+          # `basename`, which would flatten `e2e/sub/foo.spec.ts` to `foo`,
+          # colliding with any other `foo.spec.ts` elsewhere and producing a
+          # matrix entry whose "e2e/$TEST_FILE.spec.ts" path doesn't exist).
+          files=$(find e2e -name "*.spec.ts" -printf '%P\n' | sed 's/\.spec\.ts$//' | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
           # An empty matrix would make the `e2e` job report `skipped`, which
           # `e2e-gate` treats as a pass — silently stopping all e2e coverage.
           # Fail loudly instead so a broken glob can't slip through green.
@@ -116,6 +120,16 @@ jobs:
         env:
           HUSKY: 0
       - run: npx playwright install chromium --with-deps
+      # A nested spec (e.g. e2e/sub/foo.spec.ts) keeps its "/" in
+      # matrix.test-file so the run step's path stays correct; branch names
+      # and artifact names can't contain "/", so this is the one place that
+      # gets sanitized, reused by every step below instead of repeating the
+      # substitution three times.
+      - name: Compute branch/artifact slug
+        id: slug
+        run: echo "slug=$(echo "$TEST_FILE" | tr '/' '-')" >> $GITHUB_OUTPUT
+        env:
+          TEST_FILE: ${{ matrix.test-file }}
       # Neon credentials (API key + project id) live encrypted in .env.e2e and
       # are decrypted with `dotenvx get` using the single DOTENV_PRIVATE_KEY_E2E
       # secret, so no standalone Neon secrets are needed.
@@ -138,22 +152,39 @@ jobs:
           fi
           # Neon API can return 4xx/5xx under concurrent load from parallel spec
           # jobs. Retry up to 4 times with exponential back-off (2s, 4s, 8s).
+          # `curl -f` discards the response body on an HTTP error, which left
+          # the "Full response" diagnostic below printing nothing — capture
+          # the status code separately with `-w` instead so both the retry
+          # decision and the eventual error message have real data to work
+          # with. The payload goes through `jq -n` rather than string
+          # interpolation so BRANCH_NAME can't break the JSON.
           max_attempts=4
           attempt=0
           response=""
+          http_code=""
+          payload=$(jq -n --arg name "$BRANCH_NAME" '{branch: {name: $name}, endpoints: [{type: "read_write"}]}')
           while [ $attempt -lt $max_attempts ]; do
             attempt=$((attempt + 1))
-            if response=$(curl -sf \
+            raw=$(curl -s -w '\n%{http_code}' \
               --request POST \
               --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
               --header "Authorization: Bearer ${NEON_API_KEY}" \
               --header "Content-Type: application/json" \
-              --data "{\"branch\":{\"name\":\"${BRANCH_NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}"); then
+              --data "$payload")
+            http_code=$(echo "$raw" | tail -n1)
+            response=$(echo "$raw" | sed '$d')
+            if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ]; then
+              break
+            fi
+            # 401/403/422 mean bad credentials or a malformed request — retrying
+            # the same call four times just delays an unavoidable failure.
+            if [ "$http_code" = "401" ] || [ "$http_code" = "403" ] || [ "$http_code" = "422" ]; then
+              echo "Neon API returned non-retryable status $http_code." >&2
               break
             fi
             if [ $attempt -lt $max_attempts ]; then
               delay=$((2 ** attempt))
-              echo "Attempt $attempt failed. Waiting ${delay}s before retry..."
+              echo "Attempt $attempt failed (HTTP $http_code). Waiting ${delay}s before retry..."
               sleep "$delay"
             fi
           done
@@ -168,14 +199,14 @@ jobs:
           db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler // .connection_uris[0].connection_uri // empty' 2>/dev/null || true)
           echo "::add-mask::$db_url"
           if [ -z "$branch_id" ] || [ -z "$db_url" ]; then
-            echo "Neon API did not return a connection URI after $max_attempts attempts. Full response:"
+            echo "Neon API did not return a connection URI (last HTTP status: $http_code). Full response:"
             echo "$response" | jq 'del(.connection_uris)' 2>/dev/null || echo "(response was not valid JSON)"
             exit 1
           fi
           echo "db_url=$db_url" >> $GITHUB_OUTPUT
         env:
           DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
-          BRANCH_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.test-file }}
+          BRANCH_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.slug.outputs.slug }}
       # `npm run e2e` is `dotenvx run -f .env.e2e -- playwright test`; the spec
       # path is appended after `--`. dotenvx decrypts the Clerk keys from
       # .env.e2e, while E2E_DATABASE_URL below (the fresh Neon branch)
@@ -190,7 +221,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: playwright-report-${{ matrix.test-file }}
+          name: playwright-report-${{ steps.slug.outputs.slug }}
           path: e2e/report/
           retention-days: 7
       - name: Delete Neon branch
@@ -207,17 +238,39 @@ jobs:
           NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
           NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
           echo "::add-mask::$NEON_API_KEY"
-          curl -sf \
-            --request DELETE \
-            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
-            --header "Authorization: Bearer ${NEON_API_KEY}"
+          echo "::add-mask::$NEON_PROJECT_ID"
+          # Neon can 423 while the branch's endpoint is still shutting down
+          # right after the test run ends, so this gets the same retry/back-off
+          # as creation. A cleanup failure after all retries is reported as a
+          # warning, not a step failure — a leaked branch shouldn't turn an
+          # otherwise-green test run red; it's surfaced for a human to sweep up.
+          max_attempts=4
+          attempt=0
+          http_code=""
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            http_code=$(curl -s -o /dev/null -w '%{http_code}' \
+              --request DELETE \
+              --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
+              --header "Authorization: Bearer ${NEON_API_KEY}")
+            if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ]; then
+              echo "Deleted Neon branch $BRANCH_ID."
+              exit 0
+            fi
+            if [ $attempt -lt $max_attempts ]; then
+              delay=$((2 ** attempt))
+              echo "Delete attempt $attempt failed (HTTP $http_code). Waiting ${delay}s before retry..."
+              sleep "$delay"
+            fi
+          done
+          echo "::warning::Failed to delete Neon branch $BRANCH_ID after $max_attempts attempts (last HTTP status: $http_code). It will need manual cleanup."
         env:
           DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
           BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
 
   e2e-gate:
     name: E2E Gate
-    needs: [e2e]
+    needs: [e2e, changes, generate-matrix]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -226,7 +279,20 @@ jobs:
       - name: Report status
         env:
           RESULT: ${{ needs.e2e.result }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          MATRIX_RESULT: ${{ needs.generate-matrix.result }}
         run: |
+          # `e2e` only runs when `changes` and `generate-matrix` both succeed
+          # (see the `e2e` job's `if:`), so a failure in either upstream job
+          # makes `e2e` report `skipped` — which this gate would otherwise
+          # treat as a pass, silently swallowing exactly the kind of broken
+          # glob or filter that `generate-matrix`'s own `exit 1` guard exists
+          # to catch. Check upstream results directly instead of trusting
+          # e2e's `skipped` to mean "no relevant changes."
+          if [[ "$CHANGES_RESULT" != "success" || "$MATRIX_RESULT" != "success" ]]; then
+            echo "Upstream job failed (changes: $CHANGES_RESULT, generate-matrix: $MATRIX_RESULT)"
+            exit 1
+          fi
           if [[ "$RESULT" == "success" || "$RESULT" == "skipped" ]]; then
             echo "E2E: $RESULT"
           else
