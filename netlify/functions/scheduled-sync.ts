@@ -118,20 +118,24 @@ function safeArray<Item>(value: unknown): Item[] {
   return Array.isArray(value) ? (value as Item[]) : [];
 }
 
-// Requires a *complete* run (no skipped rows) before escalating: with
-// batching, `outcomes` only covers the rows this invocation actually
-// attempted, not every enabled row. If the run budget cut things short
-// (SyncSummary.skipped non-empty), a small unlucky batch could be
-// all-failed while most enabled rows were never tried — that's budget
-// pressure, already logged by logSkippedRows, not a total outage.
-function allAttemptedVendorsFailed(summary: SyncSummary | null): boolean {
-  const outcomes = safeArray<SyncOutcome>(summary?.outcomes);
-  const skipped = safeArray<SyncSkippedRow>(summary?.skipped);
-  return (
-    skipped.length === 0 &&
-    outcomes.length > 0 &&
-    outcomes.every((outcome) => !outcome?.ok)
-  );
+// Only a well-formed `{ ok: boolean }` item can be judged a success or
+// failure — an item a future contract change or a proxy mangled into
+// null/undefined/missing `ok` must degrade to "can't tell", the same
+// stance safeArray takes for the outer array, not silently count as a
+// failure (which would flip "can't tell" into "everything failed").
+function isJudgeableOutcome(
+  outcome: SyncOutcome | null | undefined,
+): outcome is SyncOutcome {
+  return typeof outcome?.ok === "boolean";
+}
+
+// `outcomes` only covers rows this invocation actually attempted — with
+// batching, that can be a subset of every enabled row. Judged only over
+// well-formed items (see isJudgeableOutcome); an all-malformed or empty
+// array is "can't tell", not "everything failed".
+function allAttemptedVendorsFailed(outcomes: SyncOutcome[]): boolean {
+  const judgeable = outcomes.filter(isJudgeableOutcome);
+  return judgeable.length > 0 && judgeable.every((outcome) => !outcome.ok);
 }
 
 // A non-empty `skipped` means runSync's own budget cut the run short (see
@@ -177,8 +181,27 @@ export default async function scheduledSync(): Promise<Response> {
   const summary = await parseSyncSummary(response);
   logSkippedRows(summary);
 
-  if (allAttemptedVendorsFailed(summary)) {
-    console.error("scheduled-sync: every attempted integration failed");
+  const outcomes = safeArray<SyncOutcome>(summary?.outcomes);
+  const skipped = safeArray<SyncSkippedRow>(summary?.skipped);
+  const allFailed = allAttemptedVendorsFailed(outcomes);
+
+  if (allFailed) {
+    // Logged at error level regardless of the 502 gate below — a run where
+    // every attempted row failed is worse than routine budget pressure and
+    // must not be buried as a mere console.warn (see logSkippedRows above).
+    // Otherwise, as the enabled-row count grows and skipped runs become
+    // routine, a total outage would go completely unremarked at error
+    // level.
+    console.error(
+      `scheduled-sync: all ${outcomes.length} attempted integration(s) failed this run (${skipped.length} more left unattempted by the budget)`,
+    );
+  }
+
+  // Only escalates the *response status* when the run was also complete
+  // (nothing skipped) — an all-failed subset while other enabled rows were
+  // never attempted is budget pressure, not a confirmed total outage. It's
+  // still logged as an error above either way.
+  if (allFailed && skipped.length === 0) {
     return new Response("every attempted integration failed", {
       status: 502,
     });

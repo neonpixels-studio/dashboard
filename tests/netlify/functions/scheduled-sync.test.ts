@@ -123,9 +123,12 @@ describe("scheduledSync", () => {
     expect(response.status).toBe(502);
   });
 
-  it("still returns 200 when every attempted outcome failed but the budget also left rows skipped — that's budget pressure, not a total outage", async () => {
+  it("still returns 200, but logs an error, when every attempted outcome failed and the budget also left rows skipped — that's budget pressure, not a confirmed total outage, but must not go unremarked", async () => {
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const summary = {
       outcomes: [
         { slug: "basin", vendor: "stripe", ok: false, error: "expired key" },
@@ -140,7 +143,65 @@ describe("scheduledSync", () => {
 
     const response = await scheduledSync();
 
+    // A 502 here would be a false alarm — most enabled rows were never
+    // attempted — but the all-failed subset is real and must still surface
+    // at error level, not buried in logSkippedRows' plain warn.
     expect(response.status).toBe(200);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("all 1 attempted integration(s) failed"),
+    );
+  });
+
+  it("still returns 200 (no crash) when outcomes/skipped aren't arrays at all — a malformed contract degrades to 'can't tell', not 'everything failed'", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ outcomes: "nope", skipped: {} }), {
+        status: 200,
+      }),
+    ) as unknown as typeof fetch;
+
+    const response = await scheduledSync();
+
+    expect(response.status).toBe(200);
+  });
+
+  it("still returns 200 when outcomes contains malformed items — an item missing `ok` can't be judged a failure", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ outcomes: [null, {}] }), {
+        status: 200,
+      }),
+    ) as unknown as typeof fetch;
+
+    const response = await scheduledSync();
+
+    expect(response.status).toBe(200);
+  });
+
+  it("falls back to 'unknown' identifiers when a skipped row itself is malformed", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const summary = {
+      outcomes: [{ slug: "basin", vendor: "stripe", ok: true }],
+      skipped: [null],
+    };
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(summary), { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    const response = await scheduledSync();
+
+    expect(response.status).toBe(200);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("unknown:unknown"),
+    );
   });
 
   it("still returns 200 when only some outcomes failed — that's normal per-vendor isolation, not a scheduler-level problem", async () => {

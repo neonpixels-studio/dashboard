@@ -210,7 +210,14 @@ async function syncOneIntegration(
 // favored by the very next scheduled invocation (every 15 minutes; see
 // netlify/functions/scheduled-sync.ts), rotating which rows a routinely-hit
 // budget leaves behind rather than starving the same tail forever, with no
-// deferred-work state needed here.
+// deferred-work state needed here. This rotation guarantee has one known
+// gap: a row whose provider hangs long enough for Netlify to kill the whole
+// /api/sync invocation never reaches recordSyncStatusBestEffort at all, so
+// its last_run_at is never advanced and it re-occupies the same
+// always-admitted first-batch slot on every subsequent run. Bounding
+// per-provider latency against this budget (see DEFAULT_RUN_BUDGET_MS's own
+// comment and this PR's follow-up suggestions) would close it; out of scope
+// here.
 //
 // The very first batch is ALWAYS admitted regardless of elapsed time (the
 // budget check below is skipped while admittedRowCount is still 0) —
