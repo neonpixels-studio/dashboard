@@ -59,10 +59,34 @@ export async function getOrCreateTestClerkUser() {
     if (!isIdentifierExistsError(error)) {
       throw error;
     }
-    const racedCreation = await findTestClerkUser(clerk);
+    // Clerk just confirmed the identifier exists, so a re-fetch coming back
+    // empty is read-after-write lag on the list endpoint, not a real
+    // absence — retry a few times before giving up, rather than rethrowing
+    // on the first miss and pointing the reader at the wrong cause.
+    const racedCreation = await findTestClerkUserWithRetry(clerk);
     if (!racedCreation) {
-      throw error;
+      throw new Error(
+        `Clerk reported ${TEST_USER_EMAIL} already exists, but it was not returned by getUserList after retrying`,
+        { cause: error },
+      );
     }
     return racedCreation;
   }
+}
+
+async function findTestClerkUserWithRetry(
+  clerk: ReturnType<typeof clerkClient>,
+  attempts = 3,
+  delayMs = 500,
+) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const found = await findTestClerkUser(clerk);
+    if (found) {
+      return found;
+    }
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return undefined;
 }

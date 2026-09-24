@@ -91,10 +91,11 @@ jobs:
   e2e:
     needs: [ci, changes, generate-matrix]
     if: |
-      always() &&
+      !cancelled() &&
       needs.ci.result == 'success' &&
       github.event_name == 'pull_request' &&
-      needs.changes.outputs.src == 'true'
+      needs.changes.outputs.src == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -150,6 +151,17 @@ jobs:
             echo "::error::NEON_API_KEY / NEON_PROJECT_ID missing from .env.e2e — see README 'e2e in CI' required setup for the dotenvx set commands to add them." >&2
             exit 1
           fi
+          # A missing/wrong DOTENV_PRIVATE_KEY_E2E doesn't necessarily make
+          # `dotenvx get` return empty — it can pass the raw "encrypted:…"
+          # ciphertext straight through, which would otherwise sail past the
+          # emptiness check above and get sent to Neon as a bogus credential,
+          # showing up as a confusing 401 instead of pointing at the real cause.
+          case "$NEON_API_KEY$NEON_PROJECT_ID" in
+            *encrypted:*)
+              echo "::error::.env.e2e could not be decrypted (got raw ciphertext back) — is DOTENV_PRIVATE_KEY_E2E set correctly?" >&2
+              exit 1
+              ;;
+          esac
           # Neon API can return 4xx/5xx under concurrent load from parallel spec
           # jobs. Retry up to 4 times with exponential back-off (2s, 4s, 8s).
           # `curl -f` discards the response body on an HTTP error, which left
@@ -158,19 +170,34 @@ jobs:
           # decision and the eventual error message have real data to work
           # with. The payload goes through `jq -n` rather than string
           # interpolation so BRANCH_NAME can't break the JSON.
+          #
+          # The attempt number is folded into the branch name and the payload
+          # rebuilt each iteration: a retry after a *transport* failure (the
+          # request reached Neon and created the branch, but the response was
+          # lost) would otherwise repost the same name, get rejected as a
+          # duplicate, and leak the first branch forever with no branch_id to
+          # clean it up.
+          #
+          # This step runs under `bash -e`, so `raw=$(curl ...)` normally
+          # takes curl's own exit status — a DNS failure or connection reset
+          # (curl exit 6/7/28, no HTTP response at all) would abort the step
+          # before the retry loop ever saw it. The `|| raw=$'\n000'` fallback
+          # keeps that case inside the loop as a synthetic non-2xx status
+          # instead of killing the step outright.
           max_attempts=4
           attempt=0
           response=""
           http_code=""
-          payload=$(jq -n --arg name "$BRANCH_NAME" '{branch: {name: $name}, endpoints: [{type: "read_write"}]}')
           while [ $attempt -lt $max_attempts ]; do
             attempt=$((attempt + 1))
+            attempt_branch_name="${BRANCH_NAME}-${attempt}"
+            payload=$(jq -n --arg name "$attempt_branch_name" '{branch: {name: $name}, endpoints: [{type: "read_write"}]}')
             raw=$(curl -s -w '\n%{http_code}' \
               --request POST \
               --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
               --header "Authorization: Bearer ${NEON_API_KEY}" \
               --header "Content-Type: application/json" \
-              --data "$payload")
+              --data "$payload") || raw=$'\n000'
             http_code=$(echo "$raw" | tail -n1)
             response=$(echo "$raw" | sed '$d')
             if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ]; then
@@ -235,15 +262,26 @@ jobs:
             echo "No Neon branch id recorded; nothing to delete."
             exit 0
           fi
-          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
-          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
+          # Guarded the same way as the create step (empty-string fallback
+          # rather than a bare `dotenvx get`): this step runs under `bash -e`
+          # and is meant to only ever *warn* on failure, per the comment
+          # below — an unguarded, unhandled non-zero exit here would fail the
+          # step (and the job) instead, contradicting that design.
+          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e 2>/dev/null) || NEON_API_KEY=""
+          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e 2>/dev/null) || NEON_PROJECT_ID=""
           echo "::add-mask::$NEON_API_KEY"
           echo "::add-mask::$NEON_PROJECT_ID"
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "::warning::Can't read Neon credentials to delete branch $BRANCH_ID; it will need manual cleanup."
+            exit 0
+          fi
           # Neon can 423 while the branch's endpoint is still shutting down
           # right after the test run ends, so this gets the same retry/back-off
           # as creation. A cleanup failure after all retries is reported as a
           # warning, not a step failure — a leaked branch shouldn't turn an
           # otherwise-green test run red; it's surfaced for a human to sweep up.
+          # `|| http_code="000"` covers a transport failure (no HTTP response
+          # at all) the same way the create step's `|| raw=$'\n000'` does.
           max_attempts=4
           attempt=0
           http_code=""
@@ -252,7 +290,7 @@ jobs:
             http_code=$(curl -s -o /dev/null -w '%{http_code}' \
               --request DELETE \
               --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
-              --header "Authorization: Bearer ${NEON_API_KEY}")
+              --header "Authorization: Bearer ${NEON_API_KEY}") || http_code="000"
             if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 300 ]; then
               echo "Deleted Neon branch $BRANCH_ID."
               exit 0
@@ -270,7 +308,7 @@ jobs:
 
   e2e-gate:
     name: E2E Gate
-    needs: [e2e, changes, generate-matrix]
+    needs: [e2e, ci, changes, generate-matrix]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -279,18 +317,21 @@ jobs:
       - name: Report status
         env:
           RESULT: ${{ needs.e2e.result }}
+          CI_RESULT: ${{ needs.ci.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           MATRIX_RESULT: ${{ needs.generate-matrix.result }}
         run: |
-          # `e2e` only runs when `changes` and `generate-matrix` both succeed
-          # (see the `e2e` job's `if:`), so a failure in either upstream job
-          # makes `e2e` report `skipped` — which this gate would otherwise
-          # treat as a pass, silently swallowing exactly the kind of broken
-          # glob or filter that `generate-matrix`'s own `exit 1` guard exists
-          # to catch. Check upstream results directly instead of trusting
-          # e2e's `skipped` to mean "no relevant changes."
-          if [[ "$CHANGES_RESULT" != "success" || "$MATRIX_RESULT" != "success" ]]; then
-            echo "Upstream job failed (changes: $CHANGES_RESULT, generate-matrix: $MATRIX_RESULT)"
+          # `e2e`'s `if:` requires `ci` and `changes` to succeed, and reads
+          # `generate-matrix`'s output via `fromJson(...)` — so a `ci` or
+          # `changes` failure makes `e2e` report `skipped`, while a
+          # `generate-matrix` failure makes `e2e` itself error out evaluating
+          # `fromJson('')`. Either way, checking `needs.e2e.result` alone
+          # isn't enough: a `skipped` would read as a pass here, silently
+          # swallowing exactly the kind of broken filter/glob/lint failure
+          # this gate exists to catch. Check every upstream job's actual
+          # result directly instead of inferring anything from e2e's.
+          if [[ "$CI_RESULT" != "success" || "$CHANGES_RESULT" != "success" || "$MATRIX_RESULT" != "success" ]]; then
+            echo "Upstream job failed (ci: $CI_RESULT, changes: $CHANGES_RESULT, generate-matrix: $MATRIX_RESULT)"
             exit 1
           fi
           if [[ "$RESULT" == "success" || "$RESULT" == "skipped" ]]; then
