@@ -40,11 +40,18 @@ async function forSlugs<Row>(
 }
 
 // The current-value tiles and rollups need the single latest row per
-// (slug, metric, period) — unbounded, so a vendor that's been broken (or
-// simply unpolled) for longer than any fixed window doesn't silently vanish
-// from a sum with no null and no indication anything was excluded. Postgres
-// `DISTINCT ON` is exactly this query, and the ORDER BY below matches the
-// DISTINCT ON columns (required) before breaking ties on the newest capture.
+// (slug, vendor, metric, period) — unbounded, so a vendor that's been broken
+// (or simply unpolled) for longer than any fixed window doesn't silently
+// vanish from a sum with no null and no indication anything was excluded.
+// Postgres `DISTINCT ON` is exactly this query, and the ORDER BY below
+// matches the DISTINCT ON columns (required) before breaking ties on the
+// newest capture. `vendor` is part of the DISTINCT ON key (not just
+// slug/metric/period): the schema lets more than one vendor report the same
+// (slug, metric, period) — e.g. every syndication provider writes its own
+// `posts`/`current` row for the same content slug — and collapsing on
+// slug/metric/period alone would keep only whichever vendor happened to
+// poll most recently, silently discarding every other vendor's row before
+// dashboardShaping.ts's per-vendor summation ever sees it.
 export function fetchLatestMetricSnapshots(
   db: DrizzleDb,
   slugs: string[],
@@ -53,6 +60,7 @@ export function fetchLatestMetricSnapshots(
     db
       .selectDistinctOn([
         metricSnapshot.slug,
+        metricSnapshot.vendor,
         metricSnapshot.metric,
         metricSnapshot.period,
       ])
@@ -60,6 +68,7 @@ export function fetchLatestMetricSnapshots(
       .where(inArray(metricSnapshot.slug, slugs))
       .orderBy(
         metricSnapshot.slug,
+        metricSnapshot.vendor,
         metricSnapshot.metric,
         metricSnapshot.period,
         desc(metricSnapshot.capturedAt),

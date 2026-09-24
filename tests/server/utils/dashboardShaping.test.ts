@@ -176,6 +176,83 @@ describe("latestMetricsBySlug", () => {
       },
     ]);
   });
+
+  it("sums two vendors' rows for the same slug/metric/period instead of one overwriting the other (regression for #47)", () => {
+    // Hashnode and DEV.to both syndicate the same content slug and each
+    // write their own `posts`/`current` row — see
+    // server/integrations/syndication/normalize.ts.
+    const rows = [
+      metricRow({
+        vendor: "hashnode",
+        metric: "posts",
+        period: "current",
+        value: 12,
+        capturedAt: new Date("2026-09-18T00:00:00Z"),
+      }),
+      metricRow({
+        vendor: "devto",
+        metric: "posts",
+        period: "current",
+        value: 5,
+        capturedAt: new Date("2026-09-19T00:00:00Z"),
+      }),
+    ];
+
+    const result = latestMetricsBySlug(rows, "basin");
+
+    expect(result).toEqual([
+      {
+        metric: "posts",
+        period: "current",
+        value: 17,
+        capturedAt: new Date("2026-09-19T00:00:00Z").toISOString(),
+      },
+    ]);
+  });
+
+  it("sums each vendor's own latest row, not just the single latest row across vendors", () => {
+    // Hashnode's most recent poll (12) is older than DEV.to's (5), but both
+    // are each vendor's own latest — the tile must add both, never drop the
+    // stale-looking one just because a different vendor polled more
+    // recently. Hashnode's newer row (12) is listed BEFORE its older row
+    // (8) — deliberately out of chronological order — so this fails if the
+    // per-vendor "latest" pick is ever positional (last array element)
+    // instead of by capturedAt.
+    const rows = [
+      metricRow({
+        vendor: "hashnode",
+        metric: "posts",
+        period: "current",
+        value: 12,
+        capturedAt: new Date("2026-09-05T00:00:00Z"),
+      }),
+      metricRow({
+        vendor: "hashnode",
+        metric: "posts",
+        period: "current",
+        value: 8,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      }),
+      metricRow({
+        vendor: "devto",
+        metric: "posts",
+        period: "current",
+        value: 5,
+        capturedAt: new Date("2026-09-19T00:00:00Z"),
+      }),
+    ];
+
+    const result = latestMetricsBySlug(rows, "basin");
+
+    expect(result).toEqual([
+      {
+        metric: "posts",
+        period: "current",
+        value: 17,
+        capturedAt: new Date("2026-09-19T00:00:00Z").toISOString(),
+      },
+    ]);
+  });
 });
 
 describe("metricSeriesBySlug", () => {
@@ -234,6 +311,50 @@ describe("metricSeriesBySlug", () => {
     ]);
     expect(series.find((entry) => entry.period === "30d")?.points).toEqual([
       { capturedAt: new Date("2026-09-01").toISOString(), value: 12400 },
+    ]);
+  });
+
+  it("combines two vendors' history into one summed, carried-forward series instead of interleaving raw per-vendor rows (regression for #47)", () => {
+    const rows = [
+      metricRow({
+        vendor: "hashnode",
+        metric: "posts",
+        period: "current",
+        value: 10,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      }),
+      metricRow({
+        vendor: "devto",
+        metric: "posts",
+        period: "current",
+        value: 3,
+        capturedAt: new Date("2026-09-02T00:00:00Z"),
+      }),
+      metricRow({
+        vendor: "hashnode",
+        metric: "posts",
+        period: "current",
+        value: 12,
+        capturedAt: new Date("2026-09-03T00:00:00Z"),
+      }),
+    ];
+
+    const series = metricSeriesBySlug(rows, "basin");
+
+    expect(series).toEqual([
+      {
+        metric: "posts",
+        period: "current",
+        points: [
+          // Day 1: only Hashnode has reported (10).
+          { capturedAt: "2026-09-01T00:00:00.000Z", value: 10 },
+          // Day 2: Hashnode's last known value (10) carries forward, summed
+          // with DEV.to's new row (3) — 13, not 3.
+          { capturedAt: "2026-09-02T00:00:00.000Z", value: 13 },
+          // Day 3: Hashnode's new row (12) plus DEV.to's carried-forward 3.
+          { capturedAt: "2026-09-03T00:00:00.000Z", value: 15 },
+        ],
+      },
     ]);
   });
 });
@@ -300,6 +421,39 @@ describe("metricRollupWithSplit", () => {
       period: "30d",
       capturedAt: rows[1].capturedAt.toISOString(),
       byApp: [{ slug: "markpost", value: 12400 }],
+    });
+  });
+
+  it("picks the most recent row by capturedAt when an app has more than one, not the alphabetically-last vendor", () => {
+    // Not reachable via today's single-vendor rollup metrics, but
+    // fetchLatestMetricSnapshots can return more than one row per app for a
+    // metric/period a future multi-vendor metric routes through here (see
+    // groupVendorBucketsByMetric) — "sentry" sorts after "github", but its
+    // row is the older one and must not win just because of vendor name.
+    const rows = [
+      metricRow({
+        slug: "basin",
+        vendor: "sentry",
+        metric: "open_issues",
+        value: 3,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      }),
+      metricRow({
+        slug: "basin",
+        vendor: "github",
+        metric: "open_issues",
+        value: 40,
+        capturedAt: new Date("2026-09-23T00:00:00Z"),
+      }),
+    ];
+
+    expect(
+      metricRollupWithSplit(rows, ["basin"], "open_issues", "current"),
+    ).toEqual({
+      value: 40,
+      period: "current",
+      capturedAt: new Date("2026-09-23T00:00:00Z").toISOString(),
+      byApp: [{ slug: "basin", value: 40 }],
     });
   });
 });

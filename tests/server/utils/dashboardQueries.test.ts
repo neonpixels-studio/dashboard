@@ -1,3 +1,4 @@
+import { desc } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
@@ -11,6 +12,7 @@ import {
   seriesWindowStart,
   SERIES_WINDOW_DAYS,
 } from "../../../server/utils/dashboardQueries";
+import { metricSnapshot } from "../../../server/db/schema";
 
 type FakeDb = Parameters<typeof fetchMetricSnapshotSeries>[0];
 
@@ -108,6 +110,31 @@ describe("fetchLatestMetricSnapshots", () => {
       rows,
     );
     expect(orderBy).toHaveBeenCalled();
+  });
+
+  // Regression for #47: the DISTINCT ON (and its matching ORDER BY) must key
+  // on vendor as well as slug/metric/period, or the DB collapses multiple
+  // vendors reporting the same (slug, metric, period) — e.g. every
+  // syndication provider's `posts`/`current` row — down to whichever vendor
+  // polled most recently before dashboardShaping.ts's per-vendor summation
+  // ever sees the other vendors' rows.
+  it("dedupes on (slug, vendor, metric, period), not slug/metric/period alone", async () => {
+    const { db, selectDistinctOn, orderBy } = createDistinctFakeDb([]);
+    await fetchLatestMetricSnapshots(db, ["basin"]);
+
+    expect(selectDistinctOn).toHaveBeenCalledWith([
+      metricSnapshot.slug,
+      metricSnapshot.vendor,
+      metricSnapshot.metric,
+      metricSnapshot.period,
+    ]);
+    expect(orderBy).toHaveBeenCalledWith(
+      metricSnapshot.slug,
+      metricSnapshot.vendor,
+      metricSnapshot.metric,
+      metricSnapshot.period,
+      desc(metricSnapshot.capturedAt),
+    );
   });
 });
 
