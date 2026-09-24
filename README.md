@@ -334,3 +334,22 @@ via the Backend API — no extra credential env vars, the app's own
 `unauthenticated` (no session exists yet, so guards behave like a real visitor's),
 `setup` (signs in via `@clerk/testing`, saves state to `e2e/.auth/user.json`),
 then `chromium` (everything else, with that session).
+
+### e2e in CI
+
+`ci.yml`'s `e2e` job runs each `e2e/*.spec.ts` file as its own matrix shard
+(skipped outside pull requests, and skipped when no e2e-relevant path
+changed), mirroring the pattern in `basin`/`markpost`/`wanderist`: it decrypts
+`.env.e2e` with the `DOTENV_PRIVATE_KEY_E2E` repository secret, then uses the
+`NEON_API_KEY`/`NEON_PROJECT_ID` stored inside that same file to create a
+fresh Neon branch per shard (deleted again in a final `if: always()` step)
+so specs never collide on shared state.
+
+**Required setup:** `.env.e2e` does not yet carry `NEON_API_KEY` /
+`NEON_PROJECT_ID` (only `E2E_DATABASE_URL`, a single static branch, is set).
+Until someone with Neon console access adds them —
+`npx dotenvx set NEON_API_KEY "<key>" -f .env.e2e` and the same for
+`NEON_PROJECT_ID` — the `e2e` job's "Create Neon branch" step will fail with
+`MISSING_KEY`. The `DOTENV_PRIVATE_KEY_E2E` repository secret itself already
+exists in GitHub Actions, so no new Actions secret is needed — only those two
+encrypted values inside `.env.e2e`.

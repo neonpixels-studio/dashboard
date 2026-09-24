@@ -31,6 +31,167 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:ci
 
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'app/**'
+              - 'server/**'
+              - 'shared/**'
+              - 'public/**'
+              - 'e2e/**'
+              - 'nuxt.config.ts'
+              - 'playwright.config.ts'
+              - 'drizzle.config.ts'
+              - 'package-lock.json'
+              - 'package.json'
+              - '.nvmrc'
+
+  generate-matrix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      test-files: ${{ steps.find-tests.outputs.test-files }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - id: find-tests
+        run: |
+          files=$(find e2e -maxdepth 1 -name "*.spec.ts" -exec basename {} .spec.ts \; | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "test-files=$files" >> $GITHUB_OUTPUT
+
+  e2e:
+    needs: [ci, changes, generate-matrix]
+    if: |
+      always() &&
+      needs.ci.result == 'success' &&
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        test-file: ${{ fromJson(needs.generate-matrix.outputs.test-files) }}
+      fail-fast: false
+    # Required repository secret (Settings → Secrets → Actions):
+    #   DOTENV_PRIVATE_KEY_E2E — decrypts .env.e2e, which holds the e2e Clerk
+    #                            keys plus the Neon API key / project id used
+    #                            for per-run branch create/delete below. No
+    #                            other Actions secrets are needed.
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        env:
+          HUSKY: 0
+      - run: npx playwright install chromium --with-deps
+      # Neon credentials (API key + project id) live encrypted in .env.e2e and
+      # are decrypted with `dotenvx get` using the single DOTENV_PRIVATE_KEY_E2E
+      # secret, so no standalone Neon secrets are needed.
+      - name: Create Neon branch
+        id: neon
+        run: |
+          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
+          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
+          # Neon API can return 4xx/5xx under concurrent load from parallel spec
+          # jobs. Retry up to 4 times with exponential back-off (2s, 4s, 8s).
+          max_attempts=4
+          attempt=0
+          response=""
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            if response=$(curl -sf \
+              --request POST \
+              --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "{\"branch\":{\"name\":\"${BRANCH_NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}"); then
+              break
+            fi
+            if [ $attempt -lt $max_attempts ]; then
+              delay=$((2 ** attempt))
+              echo "Attempt $attempt failed. Waiting ${delay}s before retry..."
+              sleep "$delay"
+            fi
+          done
+          branch_id=$(echo "$response" | jq -r '.branch.id // empty' 2>/dev/null || true)
+          db_url=$(echo "$response" | jq -r '.connection_uris[0].connection_uri_with_pooler // .connection_uris[0].connection_uri // empty' 2>/dev/null || true)
+          if [ -z "$branch_id" ] || [ -z "$db_url" ]; then
+            echo "Neon API did not return a connection URI after $max_attempts attempts. Full response:"
+            echo "$response"
+            exit 1
+          fi
+          echo "branch_id=$branch_id" >> $GITHUB_OUTPUT
+          echo "db_url=$db_url" >> $GITHUB_OUTPUT
+        env:
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
+          BRANCH_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.test-file }}
+      # `npm run e2e` is `dotenvx run -f .env.e2e -- playwright test`; the spec
+      # path is appended after `--`. dotenvx decrypts the Clerk keys from
+      # .env.e2e, while E2E_DATABASE_URL below (the fresh Neon branch)
+      # overrides the file's value — a value already in the env wins.
+      # `global-setup.ts` migrates this fresh branch and provisions the Clerk
+      # test user before any project's tests run.
+      - run: npm run e2e -- "e2e/$TEST_FILE.spec.ts"
+        env:
+          TEST_FILE: ${{ matrix.test-file }}
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
+          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.test-file }}
+          path: e2e/report/
+          retention-days: 7
+      - name: Delete Neon branch
+        if: always()
+        run: |
+          NEON_API_KEY=$(npx dotenvx get NEON_API_KEY -f .env.e2e)
+          NEON_PROJECT_ID=$(npx dotenvx get NEON_PROJECT_ID -f .env.e2e)
+          curl -sf \
+            --request DELETE \
+            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${BRANCH_ID}" \
+            --header "Authorization: Bearer ${NEON_API_KEY}"
+        env:
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
+          BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+
+  e2e-gate:
+    name: E2E Gate
+    needs: [e2e]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report status
+        run: |
+          result="${{ needs.e2e.result }}"
+          if [[ "$result" == "success" || "$result" == "skipped" ]]; then
+            echo "E2E: $result"
+          else
+            echo "E2E failed with result: $result"
+            exit 1
+          fi
+
   secrets:
     runs-on: ubuntu-latest
     steps:
