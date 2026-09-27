@@ -1,0 +1,1 @@
+ALTER TABLE "sync_status" ADD COLUMN "last_attempted_at" timestamp with time zone;

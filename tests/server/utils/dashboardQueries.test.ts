@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
   fetchIntegrationConfigs,
+  fetchLastAttemptedSyncAt,
   fetchLatestMetricCapturedAt,
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
@@ -298,6 +299,48 @@ describe("fetchLatestMetricCapturedAt", () => {
     await expect(
       fetchLatestMetricCapturedAt(db, "danholloran", "medium", "posts"),
     ).resolves.toEqual(capturedAt);
+    expect(where).toHaveBeenCalled();
+    expect(limit).toHaveBeenCalledWith(1);
+  });
+});
+
+// Stubs `select().from().where().limit()` — the chain used by
+// fetchLastAttemptedSyncAt (medium's rate-limit guard's attempt watermark;
+// no orderBy since sync_status has at most one row per (slug, vendor)).
+function createWhereLimitedFakeDb(rows: { lastAttemptedAt: Date | null }[]) {
+  const limit = vi.fn().mockResolvedValue(rows);
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+  return { db: { select } as unknown as FakeDb, where, limit };
+}
+
+describe("fetchLastAttemptedSyncAt", () => {
+  it("returns null when no sync_status row exists yet for this (slug, vendor)", async () => {
+    const { db } = createWhereLimitedFakeDb([]);
+
+    await expect(
+      fetchLastAttemptedSyncAt(db, "danholloran", "medium"),
+    ).resolves.toBeNull();
+  });
+
+  it("returns null when the row exists but has never recorded an attempt", async () => {
+    const { db } = createWhereLimitedFakeDb([{ lastAttemptedAt: null }]);
+
+    await expect(
+      fetchLastAttemptedSyncAt(db, "danholloran", "medium"),
+    ).resolves.toBeNull();
+  });
+
+  it("returns the row's lastAttemptedAt when one is set", async () => {
+    const lastAttemptedAt = new Date("2026-09-20T11:55:00Z");
+    const { db, where, limit } = createWhereLimitedFakeDb([
+      { lastAttemptedAt },
+    ]);
+
+    await expect(
+      fetchLastAttemptedSyncAt(db, "danholloran", "medium"),
+    ).resolves.toEqual(lastAttemptedAt);
     expect(where).toHaveBeenCalled();
     expect(limit).toHaveBeenCalledWith(1);
   });

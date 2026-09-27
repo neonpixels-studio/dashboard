@@ -1,6 +1,10 @@
 import { useDb } from "../../../db";
 import { METRIC_POSTS } from "../../../utils/dashboardMetrics";
-import { fetchLatestMetricCapturedAt } from "../../../utils/dashboardQueries";
+import {
+  fetchLastAttemptedSyncAt,
+  fetchLatestMetricCapturedAt,
+} from "../../../utils/dashboardQueries";
+import { recordSyncAttempt } from "../../persist";
 import type {
   IntegrationConfig,
   IntegrationProvider,
@@ -116,28 +120,61 @@ async function defaultGetLastSuccessfulSyncAt(
   );
 }
 
+async function defaultGetLastAttemptedSyncAt(
+  slug: string,
+): Promise<Date | null> {
+  return fetchLastAttemptedSyncAt(useDb(), slug, MEDIUM_VENDOR);
+}
+
+// Best-effort, same reasoning as orchestrator.ts's
+// recordSyncStatusBestEffort: this stamps a watermark used only to avoid
+// retry storms, not data the sync itself depends on, so a transient failure
+// to persist it must never block (or fail) the real Medium attempt it's
+// about to gate.
+async function defaultRecordAttempt(
+  slug: string,
+  attemptedAt: Date,
+): Promise<void> {
+  try {
+    await recordSyncAttempt(useDb(), slug, MEDIUM_VENDOR, attemptedAt);
+  } catch (cause) {
+    console.error(
+      `Failed to record Medium sync attempt watermark for ${slug}`,
+      cause,
+    );
+  }
+}
+
 export interface CreateMediumProviderOptions {
-  // Overridable for tests; production wiring defers to
-  // defaultGetLastSuccessfulSyncAt, which lazily calls useDb() only once
-  // fetch() actually runs (never at provider-construction/module-load time —
-  // see providers/index.ts, which builds every provider, including this
-  // one, at import time with no Nitro request context available yet).
+  // Both overridable for tests; production wiring defers to
+  // defaultGetLastSuccessfulSyncAt/defaultGetLastAttemptedSyncAt, which
+  // lazily call useDb() only once fetch() actually runs (never at
+  // provider-construction/module-load time — see providers/index.ts, which
+  // builds every provider, including this one, at import time with no Nitro
+  // request context available yet).
   getLastSuccessfulSyncAt?: (slug: string) => Promise<Date | null>;
+  getLastAttemptedSyncAt?: (slug: string) => Promise<Date | null>;
+  recordAttempt?: (slug: string, attemptedAt: Date) => Promise<void>;
   now?: () => Date;
 }
 
 /**
  * Builds the Medium IntegrationProvider. A factory (unlike stripeProvider/
  * ga4Provider's plain exported objects) because, uniquely among these three
- * platforms, it needs an injectable "when did this last actually succeed"
- * lookup for its rate-limit guard — see mediumSyncGuard.ts and
- * server/utils/dashboardQueries.ts's fetchLatestMetricCapturedAt.
+ * platforms, it needs an injectable "when did this last actually succeed" AND
+ * "when did this last actually try" lookup for its rate-limit guard — see
+ * mediumSyncGuard.ts, server/utils/dashboardQueries.ts's
+ * fetchLatestMetricCapturedAt/fetchLastAttemptedSyncAt, and
+ * server/integrations/persist.ts's recordSyncAttempt.
  */
 export function createMediumProvider(
   options: CreateMediumProviderOptions = {},
 ): IntegrationProvider {
   const getLastSuccessfulSyncAt =
     options.getLastSuccessfulSyncAt ?? defaultGetLastSuccessfulSyncAt;
+  const getLastAttemptedSyncAt =
+    options.getLastAttemptedSyncAt ?? defaultGetLastAttemptedSyncAt;
+  const recordAttempt = options.recordAttempt ?? defaultRecordAttempt;
   const now = options.now ?? (() => new Date());
 
   return {
@@ -160,10 +197,21 @@ export function createMediumProvider(
         return emptySyndicationResult();
       }
 
-      const lastSuccessfulSyncAt = await getLastSuccessfulSyncAt(config.slug);
-      if (!isMediumSyncDue(now(), lastSuccessfulSyncAt)) {
+      const [lastSuccessfulSyncAt, lastAttemptedSyncAt] = await Promise.all([
+        getLastSuccessfulSyncAt(config.slug),
+        getLastAttemptedSyncAt(config.slug),
+      ]);
+      if (!isMediumSyncDue(now(), lastSuccessfulSyncAt, lastAttemptedSyncAt)) {
         return emptySyndicationResult();
       }
+
+      // Stamped BEFORE the real network calls below (fetchMediumSyndication),
+      // not after, and not inside a try/catch around that call — the whole
+      // point of this watermark is that it advances independent of whether
+      // the attempt about to happen succeeds or throws, so a persistently
+      // failing Medium sync still only retries once per
+      // MEDIUM_MIN_SYNC_INTERVAL_HOURS instead of every orchestrator tick.
+      await recordAttempt(config.slug, now());
 
       const listArticleIds = createMediumArticleIdLister(
         username,

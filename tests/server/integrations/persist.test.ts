@@ -4,6 +4,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import {
   listEnabledIntegrationConfigs,
   persistProviderResult,
+  recordSyncAttempt,
   recordSyncStatus,
 } from "../../../server/integrations/persist";
 import {
@@ -521,5 +522,31 @@ describe("recordSyncStatus", () => {
     expect(conflictArgs.set.lastSuccessAt.queryChunks).toContain(
       syncStatus.lastSuccessAt,
     );
+  });
+});
+
+describe("recordSyncAttempt", () => {
+  it("writes only slug/vendor/lastAttemptedAt on insert — no opinion on lastRunAt/ok/error/lastSuccessAt", async () => {
+    const { db, values } = createFakeDb();
+    const attemptedAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordSyncAttempt(db, "danholloran", "medium", attemptedAt);
+
+    expect(values).toHaveBeenCalledWith({
+      slug: "danholloran",
+      vendor: "medium",
+      lastAttemptedAt: attemptedAt,
+    });
+  });
+
+  it("on conflict, updates only lastAttemptedAt — leaving every other sync_status column exactly as recordSyncStatus last set it", async () => {
+    const { db, onConflictDoUpdate } = createFakeDb();
+    const attemptedAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordSyncAttempt(db, "danholloran", "medium", attemptedAt);
+
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    expect(conflictArgs.target).toEqual([syncStatus.slug, syncStatus.vendor]);
+    expect(conflictArgs.set).toEqual({ lastAttemptedAt: attemptedAt });
   });
 });

@@ -226,3 +226,34 @@ export function recordSyncStatus(
       },
     });
 }
+
+// Attempt-independent watermark, deliberately separate from recordSyncStatus
+// above: that function is only ever called by the orchestrator, once per row
+// per tick, AFTER a provider's fetch() has already returned or thrown — and
+// it runs on every tick, including one where a provider's own guard decided
+// to skip and never made a real network call at all (see
+// server/utils/dashboardQueries.ts's fetchLastAttemptedSyncAt comment). This
+// one is called directly by a provider itself (currently only Medium's, see
+// server/integrations/syndication/medium/provider.ts), right before it makes
+// a real, rate-limited network call, so `last_attempted_at` only ever
+// advances on a genuine attempt — success or failure alike.
+//
+// Only sets last_attempted_at; every other sync_status column (last_run_at,
+// ok, error, last_success_at) is left exactly as recordSyncStatus already
+// manages it, including on first insert (their schema.ts defaults/nullability
+// apply) — this call has no opinion on run/outcome bookkeeping, only on when
+// a real attempt started.
+export function recordSyncAttempt(
+  db: DrizzleDb,
+  slug: string,
+  vendor: string,
+  attemptedAt: Date,
+): Promise<unknown> {
+  return db
+    .insert(syncStatus)
+    .values({ slug, vendor, lastAttemptedAt: attemptedAt })
+    .onConflictDoUpdate({
+      target: [syncStatus.slug, syncStatus.vendor],
+      set: { lastAttemptedAt: attemptedAt },
+    });
+}

@@ -216,6 +216,16 @@ export const syncStatus = pgTable(
     vendor: text("vendor").notNull(),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    // Attempt-independent watermark: stamped by a provider's own guard logic
+    // (currently only Medium's, see server/integrations/syndication/medium/
+    // mediumSyncGuard.ts) right before it makes a real, rate-limited network
+    // call — regardless of whether that call goes on to succeed or throw.
+    // Deliberately NOT written by the orchestrator's own per-tick
+    // recordSyncStatus upsert (server/integrations/persist.ts), which fires
+    // on every batch tick even when a provider's guard decided to skip and
+    // made no network call at all — using that column here would make a
+    // skip look like an attempt. See recordSyncAttempt in persist.ts.
+    lastAttemptedAt: timestamp("last_attempted_at", { withTimezone: true }),
     ok: boolean("ok").notNull().default(false),
     // Rendered directly in the health chips — the poller that writes this
     // MUST NOT store a raw upstream error. Vendor SDK errors routinely echo

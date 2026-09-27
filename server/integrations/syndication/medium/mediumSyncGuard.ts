@@ -15,19 +15,45 @@
 export const MEDIUM_MIN_SYNC_INTERVAL_HOURS = 24;
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 
+// Later of two possibly-null watermarks; null only when both are.
+function laterOf(first: Date | null, second: Date | null): Date | null {
+  if (!first) {
+    return second;
+  }
+  if (!second) {
+    return first;
+  }
+  return first.getTime() >= second.getTime() ? first : second;
+}
+
 /**
- * True when enough time has passed since the last successful Medium sync to
- * run another one (or none has ever succeeded). Pure and clock-injected —
- * unit tests exercise it with fixed `now`/`lastSuccessfulSyncAt` values
- * rather than real timers.
+ * True when enough time has passed since the last successful Medium sync — or
+ * the last Medium sync *attempt*, whichever is more recent — to run another
+ * one (or neither has ever happened).
+ *
+ * `lastAttemptedSyncAt` is what keeps a persistently-failing sync (bad key, a
+ * mapping bug, a transient mediumapi.com outage) from retrying on every
+ * 15-minute orchestrator tick: `lastSuccessfulSyncAt` only advances on a fully
+ * successful sync (see provider.ts's buildSyndicationResult call), so without
+ * this second watermark a failing attempt would never push the clock forward
+ * and would burn real requests against the monthly cap on every tick forever.
+ * `lastAttemptedSyncAt` instead advances the moment a real network attempt
+ * starts, independent of whether it goes on to succeed or throw — see
+ * provider.ts's recordAttempt call, made before fetchMediumSyndication runs.
+ *
+ * Pure and clock-injected — unit tests exercise it with fixed
+ * `now`/`lastSuccessfulSyncAt`/`lastAttemptedSyncAt` values rather than real
+ * timers.
  */
 export function isMediumSyncDue(
   now: Date,
   lastSuccessfulSyncAt: Date | null,
+  lastAttemptedSyncAt: Date | null,
 ): boolean {
-  if (!lastSuccessfulSyncAt) {
+  const lastGateAt = laterOf(lastSuccessfulSyncAt, lastAttemptedSyncAt);
+  if (!lastGateAt) {
     return true;
   }
-  const elapsedMs = now.getTime() - lastSuccessfulSyncAt.getTime();
+  const elapsedMs = now.getTime() - lastGateAt.getTime();
   return elapsedMs >= MEDIUM_MIN_SYNC_INTERVAL_HOURS * MILLISECONDS_PER_HOUR;
 }
