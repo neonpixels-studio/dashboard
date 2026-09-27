@@ -251,6 +251,32 @@ describe("createMediumProvider", () => {
       new Date("2026-09-20T12:00:00Z"),
     );
   });
+
+  it("never calls the Medium API, and propagates the failure, when persisting the attempt watermark itself fails", async () => {
+    // This watermark guards a paid, capped resource (mediumapi.com's
+    // 150-requests/month plan) — unlike sync_status's own best-effort
+    // bookkeeping writes, a failure here must NOT be swallowed and must NOT
+    // let the real Medium call through, or a persistently-failing DB write
+    // would look identical to an attempt that was never made and reopen the
+    // exact retry-storm hole this guard exists to close.
+    const { provider, recordAttempt } = buildProvider({
+      lastSuccessfulSyncAt: null,
+      now: new Date("2026-09-20T12:00:00Z"),
+    });
+    recordAttempt.mockRejectedValue(new Error("db unreachable"));
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(provider.fetch(config)).rejects.toThrow("db unreachable");
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("fetchMediumSyndication", () => {

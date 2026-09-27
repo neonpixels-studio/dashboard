@@ -1,4 +1,5 @@
-import { desc } from "drizzle-orm";
+import { desc, SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
@@ -16,6 +17,19 @@ import {
 import { metricSnapshot } from "../../../server/db/schema";
 
 type FakeDb = Parameters<typeof fetchMetricSnapshotSeries>[0];
+
+// Renders a drizzle SQL fragment to literal query text + params without a
+// live connection — same helper persist.test.ts uses, so an assertion here
+// can check the actual `where` condition (slug AND vendor) rather than just
+// "where() was called with something", which would pass even if the query
+// stopped filtering on one of those columns.
+function renderSqlCondition(fragment: SQL): { sql: string; params: unknown[] } {
+  const dialect = new PgDialect();
+  return {
+    sql: dialect.sqlToQuery(fragment).sql,
+    params: dialect.sqlToQuery(fragment).params,
+  };
+}
 
 // Stubs `select().from().where().orderBy()` — the chain used by the bounded
 // series fetch (metric_snapshot).
@@ -341,7 +355,17 @@ describe("fetchLastAttemptedSyncAt", () => {
     await expect(
       fetchLastAttemptedSyncAt(db, "danholloran", "medium"),
     ).resolves.toEqual(lastAttemptedAt);
-    expect(where).toHaveBeenCalled();
     expect(limit).toHaveBeenCalledWith(1);
+
+    // Guards against a query that stops filtering by slug and/or vendor
+    // (which `where` having been called at all would not catch) — this
+    // watermark gates a paid, capped API, so a query that silently widened
+    // to match every row would be exactly the kind of bug worth failing loud
+    // on.
+    const condition = where.mock.calls[0]![0] as SQL;
+    const { sql, params } = renderSqlCondition(condition);
+    expect(sql).toContain('"slug" = $1');
+    expect(sql).toContain('"vendor" = $2');
+    expect(params).toEqual(["danholloran", "medium"]);
   });
 });

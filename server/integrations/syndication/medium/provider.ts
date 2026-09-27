@@ -126,23 +126,21 @@ async function defaultGetLastAttemptedSyncAt(
   return fetchLastAttemptedSyncAt(useDb(), slug, MEDIUM_VENDOR);
 }
 
-// Best-effort, same reasoning as orchestrator.ts's
-// recordSyncStatusBestEffort: this stamps a watermark used only to avoid
-// retry storms, not data the sync itself depends on, so a transient failure
-// to persist it must never block (or fail) the real Medium attempt it's
-// about to gate.
+// Deliberately NOT best-effort, unlike orchestrator.ts's
+// recordSyncStatusBestEffort: that function guards outcome bookkeeping
+// (health chips), where losing a write is cosmetic. This one guards a paid,
+// capped resource (mediumapi.com's 150-requests/month plan) — if the
+// watermark can't be persisted, letting the Medium call proceed anyway would
+// reopen the exact retry-storm hole this guard exists to close (a
+// persistently-failing DB write would look identical, every tick, to an
+// attempt that was never made). Throwing here surfaces as a `sync_status`
+// failure via the orchestrator's existing catch-all (orchestrator.ts's
+// syncOneIntegration), same as any other provider error.
 async function defaultRecordAttempt(
   slug: string,
   attemptedAt: Date,
 ): Promise<void> {
-  try {
-    await recordSyncAttempt(useDb(), slug, MEDIUM_VENDOR, attemptedAt);
-  } catch (cause) {
-    console.error(
-      `Failed to record Medium sync attempt watermark for ${slug}`,
-      cause,
-    );
-  }
+  await recordSyncAttempt(useDb(), slug, MEDIUM_VENDOR, attemptedAt);
 }
 
 export interface CreateMediumProviderOptions {
@@ -197,11 +195,17 @@ export function createMediumProvider(
         return emptySyndicationResult();
       }
 
+      // Read once and reused for both the guard check and the watermark
+      // stamp below — two separate now() calls would let the instant that
+      // was actually checked drift from the instant that gets persisted.
+      const attemptAt = now();
       const [lastSuccessfulSyncAt, lastAttemptedSyncAt] = await Promise.all([
         getLastSuccessfulSyncAt(config.slug),
         getLastAttemptedSyncAt(config.slug),
       ]);
-      if (!isMediumSyncDue(now(), lastSuccessfulSyncAt, lastAttemptedSyncAt)) {
+      if (
+        !isMediumSyncDue(attemptAt, lastSuccessfulSyncAt, lastAttemptedSyncAt)
+      ) {
         return emptySyndicationResult();
       }
 
@@ -211,7 +215,7 @@ export function createMediumProvider(
       // the attempt about to happen succeeds or throws, so a persistently
       // failing Medium sync still only retries once per
       // MEDIUM_MIN_SYNC_INTERVAL_HOURS instead of every orchestrator tick.
-      await recordAttempt(config.slug, now());
+      await recordAttempt(config.slug, attemptAt);
 
       const listArticleIds = createMediumArticleIdLister(
         username,
