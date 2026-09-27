@@ -4,6 +4,7 @@ import {
   assertUsableReport,
   collectBlockingAdvisories,
   isAllowlistExpired,
+  isAllowlistExpiryEnforced,
   parseAuditReport,
   partitionByAllowlist,
   UNIDENTIFIED_ADVISORY_ID,
@@ -154,21 +155,19 @@ describe("partitionByAllowlist", () => {
     ]);
   });
 
-  it("blocks an advisory even when only the package differs from a non-existent entry", () => {
-    const advisories = [
-      {
-        id: TEST_ID,
-        severity: "high",
-        package: "some-other-runtime-package",
-        title: "t",
-      },
-    ];
-    const { suppressed, blocking } = partitionByAllowlist(advisories);
-    expect(suppressed).toEqual([]);
-    expect(blocking).toHaveLength(1);
-  });
+  // The dedup/suppression key is id AND package together — two packages that
+  // happen to share one advisory id must not both ride in on a single
+  // allowlist entry naming only one of them. Verified against the REAL
+  // `partitionByAllowlist`/`isAdvisoryAllowed` (via a fixture entry built with
+  // the real `createAllowlistLookup`), not a hand-rolled stand-in, so this
+  // fails if the id::package pairing in either implementation ever drifts.
+  it("allowlisting one package sharing an advisory id does not suppress the other", () => {
+    vi.spyOn(auditAllowlist, "isAdvisoryAllowed").mockImplementation(
+      createAllowlistLookup([
+        { id: TEST_ID, packages: [TEST_PACKAGE], reason: "fixture" },
+      ]),
+    );
 
-  it("blocks two packages sharing an advisory id when the allowlist is empty", () => {
     const report = {
       vulnerabilities: {
         pkgA: {
@@ -196,21 +195,12 @@ describe("partitionByAllowlist", () => {
     const { suppressed, blocking } = partitionByAllowlist(
       collectBlockingAdvisories(report),
     );
-    expect(suppressed).toEqual([]);
-    expect(blocking.map((advisory) => advisory.package).sort()).toEqual([
-      "newly-vulnerable-pkg",
+    expect(suppressed.map((advisory) => advisory.package)).toEqual([
       TEST_PACKAGE,
     ]);
-  });
-
-  it("blocks everything when nothing is allowlisted", () => {
-    const advisories = [
-      { id: "GHSA-x", severity: "high", package: "a", title: "t" },
-      { id: "GHSA-y", severity: "critical", package: "b", title: "t" },
-    ];
-    const { suppressed, blocking } = partitionByAllowlist(advisories);
-    expect(suppressed).toEqual([]);
-    expect(blocking).toHaveLength(2);
+    expect(blocking.map((advisory) => advisory.package)).toEqual([
+      "newly-vulnerable-pkg",
+    ]);
   });
 
   // Exercises the suppress path through the REAL `partitionByAllowlist` (not a
@@ -284,17 +274,18 @@ describe("isAdvisoryAllowed", () => {
   // this was ported from) must each carry a justified reason and a unique
   // id::package key. Passes vacuously today with zero entries; starts
   // asserting for real the moment an entry is added.
-  it("gives every real allowlist entry a non-empty reason and a unique id::package key", () => {
-    const keys = new Set<string>();
+  it("gives every real allowlist entry a non-empty reason and a package list", () => {
     for (const entry of ALLOWED_ADVISORIES) {
       expect(entry.packages.length).toBeGreaterThan(0);
       expect(entry.reason.trim().length).toBeGreaterThan(0);
-      for (const packageName of entry.packages) {
-        const key = `${entry.id}::${packageName}`;
-        expect(keys.has(key)).toBe(false);
-        keys.add(key);
-      }
     }
+  });
+
+  it("gives every real allowlist entry a unique id::package key", () => {
+    const keys = ALLOWED_ADVISORIES.flatMap((entry) =>
+      entry.packages.map((packageName) => `${entry.id}::${packageName}`),
+    );
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 
@@ -343,5 +334,19 @@ describe("isAllowlistExpired", () => {
   it("is true on or after the review date", () => {
     const onDate = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
     expect(isAllowlistExpired(onDate)).toBe(true);
+  });
+});
+
+describe("isAllowlistExpiryEnforced", () => {
+  it("is false for an empty allowlist, so an expired review-by date on an empty list can't fail the gate", () => {
+    expect(isAllowlistExpiryEnforced([])).toBe(false);
+  });
+
+  it("is true once the allowlist has at least one entry", () => {
+    expect(
+      isAllowlistExpiryEnforced([
+        { id: TEST_ID, packages: [TEST_PACKAGE], reason: "fixture" },
+      ]),
+    ).toBe(true);
   });
 });

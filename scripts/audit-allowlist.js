@@ -21,6 +21,15 @@ export const ALLOWLIST_REVIEW_BY = "2026-12-27";
 /** @type {Array<{ id: string, packages: string[], reason: string }>} */
 export const ALLOWED_ADVISORIES = [];
 
+// Single source of truth for the id::package key format, so the allowlist
+// lookup (below), the gate's dedupe/suppression logic, and the stale-entry
+// check in scripts/audit-gate.js all key advisories the same way. Exported so
+// every one of those call sites can build the identical key instead of
+// re-deriving the `::` join format independently and risking drift.
+export function advisoryKey(advisoryId, packageName) {
+  return `${advisoryId}::${packageName}`;
+}
+
 // Builds an id::package lookup from a list of allowlist entries. Exported (not
 // just the module-level `isAdvisoryAllowed` singleton below) so tests can
 // exercise the real key-construction/matching logic against a fixture entry
@@ -29,14 +38,16 @@ export const ALLOWED_ADVISORIES = [];
 export function createAllowlistLookup(entries) {
   const allowedKeys = new Set(
     entries.flatMap((advisory) =>
-      advisory.packages.map((packageName) => `${advisory.id}::${packageName}`),
+      advisory.packages.map((packageName) =>
+        advisoryKey(advisory.id, packageName),
+      ),
     ),
   );
   // An advisory is suppressed only when its ID AND affected package both match
   // an allowlist entry, so a justification tied to where a package sits in the
   // tree stops applying if a different package later trips the same advisory ID.
   return function isAdvisoryAllowed(advisoryId, packageName) {
-    return allowedKeys.has(`${advisoryId}::${packageName}`);
+    return allowedKeys.has(advisoryKey(advisoryId, packageName));
   };
 }
 

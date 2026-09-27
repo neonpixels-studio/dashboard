@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 import {
   ALLOWED_ADVISORIES,
   ALLOWLIST_REVIEW_BY,
+  advisoryKey,
   isAdvisoryAllowed,
 } from "./audit-allowlist.js";
 
@@ -98,8 +99,10 @@ function blockingAdvisoriesFromVia(viaList) {
   }));
 }
 
-function advisoryKey(advisory) {
-  return `${advisory.id}::${advisory.package}`;
+// `advisoryKey` (imported) takes the id and package as separate strings — this
+// wraps it for the advisory-object shape used throughout this file.
+function keyForAdvisory(advisory) {
+  return advisoryKey(advisory.id, advisory.package);
 }
 
 // Dedupe on id AND package: the allowlist is keyed on the same pair, so
@@ -108,10 +111,10 @@ function advisoryKey(advisory) {
 function dedupeByIdAndPackage(advisories) {
   const byKey = new Map();
   for (const advisory of advisories) {
-    if (byKey.has(advisoryKey(advisory))) {
+    if (byKey.has(keyForAdvisory(advisory))) {
       continue;
     }
-    byKey.set(advisoryKey(advisory), advisory);
+    byKey.set(keyForAdvisory(advisory), advisory);
   }
   return [...byKey.values()];
 }
@@ -182,16 +185,21 @@ export function partitionByAllowlist(advisories) {
   return { suppressed, blocking };
 }
 
-function entryMatchedAdvisory(entry, suppressedAdvisories) {
-  return suppressedAdvisories.some(
-    (advisory) =>
-      advisory.id === entry.id && entry.packages.includes(advisory.package),
+// Built once per call from the suppressed list (rather than re-scanning it per
+// entry) and keyed with the same `advisoryKey` the allowlist lookup itself
+// uses, so this can't drift from what actually got suppressed.
+function entryMatchedAdvisory(entry, suppressedKeys) {
+  return entry.packages.some((packageName) =>
+    suppressedKeys.has(advisoryKey(entry.id, packageName)),
   );
 }
 
 function warnOnStaleAllowlistEntries(suppressedAdvisories) {
+  const suppressedKeys = new Set(
+    suppressedAdvisories.map((advisory) => keyForAdvisory(advisory)),
+  );
   const staleEntries = ALLOWED_ADVISORIES.filter(
-    (entry) => !entryMatchedAdvisory(entry, suppressedAdvisories),
+    (entry) => !entryMatchedAdvisory(entry, suppressedKeys),
   );
   if (!staleEntries.length) {
     return;
@@ -205,8 +213,16 @@ function warnOnStaleAllowlistEntries(suppressedAdvisories) {
   }
 }
 
+// The review-by date only matters once there is something to review — an
+// empty allowlist (dashboard's starting state) has no entries whose upstream
+// fix status needs re-checking, so it must never force a date bump for its
+// own sake. Exported so this policy is unit-testable independent of `main`.
+export function isAllowlistExpiryEnforced(entries = ALLOWED_ADVISORIES) {
+  return entries.length > 0;
+}
+
 async function main() {
-  if (isAllowlistExpired()) {
+  if (isAllowlistExpiryEnforced() && isAllowlistExpired()) {
     reportAllowlistExpired();
     process.exit(EXIT_FAILURE);
   }
