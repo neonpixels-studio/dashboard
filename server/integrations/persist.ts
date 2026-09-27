@@ -2,7 +2,7 @@
 // orchestration loop in orchestrator.ts — the loop takes these as injected
 // functions, so it never imports this module (or drizzle) directly, and
 // this module never needs a fake provider or a fake clock to be exercised.
-import { and, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, isNull, lte, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
   integrationConfig,
@@ -238,22 +238,43 @@ export function recordSyncStatus(
 // a real, rate-limited network call, so `last_attempted_at` only ever
 // advances on a genuine attempt — success or failure alike.
 //
-// Only sets last_attempted_at; every other sync_status column (last_run_at,
-// ok, error, last_success_at) is left exactly as recordSyncStatus already
-// manages it, including on first insert (their schema.ts defaults/nullability
-// apply) — this call has no opinion on run/outcome bookkeeping, only on when
-// a real attempt started.
-export function recordSyncAttempt(
+// Atomic claim, not a plain upsert: the caller's own pre-check (e.g. Medium's
+// isMediumSyncDue) reads the watermark and decides "due" in one step, then
+// would write it in a separate step — two overlapping calls (a slow tick
+// still running when the next one fires, or a scheduled tick racing a manual
+// POST /api/sync) can both read "due" before either writes, and both go on to
+// call the real, rate-limited API. `setWhere` folds the same staleness check
+// into the UPDATE itself, so only the call that actually lands within
+// Postgres's row-level lock ever gets a row back from `.returning()` — the
+// other sees zero rows and knows it lost the race. `minIntervalMs` is passed
+// in (rather than hardcoded here) so this stays a generic sync_status
+// primitive with no Medium-specific policy baked in; Medium passes
+// mediumSyncGuard.ts's MEDIUM_MIN_SYNC_INTERVAL_MS.
+//
+// Only ever sets last_attempted_at; every other sync_status column
+// (last_run_at, ok, error, last_success_at) is left exactly as
+// recordSyncStatus already manages it, including on first insert (their
+// schema.ts defaults/nullability apply) — this call has no opinion on
+// run/outcome bookkeeping, only on when a real attempt started.
+export async function recordSyncAttempt(
   db: DrizzleDb,
   slug: string,
   vendor: string,
   attemptedAt: Date,
-): Promise<unknown> {
-  return db
+  minIntervalMs: number,
+): Promise<boolean> {
+  const staleBefore = new Date(attemptedAt.getTime() - minIntervalMs);
+  const claimedRows = await db
     .insert(syncStatus)
     .values({ slug, vendor, lastAttemptedAt: attemptedAt })
     .onConflictDoUpdate({
       target: [syncStatus.slug, syncStatus.vendor],
       set: { lastAttemptedAt: attemptedAt },
-    });
+      setWhere: or(
+        isNull(syncStatus.lastAttemptedAt),
+        lte(syncStatus.lastAttemptedAt, staleBefore),
+      ),
+    })
+    .returning({ slug: syncStatus.slug });
+  return claimedRows.length > 0;
 }

@@ -17,7 +17,10 @@ import {
   createMediumArticleIdLister,
   createMediumArticleInfoFetcher,
 } from "./mediumClient";
-import { isMediumSyncDue } from "./mediumSyncGuard";
+import {
+  isMediumSyncDue,
+  MEDIUM_MIN_SYNC_INTERVAL_MS,
+} from "./mediumSyncGuard";
 import { toSyndicationSourcePost } from "./mapping";
 import type { FetchMediumArticleInfo, ListMediumArticleIds } from "./types";
 
@@ -136,11 +139,25 @@ async function defaultGetLastAttemptedSyncAt(
 // attempt that was never made). Throwing here surfaces as a `sync_status`
 // failure via the orchestrator's existing catch-all (orchestrator.ts's
 // syncOneIntegration), same as any other provider error.
+//
+// Returns whether THIS call actually claimed the attempt — recordSyncAttempt
+// is an atomic conditional upsert (see persist.ts), so two overlapping
+// fetch() calls (a slow tick still running when the next fires, or a
+// scheduled tick racing a manual POST /api/sync) can't both win it, even
+// though both may have read isMediumSyncDue as true moments earlier. A false
+// return means this call lost that race and must not make the real Medium
+// request either.
 async function defaultRecordAttempt(
   slug: string,
   attemptedAt: Date,
-): Promise<void> {
-  await recordSyncAttempt(useDb(), slug, MEDIUM_VENDOR, attemptedAt);
+): Promise<boolean> {
+  return recordSyncAttempt(
+    useDb(),
+    slug,
+    MEDIUM_VENDOR,
+    attemptedAt,
+    MEDIUM_MIN_SYNC_INTERVAL_MS,
+  );
 }
 
 export interface CreateMediumProviderOptions {
@@ -152,7 +169,9 @@ export interface CreateMediumProviderOptions {
   // request context available yet).
   getLastSuccessfulSyncAt?: (slug: string) => Promise<Date | null>;
   getLastAttemptedSyncAt?: (slug: string) => Promise<Date | null>;
-  recordAttempt?: (slug: string, attemptedAt: Date) => Promise<void>;
+  // Returns false when another concurrent call already claimed this
+  // attempt window — see defaultRecordAttempt's comment.
+  recordAttempt?: (slug: string, attemptedAt: Date) => Promise<boolean>;
   now?: () => Date;
 }
 
@@ -209,13 +228,19 @@ export function createMediumProvider(
         return emptySyndicationResult();
       }
 
-      // Stamped BEFORE the real network calls below (fetchMediumSyndication),
+      // Claimed BEFORE the real network calls below (fetchMediumSyndication),
       // not after, and not inside a try/catch around that call — the whole
       // point of this watermark is that it advances independent of whether
       // the attempt about to happen succeeds or throws, so a persistently
       // failing Medium sync still only retries once per
       // MEDIUM_MIN_SYNC_INTERVAL_HOURS instead of every orchestrator tick.
-      await recordAttempt(config.slug, attemptAt);
+      // A false return means a concurrent call already won this attempt
+      // window (see defaultRecordAttempt's comment) — bail out the same as
+      // an ordinary "not due yet" rather than also making the Medium call.
+      const claimedAttempt = await recordAttempt(config.slug, attemptAt);
+      if (!claimedAttempt) {
+        return emptySyndicationResult();
+      }
 
       const listArticleIds = createMediumArticleIdLister(
         username,

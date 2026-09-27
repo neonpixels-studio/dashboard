@@ -14,6 +14,14 @@
 // 15 minutes — see netlify/functions/scheduled-sync.ts).
 export const MEDIUM_MIN_SYNC_INTERVAL_HOURS = 24;
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
+// Exported (not just used internally by isMediumSyncDue below) so
+// provider.ts's atomic attempt-claim — recordSyncAttempt in persist.ts —
+// can enforce the exact same cadence at the DB layer, closing the
+// check-then-act gap a JS-only isMediumSyncDue call leaves between reading
+// the watermarks and claiming the attempt. See provider.ts's
+// defaultRecordAttempt.
+export const MEDIUM_MIN_SYNC_INTERVAL_MS =
+  MEDIUM_MIN_SYNC_INTERVAL_HOURS * MILLISECONDS_PER_HOUR;
 
 // Later of two possibly-null watermarks; null only when both are.
 function laterOf(first: Date | null, second: Date | null): Date | null {
@@ -55,5 +63,5 @@ export function isMediumSyncDue(
     return true;
   }
   const elapsedMs = now.getTime() - lastGateAt.getTime();
-  return elapsedMs >= MEDIUM_MIN_SYNC_INTERVAL_HOURS * MILLISECONDS_PER_HOUR;
+  return elapsedMs >= MEDIUM_MIN_SYNC_INTERVAL_MS;
 }

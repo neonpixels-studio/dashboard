@@ -43,7 +43,16 @@ function createFakeDb() {
   const from = vi.fn().mockReturnValue({ leftJoin });
   const select = vi.fn().mockReturnValue({ from });
 
-  const onConflictDoUpdate = vi.fn().mockReturnValue(thenableQuery());
+  // Defaults to "claimed" (a non-empty .returning() result) — recordSyncStatus
+  // never calls .returning() at all (it just awaits the onConflictDoUpdate()
+  // result directly via `.then`, which thenableQuery() already provides), so
+  // this only matters to recordSyncAttempt's tests, which override it via
+  // `returning.mockResolvedValue([])` for the "lost the race" case.
+  const returning = vi.fn().mockResolvedValue([{ slug: "danholloran" }]);
+  const onConflictDoUpdate = vi.fn().mockReturnValue({
+    ...thenableQuery(),
+    returning,
+  });
   const values = vi.fn().mockImplementation((rows: unknown[]) => ({
     ...thenableQuery(),
     onConflictDoUpdate,
@@ -64,6 +73,7 @@ function createFakeDb() {
     insert,
     values,
     onConflictDoUpdate,
+    returning,
     batch,
   };
 }
@@ -525,12 +535,20 @@ describe("recordSyncStatus", () => {
   });
 });
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 describe("recordSyncAttempt", () => {
   it("writes only slug/vendor/lastAttemptedAt on insert — no opinion on lastRunAt/ok/error/lastSuccessAt", async () => {
     const { db, values } = createFakeDb();
     const attemptedAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordSyncAttempt(db, "danholloran", "medium", attemptedAt);
+    await recordSyncAttempt(
+      db,
+      "danholloran",
+      "medium",
+      attemptedAt,
+      ONE_DAY_MS,
+    );
 
     expect(values).toHaveBeenCalledWith({
       slug: "danholloran",
@@ -543,10 +561,61 @@ describe("recordSyncAttempt", () => {
     const { db, onConflictDoUpdate } = createFakeDb();
     const attemptedAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordSyncAttempt(db, "danholloran", "medium", attemptedAt);
+    await recordSyncAttempt(
+      db,
+      "danholloran",
+      "medium",
+      attemptedAt,
+      ONE_DAY_MS,
+    );
 
     const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
     expect(conflictArgs.target).toEqual([syncStatus.slug, syncStatus.vendor]);
     expect(conflictArgs.set).toEqual({ lastAttemptedAt: attemptedAt });
+  });
+
+  it("gates the conflict update on staleness — no attempt yet, or the last one at least minIntervalMs ago — closing the check-then-act race between two overlapping callers", async () => {
+    const { db, onConflictDoUpdate } = createFakeDb();
+    const attemptedAt = new Date("2026-09-20T12:00:00Z");
+    const minIntervalMs = ONE_DAY_MS;
+
+    await recordSyncAttempt(
+      db,
+      "danholloran",
+      "medium",
+      attemptedAt,
+      minIntervalMs,
+    );
+
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    expect(conflictArgs.setWhere).toBeInstanceOf(SQL);
+    // The OR'd condition must reference last_attempted_at (both IS NULL and
+    // the staleness comparison), and the staleness cutoff must be exactly
+    // attemptedAt - minIntervalMs, computed in JS rather than left to a
+    // vendor-agnostic function to know Medium's own interval.
+    const sql = renderSql(conflictArgs.setWhere);
+    expect(sql.toLowerCase()).toContain('"last_attempted_at" is null');
+    expect(sql).toContain('"last_attempted_at" <=');
+    expect(renderSqlParams(conflictArgs.setWhere)).toEqual([
+      new Date(attemptedAt.getTime() - minIntervalMs).toISOString(),
+    ]);
+  });
+
+  it("returns true (claimed) when .returning() reports a row — the insert path, or a conflict whose setWhere matched", async () => {
+    const { db, returning } = createFakeDb();
+    returning.mockResolvedValue([{ slug: "danholloran" }]);
+
+    await expect(
+      recordSyncAttempt(db, "danholloran", "medium", new Date(), ONE_DAY_MS),
+    ).resolves.toBe(true);
+  });
+
+  it("returns false (lost the race) when .returning() reports no row — a concurrent call's conflict update already claimed this window", async () => {
+    const { db, returning } = createFakeDb();
+    returning.mockResolvedValue([]);
+
+    await expect(
+      recordSyncAttempt(db, "danholloran", "medium", new Date(), ONE_DAY_MS),
+    ).resolves.toBe(false);
   });
 });
