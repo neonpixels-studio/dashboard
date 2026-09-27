@@ -81,6 +81,7 @@ describe("stripeProvider", () => {
 
     expect(mockSubscriptionsList).toHaveBeenCalledWith(
       expect.objectContaining({ status: "active" }),
+      expect.objectContaining({ timeout: expect.any(Number) }),
     );
     const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");
     expect(mrrMetric?.value).toBe(15);

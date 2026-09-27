@@ -108,12 +108,22 @@ describe("runSync", () => {
 
     const summary = await runSync(deps);
 
-    expect(fetch).toHaveBeenCalledWith({
-      slug: "basin",
-      vendor: "stripe",
-      externalId: null,
-      secret: "resolved-secret",
-    });
+    // Second arg is the shared FetchDeadline runSync builds for this run
+    // (see "threads the same shared deadline into every row's fetch call"
+    // below for a dedicated assertion on its shape) — asserted loosely here
+    // so this test stays focused on the config argument.
+    expect(fetch).toHaveBeenCalledWith(
+      {
+        slug: "basin",
+        vendor: "stripe",
+        externalId: null,
+        secret: "resolved-secret",
+      },
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        remainingMs: expect.any(Function),
+      }),
+    );
     expect(deps.persistProviderResult).toHaveBeenCalledWith(
       row,
       providerResult,
@@ -414,6 +424,36 @@ describe("runSync", () => {
     );
     expect(new Set(runAts).size).toBe(1);
     expect(deps.recordSyncStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("threads the same shared deadline into every row's fetch call, across batches", async () => {
+    // Issue #62: the run budget bounds batch admission, not any one
+    // provider's own request timeout — a shared deadline threaded into
+    // every provider.fetch call closes that gap. One deadline per run means
+    // a row admitted in a later batch gets exactly as little time left as
+    // an earlier row already spent, not its own fresh budget.
+    const rows = Array.from({ length: 7 }, (_, index) =>
+      configRow({ slug: `app-${index}`, vendor: "stripe" }),
+    );
+    const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
+    const deps = createDeps({
+      listEnabledConfigRows: async () => rows,
+      registry: { get: () => stubProvider("stripe", fetch) },
+    });
+
+    await runSync(deps);
+
+    const deadlinesPassedToFetch = fetch.mock.calls.map(
+      ([, deadline]) => deadline,
+    );
+    expect(deadlinesPassedToFetch).toHaveLength(7);
+    expect(new Set(deadlinesPassedToFetch).size).toBe(1);
+    expect(deadlinesPassedToFetch[0]).toEqual(
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        remainingMs: expect.any(Function),
+      }),
+    );
   });
 
   it("batches concurrent fetches in groups of exactly 5 rather than awaiting every row at once", async () => {

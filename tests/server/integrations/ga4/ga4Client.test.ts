@@ -67,6 +67,31 @@ describe("createGa4ReportRunner", () => {
     );
   });
 
+  it("caps the request timeout to whatever's left of a shared deadline, when that's less than GA4_REQUEST_TIMEOUT_MS", async () => {
+    const runReport = vi.fn(async () => [{ rows: [] }]);
+    const deadline = {
+      signal: new AbortController().signal,
+      remainingMs: () => 500,
+    };
+    const runGa4Report = createGa4ReportRunner(
+      { clientEmail: "sa@example.com", privateKey: "unused" },
+      buildStubGa4Client(runReport as never),
+      deadline,
+    );
+
+    await runGa4Report({
+      propertyId: "123456",
+      dimension: "date",
+      startDate: "29daysAgo",
+      endDate: "today",
+    });
+
+    expect(runReport).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 500 }),
+    );
+  });
+
   it("maps report rows to plain dimensionValue/metricValue pairs", async () => {
     const runReport = vi.fn(async () => [
       {

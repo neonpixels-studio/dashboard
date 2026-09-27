@@ -53,6 +53,7 @@ describe("createStripeSubscriptionLister", () => {
         status: "active",
         starting_after: "sub_cursor",
       }),
+      expect.objectContaining({ timeout: expect.any(Number) }),
     );
   });
 
@@ -67,6 +68,7 @@ describe("createStripeSubscriptionLister", () => {
 
     expect(list).toHaveBeenCalledWith(
       expect.objectContaining({ starting_after: undefined }),
+      expect.objectContaining({ timeout: expect.any(Number) }),
     );
   });
 
@@ -104,5 +106,25 @@ describe("createStripeSubscriptionLister", () => {
         },
       },
     ]);
+  });
+
+  it("caps the request timeout to whatever's left of a shared deadline, when that's less than the client's own fixed timeout", async () => {
+    const list = vi.fn(async () => ({ data: [], has_more: false }));
+    const deadline = {
+      signal: new AbortController().signal,
+      remainingMs: () => 500,
+    };
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list),
+      deadline,
+    );
+
+    await listActiveSubscriptions();
+
+    expect(list).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 500 }),
+    );
   });
 });

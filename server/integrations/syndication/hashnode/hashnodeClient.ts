@@ -1,3 +1,4 @@
+import type { FetchDeadline } from "../../types";
 import { fetchJson } from "../httpClient";
 import type {
   FetchHashnodePostsPage,
@@ -72,6 +73,11 @@ export function createHashnodePostsPageFetcher(
   publicationId: string,
   token: string,
   fetchImpl: typeof fetch = fetch,
+  // Threaded straight through to fetchJson's own `deadline` option (see
+  // ../httpClient.ts) — undefined here defaults to NO_DEADLINE there, so
+  // exercising this function directly (every existing unit test) needs no
+  // deadline at all.
+  deadline?: FetchDeadline,
 ): FetchHashnodePostsPage {
   return async (after: string | null): Promise<HashnodePostsPage> => {
     const body = await fetchJson<HashnodeGraphQlResponse>(
@@ -88,6 +94,7 @@ export function createHashnodePostsPageFetcher(
         }),
         fetchImpl,
         vendorLabel: "Hashnode API",
+        deadline,
       },
     );
     assertNoGraphQlErrors(body);

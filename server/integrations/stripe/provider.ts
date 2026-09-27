@@ -3,7 +3,9 @@ import {
   METRIC_MRR,
   PERIOD_CURRENT,
 } from "../../utils/dashboardMetrics";
+import { NO_DEADLINE } from "../types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
@@ -93,14 +95,22 @@ export async function fetchStripeMetrics(
 
 export const stripeProvider: IntegrationProvider = {
   vendor: STRIPE_VENDOR,
-  async fetch(config: IntegrationConfig): Promise<ProviderResult> {
+  async fetch(
+    config: IntegrationConfig,
+    deadline: FetchDeadline = NO_DEADLINE,
+  ): Promise<ProviderResult> {
     if (!config.secret) {
       throw new Error(
         `Stripe provider for "${config.slug}" has no secret key configured.`,
       );
     }
+    // The 2nd positional arg (the real Stripe SDK client) is left undefined
+    // so createStripeSubscriptionLister falls through to its own default;
+    // only the 3rd, `deadline`, is being overridden here.
     const listActiveSubscriptions = createStripeSubscriptionLister(
       config.secret,
+      undefined,
+      deadline,
     );
     return fetchStripeMetrics(config, listActiveSubscriptions);
   },

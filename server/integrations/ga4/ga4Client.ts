@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
+import { NO_DEADLINE, type FetchDeadline } from "../types";
 import type {
   Ga4ReportRequest,
   Ga4ReportRow,
@@ -95,6 +96,15 @@ function assertMetricValue(row: {
 export function createGa4ReportRunner(
   credentials: Ga4ServiceAccountCredentials,
   ga4Client: Ga4DataClient = getSharedGa4Client(credentials),
+  // The gax `CallOptions` this client's `runReport` accepts have no
+  // AbortSignal seam (unlike the raw-fetch clients in sentryClient.ts/
+  // syndication/httpClient.ts) — only a numeric `timeout`. Capping it to
+  // whichever is smaller, GA4_REQUEST_TIMEOUT_MS or what's left of the
+  // shared run budget (see types.ts's FetchDeadline), is this client's
+  // adaptation of that same "don't outlive the run budget" guarantee.
+  // Defaults to NO_DEADLINE so exercising this function directly (every
+  // existing unit test) needs no deadline at all.
+  deadline: FetchDeadline = NO_DEADLINE,
 ): RunGa4Report {
   return async ({
     propertyId,
@@ -109,7 +119,7 @@ export function createGa4ReportRunner(
         dimensions: [{ name: dimension }],
         metrics: [{ name: SESSIONS_METRIC_NAME }],
       },
-      { timeout: GA4_REQUEST_TIMEOUT_MS },
+      { timeout: Math.min(GA4_REQUEST_TIMEOUT_MS, deadline.remainingMs()) },
     );
 
     // A missing dimensionValue is tolerated as "" (it only ever becomes a

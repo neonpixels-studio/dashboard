@@ -1,7 +1,9 @@
 import { useDb } from "../../../db";
 import { METRIC_POSTS } from "../../../utils/dashboardMetrics";
 import { fetchLatestMetricCapturedAt } from "../../../utils/dashboardQueries";
+import { NO_DEADLINE } from "../../types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
@@ -142,7 +144,10 @@ export function createMediumProvider(
 
   return {
     vendor: MEDIUM_VENDOR,
-    async fetch(config: IntegrationConfig): Promise<ProviderResult> {
+    async fetch(
+      config: IntegrationConfig,
+      deadline: FetchDeadline = NO_DEADLINE,
+    ): Promise<ProviderResult> {
       // NAMED ASSUMPTION (issue #17): unlike Hashnode/DEV.to/Stripe/GA4
       // (which throw when an *enabled* row is missing its secret — a real
       // misconfiguration, since those vendors' secretRef should already
@@ -168,8 +173,14 @@ export function createMediumProvider(
       const listArticleIds = createMediumArticleIdLister(
         username,
         config.secret,
+        undefined,
+        deadline,
       );
-      const fetchArticleInfo = createMediumArticleInfoFetcher(config.secret);
+      const fetchArticleInfo = createMediumArticleInfoFetcher(
+        config.secret,
+        undefined,
+        deadline,
+      );
       return fetchMediumSyndication(listArticleIds, fetchArticleInfo);
     },
   };

@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { NO_DEADLINE, type FetchDeadline } from "../types";
 import { toStripeSubscription } from "./mapping";
 import type { ListActiveSubscriptions } from "./types";
 
@@ -37,6 +38,15 @@ export function createStripeSubscriptionLister(
     timeout: STRIPE_REQUEST_TIMEOUT_MS,
     maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
   }),
+  // The Stripe SDK's per-request RequestOptions have no AbortSignal seam
+  // (unlike the raw-fetch clients in sentryClient.ts/syndication/
+  // httpClient.ts) — only a numeric `timeout` override. Capping it to
+  // whichever is smaller, STRIPE_REQUEST_TIMEOUT_MS or what's left of the
+  // shared run budget (see ../types.ts's FetchDeadline), is this client's
+  // adaptation of that same "don't outlive the run budget" guarantee.
+  // Defaults to NO_DEADLINE so exercising this function directly (every
+  // existing unit test) needs no deadline at all.
+  deadline: FetchDeadline = NO_DEADLINE,
 ): ListActiveSubscriptions {
   return async (startingAfter) => {
     // `status: "active"` only — `trialing` and `past_due` subscriptions are
@@ -47,11 +57,14 @@ export function createStripeSubscriptionLister(
     // trialing subscription should count, and whether MRR should reflect
     // discounted vs. list price, are product decisions, not something to
     // guess at here — tracked as follow-ups.
-    const page = await stripeClient.subscriptions.list({
-      status: "active",
-      limit: SUBSCRIPTIONS_PAGE_SIZE,
-      starting_after: startingAfter,
-    });
+    const page = await stripeClient.subscriptions.list(
+      {
+        status: "active",
+        limit: SUBSCRIPTIONS_PAGE_SIZE,
+        starting_after: startingAfter,
+      },
+      { timeout: Math.min(STRIPE_REQUEST_TIMEOUT_MS, deadline.remainingMs()) },
+    );
 
     return {
       data: page.data.map(toStripeSubscription),

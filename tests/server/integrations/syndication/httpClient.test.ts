@@ -112,6 +112,32 @@ describe("fetchJson", () => {
     ).rejects.toThrow("Example API returned a body that isn't valid JSON.");
   });
 
+  it("aborts on a shared deadline (issue #62) even though its own timeoutMs hasn't elapsed", async () => {
+    // Never settles on its own, but rejects as soon as its AbortSignal fires
+    // — the exact seam fetchJson's own local timeout normally relies on,
+    // exercised here via the shared deadline instead.
+    const fetchImpl = vi.fn((_url: unknown, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("This operation was aborted", "AbortError"));
+        });
+      });
+    }) as unknown as typeof fetch;
+    const deadlineController = new AbortController();
+
+    const resultPromise = fetchJson("https://example.com", {
+      fetchImpl,
+      vendorLabel: "Example API",
+      timeoutMs: 20_000,
+      deadline: { signal: deadlineController.signal, remainingMs: () => 0 },
+    });
+    const assertion = expect(resultPromise).rejects.toThrow(
+      "Example API request to https://example.com timed out.",
+    );
+    deadlineController.abort();
+    await assertion;
+  });
+
   it("defaults to the global fetch when fetchImpl isn't provided", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ ok: true }));
     vi.stubGlobal("fetch", fetchImpl);

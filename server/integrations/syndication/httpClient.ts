@@ -1,3 +1,5 @@
+import { NO_DEADLINE, type FetchDeadline } from "../types";
+
 // Shared HTTP-with-timeout seam for the three syndication platform clients
 // (hashnodeClient.ts/devtoClient.ts/mediumClient.ts) — each made an
 // AbortController + setTimeout + fetch + `!response.ok` check + JSON parse +
@@ -19,6 +21,13 @@ export interface FetchJsonOptions {
   // "DEV.to API" — callers keep control of exactly what identifies the
   // failing request in that message.
   vendorLabel: string;
+  // Shared per-run budget (see ../types.ts's FetchDeadline) this request's
+  // own AbortController is combined with (via AbortSignal.any, see
+  // sendRequest below), so a slow syndication request aborts on whichever
+  // fires first: this request's own timeoutMs, or the run's shared budget.
+  // Defaults to NO_DEADLINE so exercising fetchJson directly (every existing
+  // unit test) needs no deadline at all.
+  deadline?: FetchDeadline;
 }
 
 /**
@@ -37,16 +46,20 @@ export async function fetchJson<ResponseBody>(
 ): Promise<ResponseBody> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const deadline = options.deadline ?? NO_DEADLINE;
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+  // Aborts on whichever fires first: this request's own timeoutMs
+  // (abortController) or the shared run budget (deadline) — see
+  // ../types.ts's FetchDeadline comment for why a hung request must respect
+  // both.
+  const requestSignal = AbortSignal.any([
+    abortController.signal,
+    deadline.signal,
+  ]);
 
   try {
-    const response = await sendRequest(
-      url,
-      options,
-      abortController.signal,
-      fetchImpl,
-    );
+    const response = await sendRequest(url, options, requestSignal, fetchImpl);
     if (!response.ok) {
       throw new Error(
         `${options.vendorLabel} responded with ${response.status} ${response.statusText}.`,

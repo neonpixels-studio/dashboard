@@ -1,6 +1,7 @@
 import { redactSecrets } from "../utils/redactSecrets";
 import type { ProviderRegistry } from "./registry";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationConfigRow,
   ProviderResult,
@@ -87,15 +88,48 @@ const BATCH_SIZE = 5;
 // is ~10s (see netlify/functions/scheduled-sync.ts's FETCH_TIMEOUT_MS
 // comment); this sits below that function's own 9s client-side abort so
 // /api/sync stops starting new work with room to spare, rather than either
-// racing the platform's hard kill or the caller's own timeout. It does NOT
-// bound a single provider's own request timeout (each vendor client sets
-// its own, e.g. STRIPE_REQUEST_TIMEOUT_MS/GA4_REQUEST_TIMEOUT_MS at 20s) —
-// a row that hangs its full 20s can still push a run past this ceiling on
-// its own, batch count aside. Threading a shared deadline into
-// provider.fetch would close that gap; out of scope here (issue #51 is
-// specifically about fan-out growing with provider *count*, not any one
-// provider's own latency) — see this PR's follow-up suggestions.
+// racing the platform's hard kill or the caller's own timeout. On its own
+// this would NOT bound a single provider's own request timeout (each vendor
+// client sets its own, e.g. STRIPE_REQUEST_TIMEOUT_MS/GA4_REQUEST_TIMEOUT_MS
+// at 20s) — a row that hangs its full 20s could still push a run past this
+// ceiling on its own, batch count aside. createRunDeadline below closes that
+// gap: the same runBudgetMs also bounds every admitted row's own
+// provider.fetch call via a shared FetchDeadline (see issue #62), not just
+// which batches this loop starts.
 const DEFAULT_RUN_BUDGET_MS = 7_000;
+
+// Builds the FetchDeadline every row admitted in this runSync call shares
+// (see types.ts's FetchDeadline for what each field is for and why). One
+// deadline per run, built once here and threaded into every
+// syncOneIntegration call regardless of which batch admits its row — a row
+// admitted late in the run gets exactly as little time left as a slow
+// earlier row already spent, rather than its own fresh full timeout budget.
+//
+// Deliberately built from the real wall clock (Date.now()/setTimeout), not
+// the injectable monotonicNow/now deps runSync itself takes — those exist
+// so the *batch admission* loop above is deterministically testable without
+// real timers, but this deadline's own timer must actually fire in real
+// time for a hung provider's fetch to actually abort, so it stays
+// independent of either mock.
+function createRunDeadline(budgetMs: number): FetchDeadline & {
+  dispose: () => void;
+} {
+  const boundedBudgetMs = Math.max(0, budgetMs);
+  const deadlineAt = Date.now() + boundedBudgetMs;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () =>
+      controller.abort(
+        new Error(`Shared run budget of ${budgetMs}ms exhausted.`),
+      ),
+    boundedBudgetMs,
+  );
+  return {
+    signal: controller.signal,
+    remainingMs: () => Math.max(0, deadlineAt - Date.now()),
+    dispose: () => clearTimeout(timeoutId),
+  };
+}
 
 // `size` has exactly one call site below, passing the module constant
 // BATCH_SIZE (always >= 1) — no size < 1 guard, since that branch could
@@ -153,6 +187,7 @@ async function syncOneIntegration(
   row: IntegrationConfigRow,
   deps: SyncOrchestratorDeps,
   runAt: Date,
+  deadline: FetchDeadline,
 ): Promise<SyncOutcome> {
   const identity = { slug: row.slug, vendor: row.vendor };
   let resolvedConfig: IntegrationConfig | undefined;
@@ -163,7 +198,7 @@ async function syncOneIntegration(
       throw new Error(`No provider registered for vendor "${row.vendor}".`);
     }
     resolvedConfig = deps.resolveConfig(row);
-    const result = await provider.fetch(resolvedConfig);
+    const result = await provider.fetch(resolvedConfig, deadline);
     await deps.persistProviderResult(row, result);
   } catch (cause) {
     console.error(`Sync failed for ${row.slug}:${row.vendor}`, cause);
@@ -246,22 +281,27 @@ export async function runSync(
   const rows = await deps.listEnabledConfigRows();
   const runAt = (deps.now ?? (() => new Date()))();
   const runBudgetMs = deps.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS;
+  const runDeadline = createRunDeadline(runBudgetMs);
 
   const outcomes: SyncOutcome[] = [];
   const batches = chunk(rows, BATCH_SIZE);
   let admittedRowCount = 0;
 
-  for (const batch of batches) {
-    const isFirstBatch = admittedRowCount === 0;
-    const budgetSpent = monotonicNow() - startedAt >= runBudgetMs;
-    if (!isFirstBatch && budgetSpent) {
-      break;
+  try {
+    for (const batch of batches) {
+      const isFirstBatch = admittedRowCount === 0;
+      const budgetSpent = monotonicNow() - startedAt >= runBudgetMs;
+      if (!isFirstBatch && budgetSpent) {
+        break;
+      }
+      const batchOutcomes = await Promise.all(
+        batch.map((row) => syncOneIntegration(row, deps, runAt, runDeadline)),
+      );
+      outcomes.push(...batchOutcomes);
+      admittedRowCount += batch.length;
     }
-    const batchOutcomes = await Promise.all(
-      batch.map((row) => syncOneIntegration(row, deps, runAt)),
-    );
-    outcomes.push(...batchOutcomes);
-    admittedRowCount += batch.length;
+  } finally {
+    runDeadline.dispose();
   }
 
   const skipped: SyncSkippedRow[] = rows

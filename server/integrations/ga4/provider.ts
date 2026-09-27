@@ -3,7 +3,9 @@ import {
   PERIOD_30D,
   PERIOD_DAILY,
 } from "../../utils/dashboardMetrics";
+import { NO_DEADLINE } from "../types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
@@ -169,7 +171,10 @@ export async function fetchGa4Metrics(
 
 export const ga4Provider: IntegrationProvider = {
   vendor: GA4_VENDOR,
-  async fetch(config: IntegrationConfig): Promise<ProviderResult> {
+  async fetch(
+    config: IntegrationConfig,
+    deadline: FetchDeadline = NO_DEADLINE,
+  ): Promise<ProviderResult> {
     if (!config.secret) {
       throw new Error(
         `GA4 provider for "${config.slug}" has no service account private key configured.`,
@@ -186,10 +191,15 @@ export const ga4Provider: IntegrationProvider = {
       );
     }
 
-    const runGa4Report = createGa4ReportRunner({
-      clientEmail,
-      privateKey: config.secret,
-    });
+    // The 2nd positional arg (the real gax client) is left undefined so
+    // createGa4ReportRunner falls through to its own default (the shared,
+    // per-credential-cached client — see getSharedGa4Client); only the 3rd,
+    // `deadline`, is being overridden here.
+    const runGa4Report = createGa4ReportRunner(
+      { clientEmail, privateKey: config.secret },
+      undefined,
+      deadline,
+    );
     return fetchGa4Metrics(config, runGa4Report);
   },
 };

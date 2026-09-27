@@ -259,4 +259,34 @@ describe("createSentryIssueSearcher", () => {
     await vi.advanceTimersByTimeAsync(20_000);
     await assertion;
   });
+
+  it("aborts on a shared deadline (issue #62), distinctly from its own request timeout, once the run's budget is exhausted", async () => {
+    // Same never-settles-until-aborted fetch shape as the request-timeout
+    // test above, but here the shared deadline's signal — not
+    // sentryClient.ts's own SENTRY_REQUEST_TIMEOUT_MS — is what fires.
+    const fetchStub = vi.fn((_url: unknown, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("This operation was aborted", "AbortError"));
+        });
+      });
+    }) as unknown as typeof fetch;
+    const deadlineController = new AbortController();
+    const searchSentryIssues = createSentryIssueSearcher(
+      "token_abc",
+      "acme",
+      fetchStub,
+      { signal: deadlineController.signal, remainingMs: () => 0 },
+    );
+
+    const resultPromise = searchSentryIssues({
+      projectSlug: "markpost",
+      query: "is:unresolved",
+    });
+    const assertion = expect(resultPromise).rejects.toThrow(
+      /markpost.*shared run budget was exhausted/,
+    );
+    deadlineController.abort();
+    await assertion;
+  });
 });

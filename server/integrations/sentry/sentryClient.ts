@@ -1,3 +1,4 @@
+import { NO_DEADLINE, type FetchDeadline } from "../types";
 import { parseSentryNextCursor, toSentryIssue } from "./mapping";
 import type { SearchSentryIssues, SentryIssuePage } from "./types";
 
@@ -43,23 +44,39 @@ async function fetchIssuesPage(
   url: URL,
   authToken: string,
   abortController: AbortController,
+  deadline: FetchDeadline,
   projectSlug: string,
 ): Promise<Response> {
+  // Aborts on whichever fires first: this request's own
+  // SENTRY_REQUEST_TIMEOUT_MS (abortController) or the shared run budget
+  // (deadline) — see ../types.ts's FetchDeadline comment for why a hung
+  // request must respect both.
+  const requestSignal = AbortSignal.any([
+    abortController.signal,
+    deadline.signal,
+  ]);
+
   try {
     return await fetchImpl(url, {
       headers: { Authorization: `Bearer ${authToken}` },
-      signal: abortController.signal,
+      signal: requestSignal,
     });
   } catch (cause) {
-    // `abortController.signal.aborted` distinguishes "our own timeout fired"
-    // from any other rejection (a DNS/network failure unrelated to the
-    // timeout) — only the former gets relabeled. Without this, a raw
-    // AbortError ("This operation was aborted") lands in sync_status.error
-    // with no project/query context, the same gap parseIssuesResponseBody
-    // closes for a non-JSON body below.
+    // Distinguishes which of the two signals above fired from any other
+    // rejection (a DNS/network failure unrelated to either) — only an
+    // actual abort gets relabeled. Without this, a raw AbortError ("This
+    // operation was aborted") lands in sync_status.error with no project/
+    // query/cause context, the same gap parseIssuesResponseBody closes for
+    // a non-JSON body below.
     if (abortController.signal.aborted) {
       throw new Error(
         `Sentry issue search for project "${projectSlug}" timed out after ${SENTRY_REQUEST_TIMEOUT_MS}ms.`,
+        { cause },
+      );
+    }
+    if (deadline.signal.aborted) {
+      throw new Error(
+        `Sentry issue search for project "${projectSlug}" was aborted because the sync's shared run budget was exhausted.`,
         { cause },
       );
     }
@@ -105,6 +122,10 @@ export function createSentryIssueSearcher(
   authToken: string,
   orgSlug: string,
   fetchImpl: FetchIssuesPage = fetch,
+  // Defaults to NO_DEADLINE so exercising this function directly (every
+  // existing unit test) needs no deadline at all — only sentryProvider.fetch
+  // (wired from runSync's shared FetchDeadline) passes a real one.
+  deadline: FetchDeadline = NO_DEADLINE,
 ): SearchSentryIssues {
   return async ({ projectSlug, query, cursor }): Promise<SentryIssuePage> => {
     const url = buildIssueSearchUrl(orgSlug, projectSlug, query, cursor);
@@ -126,6 +147,7 @@ export function createSentryIssueSearcher(
         url,
         authToken,
         abortController,
+        deadline,
         projectSlug,
       );
 
