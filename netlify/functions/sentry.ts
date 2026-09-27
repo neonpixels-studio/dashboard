@@ -36,10 +36,20 @@ export function initSentry(): void {
       "scheduled-sync: SENTRY_DSN is not set; Sentry reporting is disabled for this invocation",
     );
   }
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
-  });
+  try {
+    // Monitoring must never break the real job: scheduledSync() calls this
+    // ahead of its own try/finally (so init failures still reach it), so a
+    // throw here — a malformed DSN, an SDK/bundling problem — would
+    // otherwise skip both the sync itself and flushSentry(), which is
+    // exactly the "never let reporting break the caller" rule captureSafely
+    // enforces in server/utils/errorReporting.ts.
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+    });
+  } catch (initError) {
+    console.error("Failed to initialize Sentry", initError);
+  }
   initialized = true;
 }
 

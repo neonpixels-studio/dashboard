@@ -80,6 +80,23 @@ describe("initSentry", () => {
     // it would have without this guard — the guard only adds visibility.
     expect(initMock).toHaveBeenCalledOnce();
   });
+
+  it("never throws when Sentry.init itself fails, since monitoring must not break the caller", async () => {
+    vi.stubEnv("SENTRY_DSN", "not-a-valid-dsn");
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    initMock.mockImplementation(() => {
+      throw new Error("malformed DSN");
+    });
+    const { initSentry } = await importFreshSentryModule();
+
+    expect(() => initSentry()).not.toThrow();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to initialize Sentry",
+      expect.any(Error),
+    );
+  });
 });
 
 describe("flushSentry", () => {

@@ -72,6 +72,13 @@ describe("scheduledSync", () => {
       },
     );
     expect(response.status).toBe(200);
+    // initSentry() memoizes across calls via module-scoped state in
+    // netlify/functions/sentry.ts (imported once for this whole file, unlike
+    // sentry.test.ts's fresh-module-per-test setup) — this is the first
+    // scheduledSync() call in the file, so it's the one place Sentry.init is
+    // actually observable. Every later test still exercises
+    // captureException/captureMessage/flush, just not a second init call.
+    expect(initMock).toHaveBeenCalledOnce();
   });
 
   it("throws when the site URL isn't set, after reporting the failure to Sentry and flushing", async () => {
@@ -88,12 +95,15 @@ describe("scheduledSync", () => {
     expect(flushMock).toHaveBeenCalledWith(2000);
   });
 
-  it("throws when the trigger secret isn't set", async () => {
+  it("throws when the trigger secret isn't set, after reporting the failure to Sentry and flushing", async () => {
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "");
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(scheduledSync()).rejects.toThrow(/NUXT_SYNC_TRIGGER_SECRET/);
+
+    expect(captureExceptionMock).toHaveBeenCalledOnce();
+    expect(flushMock).toHaveBeenCalledWith(2000);
   });
 
   it("flushes Sentry even on the successful path", async () => {
@@ -218,6 +228,17 @@ describe("scheduledSync", () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "scheduled-sync: every attempted integration failed this run",
       { attemptedCount: 1, unattemptedCount: 1 },
+    );
+    // This is the case reportErrorCondition's Sentry reporting exists for
+    // (see README's "Error monitoring" section) — asserting only the console
+    // line above would still pass if this call were ever accidentally
+    // dropped.
+    expect(captureMessageMock).toHaveBeenCalledWith(
+      "scheduled-sync: every attempted integration failed this run",
+      expect.objectContaining({
+        level: "error",
+        extra: { attemptedCount: 1, unattemptedCount: 1 },
+      }),
     );
   });
 

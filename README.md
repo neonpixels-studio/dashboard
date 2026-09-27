@@ -298,7 +298,7 @@ attempted integration failing in one run — as Sentry error-level events, so a
 total sync outage is visible in Sentry without a human checking Netlify
 function logs.
 
-Setup, three vars (dotenvx files — `.env.example` documents them):
+Setup, four vars (dotenvx files — `.env.example` documents them):
 
 1. DSN — Sentry → this app's project → Settings → Client Keys (DSN) →
    `SENTRY_DSN`.
