@@ -20,6 +20,42 @@ const SUBSCRIPTIONS_PAGE_SIZE = 100;
 // of a real client built from a real secret key.
 type StripeSubscriptionsClient = Pick<Stripe, "subscriptions">;
 
+// The Stripe SDK's per-request RequestOptions have no AbortSignal seam
+// (unlike the raw-fetch clients in sentryClient.ts/syndication/
+// httpClient.ts) — only a numeric `timeout`, reused as-is for every
+// automatic retry (STRIPE_MAX_NETWORK_RETRIES). A single, un-divided
+// `Math.min(STRIPE_REQUEST_TIMEOUT_MS, remainingMs)` per attempt would let
+// a retried call still take up to (1 + STRIPE_MAX_NETWORK_RETRIES) times
+// that long in the worst case — comfortably outliving what was actually
+// left of the shared run budget (see ../types.ts's FetchDeadline) at the
+// moment the call was placed.
+//
+// `Infinity` (NO_DEADLINE, or any deadline with no real bound) is handled
+// separately, keeping this client's un-deadlined behavior exactly what it
+// was before FetchDeadline existed: each of up to 1 + STRIPE_MAX_NETWORK_RETRIES
+// attempts gets the full STRIPE_REQUEST_TIMEOUT_MS. Dividing an infinite
+// budget by anything is still infinite, so this guard isn't just an
+// optimization — without it `Math.min` would happily pass `Infinity`
+// through to a real, finite `remainingMs` on every OTHER branch, but here
+// it's the deliberate "unconstrained" case that must keep its original,
+// larger per-attempt allowance rather than being shrunk for no reason.
+//
+// Once an actual deadline IS the binding constraint, this divides what's
+// left across every attempt Stripe might make (including retries) instead —
+// each attempt gets a smaller slice, but the retried call's total worst-case
+// duration stays bounded to roughly what was left of the shared budget,
+// not a multiple of it.
+function capStripeTimeoutPerAttempt(remainingMs: number): number {
+  if (remainingMs === Infinity) {
+    return STRIPE_REQUEST_TIMEOUT_MS;
+  }
+  const totalAttempts = 1 + STRIPE_MAX_NETWORK_RETRIES;
+  return Math.min(
+    STRIPE_REQUEST_TIMEOUT_MS,
+    Math.floor(remainingMs / totalAttempts),
+  );
+}
+
 /**
  * Builds the real, network-touching `ListActiveSubscriptions`. `stripeClient`
  * defaults to a real Stripe SDK instance but is injectable — this is the one
@@ -38,28 +74,16 @@ export function createStripeSubscriptionLister(
     timeout: STRIPE_REQUEST_TIMEOUT_MS,
     maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
   }),
-  // The Stripe SDK's per-request RequestOptions have no AbortSignal seam
-  // (unlike the raw-fetch clients in sentryClient.ts/syndication/
-  // httpClient.ts) — only a numeric `timeout` override. Capping it to
-  // whichever is smaller, STRIPE_REQUEST_TIMEOUT_MS or what's left of the
-  // shared run budget (see ../types.ts's FetchDeadline), is this client's
-  // adaptation of that same "don't outlive the run budget" guarantee.
-  // Defaults to NO_DEADLINE so exercising this function directly (every
-  // existing unit test) needs no deadline at all.
+  // See capStripeTimeoutPerAttempt above for how this becomes the per-call
+  // `timeout` below. Defaults to NO_DEADLINE so exercising this function
+  // directly (every existing unit test) needs no deadline at all.
   deadline: FetchDeadline = NO_DEADLINE,
 ): ListActiveSubscriptions {
   return async (startingAfter) => {
-    // A `timeout` of exactly 0 doesn't mean "expire immediately" to Stripe's
-    // underlying HTTP client the way this code needs — Node interprets a
-    // socket timeout of 0 as "no timeout at all," the opposite of the intent
-    // here. Failing loud instead of ever placing that call keeps this
-    // client's own guarantee (never outlive the shared run budget) true even
-    // at the boundary.
-    const cappedTimeoutMs = Math.min(
-      STRIPE_REQUEST_TIMEOUT_MS,
+    const perAttemptTimeoutMs = capStripeTimeoutPerAttempt(
       deadline.remainingMs(),
     );
-    if (cappedTimeoutMs <= 0) {
+    if (perAttemptTimeoutMs <= 0) {
       throw new Error(
         "Stripe subscription list skipped: the sync's shared run budget was already exhausted.",
       );
@@ -73,28 +97,13 @@ export function createStripeSubscriptionLister(
     // trialing subscription should count, and whether MRR should reflect
     // discounted vs. list price, are product decisions, not something to
     // guess at here — tracked as follow-ups.
-    // Deliberately does NOT also override `maxNetworkRetries` here — Stripe
-    // retries against the SAME per-attempt `timeout` above, so a retried
-    // call can still exceed what was left of the shared deadline at the
-    // moment this call was placed. Forcing retries to 0 whenever the
-    // deadline (rather than STRIPE_REQUEST_TIMEOUT_MS) is the binding
-    // constraint would close that gap, but under runSync's real
-    // DEFAULT_RUN_BUDGET_MS (7s, well under STRIPE_REQUEST_TIMEOUT_MS's
-    // 20s) that condition is true on effectively every production call,
-    // permanently defeating STRIPE_MAX_NETWORK_RETRIES's whole reason for
-    // existing (see its own comment) rather than only on a genuinely
-    // tight-budget edge case. The per-attempt timeout is still clamped to
-    // the deadline, so any overrun here is bounded by a small, shrinking
-    // multiple of what's actually left of the run budget — not the
-    // unbounded-by-this-client's-own-logic overrun a hung request without
-    // any deadline at all would risk.
     const page = await stripeClient.subscriptions.list(
       {
         status: "active",
         limit: SUBSCRIPTIONS_PAGE_SIZE,
         starting_after: startingAfter,
       },
-      { timeout: cappedTimeoutMs },
+      { timeout: perAttemptTimeoutMs },
     );
 
     return {

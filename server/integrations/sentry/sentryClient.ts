@@ -67,16 +67,19 @@ async function fetchIssuesPage(
     // actual abort gets relabeled. Without this, a raw AbortError ("This
     // operation was aborted") lands in sync_status.error with no project/
     // query/cause context, the same gap parseIssuesResponseBody closes for
-    // a non-JSON body below.
-    if (abortController.signal.aborted) {
-      throw new Error(
-        `Sentry issue search for project "${projectSlug}" timed out after ${SENTRY_REQUEST_TIMEOUT_MS}ms.`,
-        { cause },
-      );
-    }
+    // a non-JSON body below. Checks `deadline` before `abortController` —
+    // matching syndication/httpClient.ts's identical sendRequest check — so
+    // the rare case where BOTH have already fired by the time this runs
+    // reports the same message regardless of which vendor's client it is.
     if (deadline.signal.aborted) {
       throw new Error(
         `Sentry issue search for project "${projectSlug}" was aborted because the sync's shared run budget was exhausted.`,
+        { cause },
+      );
+    }
+    if (abortController.signal.aborted) {
+      throw new Error(
+        `Sentry issue search for project "${projectSlug}" timed out after ${SENTRY_REQUEST_TIMEOUT_MS}ms.`,
         { cause },
       );
     }

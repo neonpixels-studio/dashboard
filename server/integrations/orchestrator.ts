@@ -1,5 +1,6 @@
 import { redactSecrets } from "../utils/redactSecrets";
 import type { ProviderRegistry } from "./registry";
+import { NO_DEADLINE } from "./types";
 import type {
   FetchDeadline,
   IntegrationConfig,
@@ -114,11 +115,18 @@ const DEFAULT_RUN_BUDGET_MS = 7_000;
 function createRunDeadline(budgetMs: number): FetchDeadline & {
   dispose: () => void;
 } {
-  // Number.isFinite guards against NaN — Math.max(0, NaN) is itself NaN, and
-  // Node's setTimeout coerces a NaN/negative delay to ~1ms, which would fire
-  // the deadline almost immediately and fail every row in the run rather
-  // than just softly falling back to "no effective bound."
-  const boundedBudgetMs = Number.isFinite(budgetMs) ? Math.max(0, budgetMs) : 0;
+  // A non-finite budget (NaN, Infinity — never expected from
+  // DEFAULT_RUN_BUDGET_MS or a sane deps.runBudgetMs override) means "no
+  // effective bound" here, not "expire almost immediately": Math.max(0, NaN)
+  // is itself NaN, and Node's setTimeout coerces a NaN/negative delay to
+  // ~1ms, which would fail every row in the run rather than just softly
+  // falling back to unbounded. NO_DEADLINE's own signal never aborts, so
+  // `dispose` here is a no-op (there's no timer to clear).
+  if (!Number.isFinite(budgetMs)) {
+    return { ...NO_DEADLINE, dispose: () => {} };
+  }
+
+  const boundedBudgetMs = Math.max(0, budgetMs);
   const deadlineAt = Date.now() + boundedBudgetMs;
   const controller = new AbortController();
   const timeoutId = setTimeout(
@@ -158,6 +166,41 @@ function chunk<Row>(rows: Row[], size: number): Row[][] {
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
+}
+
+// Bounds ANY provider.fetch call to the shared deadline — even one whose
+// underlying vendor client doesn't itself watch `deadline` at all (e.g.
+// clerkProvider: `deadline` is optional on IntegrationProvider precisely so
+// a provider with no timeout/AbortSignal seam to adapt yet, per its own
+// comment in types.ts, can still ignore it and keep working). Without this,
+// the orchestrator's whole "an individual provider's fetch can't exceed the
+// overall run budget" guarantee (issue #62) would only hold for providers
+// that opt in, not for every provider registered today or in the future.
+//
+// This can't cancel the underlying call — JS has no way to force that from
+// the outside once it's already in flight — it only stops THIS row from
+// holding up the rest of the run past the deadline. The loser's eventual
+// settlement is deliberately swallowed (not left as an unhandled rejection):
+// nothing further depends on it once the race below is decided.
+function raceAgainstDeadline<Result>(
+  resultPromise: Promise<Result>,
+  deadline: FetchDeadline,
+): Promise<Result> {
+  resultPromise.catch(() => {});
+
+  if (deadline.signal.aborted) {
+    return Promise.reject(deadline.signal.reason);
+  }
+  return Promise.race([
+    resultPromise,
+    new Promise<never>((_resolve, reject) => {
+      deadline.signal.addEventListener(
+        "abort",
+        () => reject(deadline.signal.reason),
+        { once: true },
+      );
+    }),
+  ]);
 }
 
 // Best-effort: the outcome syncOneIntegration is about to return (success or
@@ -212,7 +255,10 @@ async function syncOneIntegration(
       throw new Error(`No provider registered for vendor "${row.vendor}".`);
     }
     resolvedConfig = deps.resolveConfig(row);
-    const result = await provider.fetch(resolvedConfig, deadline);
+    const result = await raceAgainstDeadline(
+      provider.fetch(resolvedConfig, deadline),
+      deadline,
+    );
     await deps.persistProviderResult(row, result);
   } catch (cause) {
     console.error(`Sync failed for ${row.slug}:${row.vendor}`, cause);

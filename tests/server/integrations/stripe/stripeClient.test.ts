@@ -112,19 +112,41 @@ describe("createStripeSubscriptionLister", () => {
     ]);
   });
 
-  it("caps the request timeout to whatever's left of a shared deadline, when that's less than the client's own fixed timeout", async () => {
+  it("divides what's left of a shared deadline across every attempt Stripe might make (including retries), when that's less than the client's own fixed timeout", async () => {
     const list = vi.fn(async () => ({ data: [], has_more: false }));
     const listActiveSubscriptions = createStripeSubscriptionLister(
       "sk_test_unused",
       buildStubStripeClient(list),
-      createDeadline(500),
+      createDeadline(900),
+    );
+
+    await listActiveSubscriptions();
+
+    // 900ms / (1 initial attempt + 2 retries) = 300ms per attempt — a
+    // retried call's total worst-case duration then stays close to the
+    // 900ms that was actually left, rather than up to 3x that.
+    expect(list).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 300 }),
+    );
+  });
+
+  it("gives each attempt the full fixed timeout when there's no real deadline constraining it", async () => {
+    const list = vi.fn(async () => ({ data: [], has_more: false }));
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list),
+      // No deadline passed at all -> defaults to NO_DEADLINE (remainingMs is
+      // Infinity) — this client's un-deadlined behavior must stay exactly
+      // what it was before FetchDeadline existed, not get divided by
+      // attempts for no reason.
     );
 
     await listActiveSubscriptions();
 
     expect(list).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ timeout: 500 }),
+      expect.objectContaining({ timeout: 20_000 }),
     );
   });
 

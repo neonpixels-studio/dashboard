@@ -497,6 +497,53 @@ describe("runSync", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("bounds a provider that never looks at its deadline argument at all (e.g. Clerk, whose SDK has no timeout/AbortSignal seam)", async () => {
+    // IntegrationProvider's `deadline` param is optional precisely so a
+    // provider like this can ignore it (see types.ts's own comment) — the
+    // orchestrator's "an individual provider's fetch can't exceed the
+    // overall run budget" guarantee (issue #62) must still hold for it via
+    // syncOneIntegration's own race against the deadline, not rely on every
+    // provider choosing to cooperate.
+    vi.useFakeTimers();
+    const row = configRow({ slug: "danholloran", vendor: "clerk" });
+    const fetch = vi.fn(() => new Promise<never>(() => {})); // never settles
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("clerk", fetch) },
+      runBudgetMs: 100,
+    });
+
+    const summaryPromise = runSync(deps);
+    await vi.advanceTimersByTimeAsync(100);
+    const summary = await summaryPromise;
+
+    expect(summary.outcomes).toEqual([
+      {
+        slug: "danholloran",
+        vendor: "clerk",
+        ok: false,
+        error: expect.stringContaining("Shared run budget"),
+      },
+    ]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("treats a non-finite runBudgetMs (NaN/Infinity) as no effective bound, rather than an instantly-expired deadline that fails every row", async () => {
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: Number.NaN,
+    });
+
+    const summary = await runSync(deps);
+
+    expect(summary.outcomes).toEqual([
+      { slug: "basin", vendor: "stripe", ok: true },
+    ]);
+  });
+
   it("batches concurrent fetches in groups of exactly 5 rather than awaiting every row at once", async () => {
     const rows = Array.from({ length: 12 }, (_, index) =>
       configRow({ slug: `app-${index}`, vendor: "stripe" }),
