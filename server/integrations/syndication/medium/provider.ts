@@ -129,24 +129,11 @@ async function defaultGetLastAttemptedSyncAt(
   return fetchLastAttemptedSyncAt(useDb(), slug, MEDIUM_VENDOR);
 }
 
-// Deliberately NOT best-effort, unlike orchestrator.ts's
-// recordSyncStatusBestEffort: that function guards outcome bookkeeping
-// (health chips), where losing a write is cosmetic. This one guards a paid,
-// capped resource (mediumapi.com's 150-requests/month plan) — if the
-// watermark can't be persisted, letting the Medium call proceed anyway would
-// reopen the exact retry-storm hole this guard exists to close (a
-// persistently-failing DB write would look identical, every tick, to an
-// attempt that was never made). Throwing here surfaces as a `sync_status`
-// failure via the orchestrator's existing catch-all (orchestrator.ts's
-// syncOneIntegration), same as any other provider error.
-//
-// Returns whether THIS call actually claimed the attempt — recordSyncAttempt
-// is an atomic conditional upsert (see persist.ts), so two overlapping
-// fetch() calls (a slow tick still running when the next fires, or a
-// scheduled tick racing a manual POST /api/sync) can't both win it, even
-// though both may have read isMediumSyncDue as true moments earlier. A false
-// return means this call lost that race and must not make the real Medium
-// request either.
+// Deliberately not best-effort (unlike orchestrator.ts's
+// recordSyncStatusBestEffort) and returns whether this call actually claimed
+// the attempt — see recordSyncAttempt in persist.ts for why both of those
+// matter (a paid, capped resource, plus an atomic claim against overlapping
+// callers).
 async function defaultRecordAttempt(
   slug: string,
   attemptedAt: Date,

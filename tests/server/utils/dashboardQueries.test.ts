@@ -19,16 +19,12 @@ import { metricSnapshot } from "../../../server/db/schema";
 type FakeDb = Parameters<typeof fetchMetricSnapshotSeries>[0];
 
 // Renders a drizzle SQL fragment to literal query text + params without a
-// live connection — same helper persist.test.ts uses, so an assertion here
-// can check the actual `where` condition (slug AND vendor) rather than just
-// "where() was called with something", which would pass even if the query
-// stopped filtering on one of those columns.
+// live connection, so an assertion here can check the actual `where`
+// condition (slug AND vendor) rather than just "where() was called with
+// something" — mirrors persist.test.ts's renderSql/renderSqlParams.
 function renderSqlCondition(fragment: SQL): { sql: string; params: unknown[] } {
-  const dialect = new PgDialect();
-  return {
-    sql: dialect.sqlToQuery(fragment).sql,
-    params: dialect.sqlToQuery(fragment).params,
-  };
+  const { sql, params } = new PgDialect().sqlToQuery(fragment);
+  return { sql, params };
 }
 
 // Stubs `select().from().where().orderBy()` — the chain used by the bounded

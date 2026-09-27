@@ -14,12 +14,9 @@
 // 15 minutes — see netlify/functions/scheduled-sync.ts).
 export const MEDIUM_MIN_SYNC_INTERVAL_HOURS = 24;
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
-// Exported (not just used internally by isMediumSyncDue below) so
-// provider.ts's atomic attempt-claim — recordSyncAttempt in persist.ts —
-// can enforce the exact same cadence at the DB layer, closing the
-// check-then-act gap a JS-only isMediumSyncDue call leaves between reading
-// the watermarks and claiming the attempt. See provider.ts's
-// defaultRecordAttempt.
+// Exported so provider.ts's atomic attempt-claim (recordSyncAttempt in
+// persist.ts) can enforce this same cadence at the DB layer — see that
+// function's comment for why.
 export const MEDIUM_MIN_SYNC_INTERVAL_MS =
   MEDIUM_MIN_SYNC_INTERVAL_HOURS * MILLISECONDS_PER_HOUR;
 
@@ -41,13 +38,15 @@ function laterOf(first: Date | null, second: Date | null): Date | null {
  *
  * `lastAttemptedSyncAt` is what keeps a persistently-failing sync (bad key, a
  * mapping bug, a transient mediumapi.com outage) from retrying on every
- * 15-minute orchestrator tick: `lastSuccessfulSyncAt` only advances on a fully
- * successful sync (see provider.ts's buildSyndicationResult call), so without
- * this second watermark a failing attempt would never push the clock forward
- * and would burn real requests against the monthly cap on every tick forever.
- * `lastAttemptedSyncAt` instead advances the moment a real network attempt
- * starts, independent of whether it goes on to succeed or throw — see
- * provider.ts's recordAttempt call, made before fetchMediumSyndication runs.
+ * 15-minute orchestrator tick, since `lastSuccessfulSyncAt` alone only
+ * advances on a full success (provider.ts's buildSyndicationResult) and would
+ * otherwise never push the clock forward. It instead advances the moment a
+ * real network attempt starts, independent of whether it goes on to succeed
+ * or throw — see provider.ts's recordAttempt call. Trade-off: after fixing a
+ * revoked key, the next sync (scheduled or a manual POST /api/sync) still
+ * waits out the same interval from that last failed attempt — to force an
+ * immediate retry, clear the watermark by hand:
+ * `UPDATE sync_status SET last_attempted_at = NULL WHERE vendor = 'medium'`.
  *
  * Pure and clock-injected — unit tests exercise it with fixed
  * `now`/`lastSuccessfulSyncAt`/`lastAttemptedSyncAt` values rather than real
