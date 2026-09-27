@@ -112,6 +112,21 @@ export function createGa4ReportRunner(
     startDate,
     endDate,
   }: Ga4ReportRequest): Promise<Ga4ReportRow[]> => {
+    // Failing loud here (rather than ever placing a call whose gax `timeout`
+    // is 0 or negative — behavior that shouldn't be relied on across gax
+    // versions) keeps this client's own guarantee — never outlive the shared
+    // run budget — true even at the boundary. Mirrors
+    // server/integrations/stripe/stripeClient.ts's identical guard.
+    const cappedTimeoutMs = Math.min(
+      GA4_REQUEST_TIMEOUT_MS,
+      deadline.remainingMs(),
+    );
+    if (cappedTimeoutMs <= 0) {
+      throw new Error(
+        `GA4 report request for property "${propertyId}" skipped: the sync's shared run budget was already exhausted.`,
+      );
+    }
+
     const [response] = await ga4Client.runReport(
       {
         property: `properties/${propertyId}`,
@@ -119,7 +134,7 @@ export function createGa4ReportRunner(
         dimensions: [{ name: dimension }],
         metrics: [{ name: SESSIONS_METRIC_NAME }],
       },
-      { timeout: Math.min(GA4_REQUEST_TIMEOUT_MS, deadline.remainingMs()) },
+      { timeout: cappedTimeoutMs },
     );
 
     // A missing dimensionValue is tolerated as "" (it only ever becomes a

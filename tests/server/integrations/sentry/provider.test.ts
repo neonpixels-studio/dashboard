@@ -116,6 +116,46 @@ describe("sentryProvider", () => {
     expect(openIssuesMetric?.value).toBe(threeOpen.issues.length);
     expect(fatalIssuesMetric?.value).toBe(oneFatal.issues.length);
   });
+
+  it("threads a passed-in deadline through to the real searcher (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just createSentryIssueSearcher's own behavior
+    // in isolation (see sentryClient.test.ts): if sentryProvider.fetch ever
+    // dropped its `deadline` argument on the way to
+    // createSentryIssueSearcher, this already-aborted deadline would be
+    // ignored and the stubbed fetch below would resolve normally instead of
+    // this rejecting.
+    vi.stubEnv("NUXT_SENTRY_ORG", "acme");
+    const fetchStub = vi.fn((_url: unknown, init?: RequestInit) => {
+      if (init?.signal?.aborted) {
+        return Promise.reject(
+          new DOMException("This operation was aborted", "AbortError"),
+        );
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => [],
+        headers: { get: () => null },
+      });
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchStub);
+    const config = createTestIntegrationConfig({
+      slug: "markpost",
+      vendor: "sentry",
+      externalId: "markpost",
+      secret: "token_abc",
+    });
+    const alreadyAbortedController = new AbortController();
+    alreadyAbortedController.abort(new Error("already exhausted (test)"));
+    const exhaustedDeadline = {
+      signal: alreadyAbortedController.signal,
+      remainingMs: () => 0,
+    };
+
+    await expect(
+      sentryProvider.fetch(config, exhaustedDeadline),
+    ).rejects.toThrow(/shared run budget was exhausted/);
+  });
 });
 
 describe("fetchSentryMetrics", () => {

@@ -13,9 +13,11 @@ import type {
 
 // Belt-and-suspenders alongside each test's own mockRestore(): if a test's
 // assertions throw before reaching its restore call, this still stops a
-// stubbed console.error/warn from leaking into every later test in the file.
+// stubbed console.error/warn (or, for the fake-timers test below, a fake
+// clock) from leaking into every later test in the file.
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 function configRow(
@@ -454,6 +456,45 @@ describe("runSync", () => {
         remainingMs: expect.any(Function),
       }),
     );
+  });
+
+  it("actually aborts an in-flight fetch once the shared run budget elapses, and clears its own timer afterward", async () => {
+    // Unlike the shape-only assertion above, this proves the deadline built
+    // by runSync is a REAL one — a stub that just carries the right fields
+    // but never fires (e.g. an accidentally-swapped-in NO_DEADLINE) would
+    // leave this test hanging instead of passing.
+    vi.useFakeTimers();
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    const fetch = vi.fn(
+      (_config: IntegrationConfig, deadline?: { signal: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          deadline?.signal.addEventListener("abort", () => {
+            reject(deadline.signal.reason);
+          });
+        }),
+    );
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: 100,
+    });
+
+    const summaryPromise = runSync(deps);
+    await vi.advanceTimersByTimeAsync(100);
+    const summary = await summaryPromise;
+
+    expect(summary.outcomes).toEqual([
+      {
+        slug: "basin",
+        vendor: "stripe",
+        ok: false,
+        error: expect.stringContaining("Shared run budget"),
+      },
+    ]);
+    // Proves createRunDeadline's `dispose()` ran (via runSync's try/finally)
+    // — a leaked timer here would otherwise keep a serverless function
+    // instance alive past the response, or leak across test files.
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("batches concurrent fetches in groups of exactly 5 rather than awaiting every row at once", async () => {

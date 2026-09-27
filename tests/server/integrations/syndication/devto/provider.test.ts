@@ -57,6 +57,38 @@ describe("devtoProvider", () => {
     expect(result.metrics[0]).toMatchObject({ metric: "posts", value: 1 });
     expect(result.syndicationPosts[0]).toMatchObject({ postRef: "a-post" });
   });
+
+  it("threads a passed-in deadline through to the real DEV.to client (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just fetchJson's own behavior in isolation (see
+    // httpClient.test.ts): if devtoProvider.fetch ever dropped its
+    // `deadline` argument on the way to createDevtoArticlesPageFetcher, this
+    // already-aborted deadline would be ignored and the stubbed fetch below
+    // would resolve normally instead of this rejecting.
+    const fetchImpl = vi.fn((_url: unknown, init?: RequestInit) => {
+      if (init?.signal?.aborted) {
+        return Promise.reject(
+          new DOMException("This operation was aborted", "AbortError"),
+        );
+      }
+      return Promise.resolve(jsonResponse([]));
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchImpl);
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "devto",
+      secret: "key_abc",
+    });
+    const alreadyAbortedController = new AbortController();
+    alreadyAbortedController.abort(new Error("already exhausted (test)"));
+    const exhaustedDeadline = {
+      signal: alreadyAbortedController.signal,
+      remainingMs: () => 0,
+    };
+
+    await expect(
+      devtoProvider.fetch(config, exhaustedDeadline),
+    ).rejects.toThrow(/timed out/);
+  });
 });
 
 describe("fetchDevtoSyndication", () => {

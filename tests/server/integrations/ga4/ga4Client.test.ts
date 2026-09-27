@@ -92,6 +92,29 @@ describe("createGa4ReportRunner", () => {
     );
   });
 
+  it("throws instead of placing a call once the shared deadline is already exhausted, rather than sending a request with an ineffective timeout", async () => {
+    const runReport = vi.fn(async () => [{ rows: [] }]);
+    const deadline = {
+      signal: new AbortController().signal,
+      remainingMs: () => 0,
+    };
+    const runGa4Report = createGa4ReportRunner(
+      { clientEmail: "sa@example.com", privateKey: "unused" },
+      buildStubGa4Client(runReport as never),
+      deadline,
+    );
+
+    await expect(
+      runGa4Report({
+        propertyId: "123456",
+        dimension: "date",
+        startDate: "29daysAgo",
+        endDate: "today",
+      }),
+    ).rejects.toThrow(/shared run budget was already exhausted/);
+    expect(runReport).not.toHaveBeenCalled();
+  });
+
   it("maps report rows to plain dimensionValue/metricValue pairs", async () => {
     const runReport = vi.fn(async () => [
       {

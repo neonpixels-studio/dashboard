@@ -114,13 +114,27 @@ const DEFAULT_RUN_BUDGET_MS = 7_000;
 function createRunDeadline(budgetMs: number): FetchDeadline & {
   dispose: () => void;
 } {
-  const boundedBudgetMs = Math.max(0, budgetMs);
+  // Number.isFinite guards against NaN — Math.max(0, NaN) is itself NaN, and
+  // Node's setTimeout coerces a NaN/negative delay to ~1ms, which would fire
+  // the deadline almost immediately and fail every row in the run rather
+  // than just softly falling back to "no effective bound."
+  const boundedBudgetMs = Number.isFinite(budgetMs) ? Math.max(0, budgetMs) : 0;
   const deadlineAt = Date.now() + boundedBudgetMs;
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () =>
       controller.abort(
-        new Error(`Shared run budget of ${budgetMs}ms exhausted.`),
+        // A real AbortError DOMException (not a plain Error) — so every
+        // consumer that recognizes a timeout via `error.name === "AbortError"`
+        // (syndication/httpClient.ts's isAbortError, and any future client
+        // written the same way) still recognizes THIS abort as a timeout too,
+        // not a generic failure — sentryClient.ts additionally distinguishes
+        // it from its own per-request timeout via `deadline.signal.aborted`,
+        // which doesn't depend on the reason's shape at all.
+        new DOMException(
+          `Shared run budget of ${boundedBudgetMs}ms exhausted.`,
+          "AbortError",
+        ),
       ),
     boundedBudgetMs,
   );
@@ -281,7 +295,15 @@ export async function runSync(
   const rows = await deps.listEnabledConfigRows();
   const runAt = (deps.now ?? (() => new Date()))();
   const runBudgetMs = deps.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS;
-  const runDeadline = createRunDeadline(runBudgetMs);
+  // listEnabledConfigRows() above can itself eat into runBudgetMs (a Neon
+  // cold start, pool contention) before this line ever runs — building the
+  // deadline from a fresh runBudgetMs measured from HERE would let it end
+  // later than the batch-admission loop's own elapsed-since-startedAt check
+  // below thinks the run budget ends. Subtracting what's already elapsed
+  // keeps both aligned to the same startedAt.
+  const runDeadline = createRunDeadline(
+    runBudgetMs - (monotonicNow() - startedAt),
+  );
 
   const outcomes: SyncOutcome[] = [];
   const batches = chunk(rows, BATCH_SIZE);

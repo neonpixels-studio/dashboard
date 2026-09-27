@@ -49,6 +49,22 @@ export function createStripeSubscriptionLister(
   deadline: FetchDeadline = NO_DEADLINE,
 ): ListActiveSubscriptions {
   return async (startingAfter) => {
+    // A `timeout` of exactly 0 doesn't mean "expire immediately" to Stripe's
+    // underlying HTTP client the way this code needs — Node interprets a
+    // socket timeout of 0 as "no timeout at all," the opposite of the intent
+    // here. Failing loud instead of ever placing that call keeps this
+    // client's own guarantee (never outlive the shared run budget) true even
+    // at the boundary.
+    const cappedTimeoutMs = Math.min(
+      STRIPE_REQUEST_TIMEOUT_MS,
+      deadline.remainingMs(),
+    );
+    if (cappedTimeoutMs <= 0) {
+      throw new Error(
+        "Stripe subscription list skipped: the sync's shared run budget was already exhausted.",
+      );
+    }
+
     // `status: "active"` only — `trialing` and `past_due` subscriptions are
     // excluded, and MRR is computed from each price's list amount with no
     // discount/coupon applied (`subscription.discounts` isn't fetched or
@@ -63,7 +79,18 @@ export function createStripeSubscriptionLister(
         limit: SUBSCRIPTIONS_PAGE_SIZE,
         starting_after: startingAfter,
       },
-      { timeout: Math.min(STRIPE_REQUEST_TIMEOUT_MS, deadline.remainingMs()) },
+      {
+        timeout: cappedTimeoutMs,
+        // The shared deadline (not this client's own STRIPE_REQUEST_TIMEOUT_MS)
+        // is the binding constraint here — one retry's own cappedTimeoutMs
+        // could otherwise stack on top of another's and push this call well
+        // past what's actually left of the run budget, defeating the point
+        // of capping the timeout at all.
+        maxNetworkRetries:
+          cappedTimeoutMs < STRIPE_REQUEST_TIMEOUT_MS
+            ? 0
+            : STRIPE_MAX_NETWORK_RETRIES,
+      },
     );
 
     return {

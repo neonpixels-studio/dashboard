@@ -170,6 +170,42 @@ describe("createMediumProvider", () => {
 
     expect(fetchSpy).toHaveBeenCalled();
   });
+
+  it("threads a passed-in deadline through to the real Medium client (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just fetchJson's own behavior in isolation (see
+    // httpClient.test.ts): if createMediumProvider's fetch ever dropped its
+    // `deadline` argument on the way to createMediumArticleIdLister, this
+    // already-aborted deadline would be ignored and the stubbed fetch below
+    // would resolve normally instead of this rejecting.
+    const { provider } = buildProvider({
+      lastSuccessfulSyncAt: null, // never synced -> always due
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = vi.fn((_url: unknown, init?: RequestInit) => {
+      if (init?.signal?.aborted) {
+        return Promise.reject(
+          new DOMException("This operation was aborted", "AbortError"),
+        );
+      }
+      return Promise.resolve(jsonResponse({ id: "user_123" }));
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchSpy);
+    const alreadyAbortedController = new AbortController();
+    alreadyAbortedController.abort(new Error("already exhausted (test)"));
+    const exhaustedDeadline = {
+      signal: alreadyAbortedController.signal,
+      remainingMs: () => 0,
+    };
+
+    await expect(provider.fetch(config, exhaustedDeadline)).rejects.toThrow(
+      /timed out/,
+    );
+  });
 });
 
 describe("fetchMediumSyndication", () => {

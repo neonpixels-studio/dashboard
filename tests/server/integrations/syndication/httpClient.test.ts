@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchJson } from "../../../../server/integrations/syndication/httpClient";
+import { createHangingFetch } from "../../../../server/integrations/testing/hangingFetch";
 import { jsonResponse } from "../../../../server/integrations/testing/httpFixtures";
 
 afterEach(() => {
@@ -113,20 +114,10 @@ describe("fetchJson", () => {
   });
 
   it("aborts on a shared deadline (issue #62) even though its own timeoutMs hasn't elapsed", async () => {
-    // Never settles on its own, but rejects as soon as its AbortSignal fires
-    // — the exact seam fetchJson's own local timeout normally relies on,
-    // exercised here via the shared deadline instead.
-    const fetchImpl = vi.fn((_url: unknown, init?: RequestInit) => {
-      return new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => {
-          reject(new DOMException("This operation was aborted", "AbortError"));
-        });
-      });
-    }) as unknown as typeof fetch;
     const deadlineController = new AbortController();
 
     const resultPromise = fetchJson("https://example.com", {
-      fetchImpl,
+      fetchImpl: createHangingFetch(),
       vendorLabel: "Example API",
       timeoutMs: 20_000,
       deadline: { signal: deadlineController.signal, remainingMs: () => 0 },

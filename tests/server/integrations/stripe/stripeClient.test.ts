@@ -127,4 +127,48 @@ describe("createStripeSubscriptionLister", () => {
       expect.objectContaining({ timeout: 500 }),
     );
   });
+
+  it("disables Stripe's own automatic retries once the shared deadline (not the client's own fixed timeout) is what's capping the request", async () => {
+    const list = vi.fn(async () => ({ data: [], has_more: false }));
+    const deadline = {
+      signal: new AbortController().signal,
+      remainingMs: () => 500,
+    };
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list),
+      deadline,
+    );
+
+    await listActiveSubscriptions();
+
+    // A retry re-uses the same capped timeout per attempt — left at its
+    // default, retries could stack well past what's actually left of the
+    // shared run budget, defeating the point of capping the timeout at all.
+    expect(list).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ maxNetworkRetries: 0 }),
+    );
+  });
+
+  it("throws instead of placing a call once the shared deadline is already exhausted, rather than sending a request with no effective timeout", async () => {
+    const list = vi.fn(async () => ({ data: [], has_more: false }));
+    const deadline = {
+      signal: new AbortController().signal,
+      remainingMs: () => 0,
+    };
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list),
+      deadline,
+    );
+
+    await expect(listActiveSubscriptions()).rejects.toThrow(
+      /shared run budget was already exhausted/,
+    );
+    // A `timeout: 0` request option means "no timeout" to Stripe's
+    // underlying HTTP client, not "expire immediately" — this call must
+    // never be placed at all once the deadline is spent.
+    expect(list).not.toHaveBeenCalled();
+  });
 });

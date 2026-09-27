@@ -100,6 +100,30 @@ describe("ga4Provider", () => {
     );
     expect(sessionsMetric?.value).toBe(100);
   });
+
+  it("threads a passed-in deadline through to the real GA4 client (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just createGa4ReportRunner's own behavior in
+    // isolation (see ga4Client.test.ts): if ga4Provider.fetch ever dropped
+    // its `deadline` argument on the way to createGa4ReportRunner, this
+    // exhausted deadline would be ignored and mockRunReport would still
+    // resolve normally instead of this rejecting.
+    vi.stubEnv("NUXT_GA4_SA_CLIENT_EMAIL", "sa@example.com");
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "ga4",
+      externalId: "123456",
+      secret: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+    });
+    const exhaustedDeadline = {
+      signal: new AbortController().signal,
+      remainingMs: () => 0,
+    };
+
+    await expect(ga4Provider.fetch(config, exhaustedDeadline)).rejects.toThrow(
+      /shared run budget was already exhausted/,
+    );
+    expect(mockRunReport).not.toHaveBeenCalled();
+  });
 });
 
 describe("fetchGa4Metrics", () => {
