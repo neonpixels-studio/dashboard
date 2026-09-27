@@ -4,6 +4,8 @@ import {
   hashnodeProvider,
   resolvePublicationId,
 } from "../../../../../server/integrations/syndication/hashnode/provider";
+import { createAbortAwareFetch } from "../../../../../server/integrations/testing/abortAwareFetch";
+import { createExhaustedDeadline } from "../../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
 import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
@@ -102,14 +104,7 @@ describe("hashnodeProvider", () => {
     // `deadline` argument on the way to createHashnodePostsPageFetcher, this
     // already-aborted deadline would be ignored and the stubbed fetch below
     // would resolve normally instead of this rejecting.
-    const fetchImpl = vi.fn((_url: unknown, init?: RequestInit) => {
-      if (init?.signal?.aborted) {
-        return Promise.reject(
-          new DOMException("This operation was aborted", "AbortError"),
-        );
-      }
-      return Promise.resolve(jsonResponse({}));
-    }) as unknown as typeof fetch;
+    const fetchImpl = createAbortAwareFetch(() => jsonResponse({}));
     vi.stubGlobal("fetch", fetchImpl);
     const config = createTestIntegrationConfig({
       slug: "danholloran",
@@ -117,16 +112,10 @@ describe("hashnodeProvider", () => {
       externalId: "pub_123",
       secret: "token_abc",
     });
-    const alreadyAbortedController = new AbortController();
-    alreadyAbortedController.abort(new Error("already exhausted (test)"));
-    const exhaustedDeadline = {
-      signal: alreadyAbortedController.signal,
-      remainingMs: () => 0,
-    };
 
     await expect(
-      hashnodeProvider.fetch(config, exhaustedDeadline),
-    ).rejects.toThrow(/timed out/);
+      hashnodeProvider.fetch(config, createExhaustedDeadline()),
+    ).rejects.toThrow(/shared run budget was exhausted/);
   });
 });
 

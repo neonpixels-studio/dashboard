@@ -3,6 +3,8 @@ import {
   fetchSentryMetrics,
   sentryProvider,
 } from "../../../../server/integrations/sentry/provider";
+import { createAbortAwareFetch } from "../../../../server/integrations/testing/abortAwareFetch";
+import { createExhaustedDeadline } from "../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../server/integrations/testing/testConfig";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type { SentryIssuePage } from "../../../../server/integrations/sentry/types";
@@ -125,19 +127,15 @@ describe("sentryProvider", () => {
     // ignored and the stubbed fetch below would resolve normally instead of
     // this rejecting.
     vi.stubEnv("NUXT_SENTRY_ORG", "acme");
-    const fetchStub = vi.fn((_url: unknown, init?: RequestInit) => {
-      if (init?.signal?.aborted) {
-        return Promise.reject(
-          new DOMException("This operation was aborted", "AbortError"),
-        );
-      }
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: async () => [],
-        headers: { get: () => null },
-      });
-    }) as unknown as typeof fetch;
+    const fetchStub = createAbortAwareFetch(
+      () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => [],
+          headers: { get: () => null },
+        }) as unknown as Response,
+    );
     vi.stubGlobal("fetch", fetchStub);
     const config = createTestIntegrationConfig({
       slug: "markpost",
@@ -145,15 +143,9 @@ describe("sentryProvider", () => {
       externalId: "markpost",
       secret: "token_abc",
     });
-    const alreadyAbortedController = new AbortController();
-    alreadyAbortedController.abort(new Error("already exhausted (test)"));
-    const exhaustedDeadline = {
-      signal: alreadyAbortedController.signal,
-      remainingMs: () => 0,
-    };
 
     await expect(
-      sentryProvider.fetch(config, exhaustedDeadline),
+      sentryProvider.fetch(config, createExhaustedDeadline()),
     ).rejects.toThrow(/shared run budget was exhausted/);
   });
 });

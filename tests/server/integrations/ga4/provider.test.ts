@@ -3,6 +3,7 @@ import {
   fetchGa4Metrics,
   ga4Provider,
 } from "../../../../server/integrations/ga4/provider";
+import { createExhaustedDeadline } from "../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../server/integrations/testing/testConfig";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type {
@@ -114,14 +115,9 @@ describe("ga4Provider", () => {
       externalId: "123456",
       secret: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
     });
-    const exhaustedDeadline = {
-      signal: new AbortController().signal,
-      remainingMs: () => 0,
-    };
-
-    await expect(ga4Provider.fetch(config, exhaustedDeadline)).rejects.toThrow(
-      /shared run budget was already exhausted/,
-    );
+    await expect(
+      ga4Provider.fetch(config, createExhaustedDeadline()),
+    ).rejects.toThrow(/shared run budget was already exhausted/);
     expect(mockRunReport).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@ import {
   fetchStripeMetrics,
   stripeProvider,
 } from "../../../../server/integrations/stripe/provider";
+import { createExhaustedDeadline } from "../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../server/integrations/testing/testConfig";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type { StripeSubscriptionPage } from "../../../../server/integrations/stripe/types";
@@ -100,13 +101,8 @@ describe("stripeProvider", () => {
       externalId: "prod_basin_core",
       secret: "sk_test_e2e",
     });
-    const exhaustedDeadline = {
-      signal: new AbortController().signal,
-      remainingMs: () => 0,
-    };
-
     await expect(
-      stripeProvider.fetch(config, exhaustedDeadline),
+      stripeProvider.fetch(config, createExhaustedDeadline()),
     ).rejects.toThrow(/shared run budget was already exhausted/);
     expect(mockSubscriptionsList).not.toHaveBeenCalled();
   });

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 import { createStripeSubscriptionLister } from "../../../../server/integrations/stripe/stripeClient";
+import {
+  createDeadline,
+  createExhaustedDeadline,
+} from "../../../../server/integrations/testing/deadlineFixtures";
 
 function buildStripeSubscription(
   id: string,
@@ -110,14 +114,10 @@ describe("createStripeSubscriptionLister", () => {
 
   it("caps the request timeout to whatever's left of a shared deadline, when that's less than the client's own fixed timeout", async () => {
     const list = vi.fn(async () => ({ data: [], has_more: false }));
-    const deadline = {
-      signal: new AbortController().signal,
-      remainingMs: () => 500,
-    };
     const listActiveSubscriptions = createStripeSubscriptionLister(
       "sk_test_unused",
       buildStubStripeClient(list),
-      deadline,
+      createDeadline(500),
     );
 
     await listActiveSubscriptions();
@@ -128,39 +128,12 @@ describe("createStripeSubscriptionLister", () => {
     );
   });
 
-  it("disables Stripe's own automatic retries once the shared deadline (not the client's own fixed timeout) is what's capping the request", async () => {
-    const list = vi.fn(async () => ({ data: [], has_more: false }));
-    const deadline = {
-      signal: new AbortController().signal,
-      remainingMs: () => 500,
-    };
-    const listActiveSubscriptions = createStripeSubscriptionLister(
-      "sk_test_unused",
-      buildStubStripeClient(list),
-      deadline,
-    );
-
-    await listActiveSubscriptions();
-
-    // A retry re-uses the same capped timeout per attempt — left at its
-    // default, retries could stack well past what's actually left of the
-    // shared run budget, defeating the point of capping the timeout at all.
-    expect(list).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ maxNetworkRetries: 0 }),
-    );
-  });
-
   it("throws instead of placing a call once the shared deadline is already exhausted, rather than sending a request with no effective timeout", async () => {
     const list = vi.fn(async () => ({ data: [], has_more: false }));
-    const deadline = {
-      signal: new AbortController().signal,
-      remainingMs: () => 0,
-    };
     const listActiveSubscriptions = createStripeSubscriptionLister(
       "sk_test_unused",
       buildStubStripeClient(list),
-      deadline,
+      createExhaustedDeadline(),
     );
 
     await expect(listActiveSubscriptions()).rejects.toThrow(

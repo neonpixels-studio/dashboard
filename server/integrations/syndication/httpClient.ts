@@ -59,7 +59,13 @@ export async function fetchJson<ResponseBody>(
   ]);
 
   try {
-    const response = await sendRequest(url, options, requestSignal, fetchImpl);
+    const response = await sendRequest(
+      url,
+      options,
+      requestSignal,
+      deadline,
+      fetchImpl,
+    );
     if (!response.ok) {
       throw new Error(
         `${options.vendorLabel} responded with ${response.status} ${response.statusText}.`,
@@ -83,6 +89,7 @@ async function sendRequest(
   url: string,
   options: FetchJsonOptions,
   signal: AbortSignal,
+  deadline: FetchDeadline,
   fetchImpl: typeof fetch,
 ): Promise<Response> {
   try {
@@ -93,6 +100,18 @@ async function sendRequest(
       signal,
     });
   } catch (cause) {
+    // Distinguishes an abort caused by the shared run budget (deadline) from
+    // this request's own timeoutMs (fetchJson's local AbortController) —
+    // mirrors ../sentry/sentryClient.ts's identical fetchIssuesPage check —
+    // so sync_status.error doesn't report every abort as an identical,
+    // generic "timed out," leaving no way to tell a genuinely slow vendor
+    // from a request cut short by an already-spent shared budget.
+    if (deadline.signal.aborted) {
+      throw new Error(
+        `${options.vendorLabel} request to ${url} was aborted because the sync's shared run budget was exhausted.`,
+        { cause },
+      );
+    }
     const reason = isAbortError(cause) ? "timed out" : "failed";
     // A generic AbortError ("This operation was aborted") or network error
     // doesn't say which vendor or URL failed — every other throw in this

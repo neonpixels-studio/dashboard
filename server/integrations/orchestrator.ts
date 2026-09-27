@@ -295,15 +295,21 @@ export async function runSync(
   const rows = await deps.listEnabledConfigRows();
   const runAt = (deps.now ?? (() => new Date()))();
   const runBudgetMs = deps.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS;
-  // listEnabledConfigRows() above can itself eat into runBudgetMs (a Neon
-  // cold start, pool contention) before this line ever runs — building the
-  // deadline from a fresh runBudgetMs measured from HERE would let it end
-  // later than the batch-admission loop's own elapsed-since-startedAt check
-  // below thinks the run budget ends. Subtracting what's already elapsed
-  // keeps both aligned to the same startedAt.
-  const runDeadline = createRunDeadline(
-    runBudgetMs - (monotonicNow() - startedAt),
-  );
+  // Deliberately a fresh runBudgetMs measured from HERE, not
+  // `runBudgetMs - (monotonicNow() - startedAt)` (what's left after
+  // listEnabledConfigRows() above) — that would let a slow DB call (a Neon
+  // cold start, pool contention) hand the always-admitted first batch (see
+  // that same guarantee below) a deadline that's already expired before a
+  // single provider.fetch even runs, silently turning "guaranteed forward
+  // progress" into a batch of instant, budget-exhausted failures. A few
+  // hundred ms of drift between this deadline's window and the
+  // batch-admission loop's own elapsed-since-startedAt accounting is the
+  // trade-off, in the same direction as that loop's own existing bias
+  // (forward progress over strictly enforcing the ceiling) — not a new one.
+  // Also keeps this deadline building on Date.now() alone, independent of
+  // the mockable monotonicNow the batch-admission loop below uses (see
+  // createRunDeadline's own comment for why ITS timer needs a real clock).
+  const runDeadline = createRunDeadline(runBudgetMs);
 
   const outcomes: SyncOutcome[] = [];
   const batches = chunk(rows, BATCH_SIZE);

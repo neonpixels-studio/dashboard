@@ -4,6 +4,10 @@ import {
   createGa4ReportRunner,
   normalizeServiceAccountPrivateKey,
 } from "../../../../server/integrations/ga4/ga4Client";
+import {
+  createDeadline,
+  createExhaustedDeadline,
+} from "../../../../server/integrations/testing/deadlineFixtures";
 
 // Only the memoization test below needs the real "@google-analytics/data"
 // module mocked (it deliberately doesn't pass a stub client, to exercise
@@ -69,14 +73,10 @@ describe("createGa4ReportRunner", () => {
 
   it("caps the request timeout to whatever's left of a shared deadline, when that's less than GA4_REQUEST_TIMEOUT_MS", async () => {
     const runReport = vi.fn(async () => [{ rows: [] }]);
-    const deadline = {
-      signal: new AbortController().signal,
-      remainingMs: () => 500,
-    };
     const runGa4Report = createGa4ReportRunner(
       { clientEmail: "sa@example.com", privateKey: "unused" },
       buildStubGa4Client(runReport as never),
-      deadline,
+      createDeadline(500),
     );
 
     await runGa4Report({
@@ -94,14 +94,10 @@ describe("createGa4ReportRunner", () => {
 
   it("throws instead of placing a call once the shared deadline is already exhausted, rather than sending a request with an ineffective timeout", async () => {
     const runReport = vi.fn(async () => [{ rows: [] }]);
-    const deadline = {
-      signal: new AbortController().signal,
-      remainingMs: () => 0,
-    };
     const runGa4Report = createGa4ReportRunner(
       { clientEmail: "sa@example.com", privateKey: "unused" },
       buildStubGa4Client(runReport as never),
-      deadline,
+      createExhaustedDeadline(),
     );
 
     await expect(

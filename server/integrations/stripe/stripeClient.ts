@@ -73,24 +73,28 @@ export function createStripeSubscriptionLister(
     // trialing subscription should count, and whether MRR should reflect
     // discounted vs. list price, are product decisions, not something to
     // guess at here — tracked as follow-ups.
+    // Deliberately does NOT also override `maxNetworkRetries` here — Stripe
+    // retries against the SAME per-attempt `timeout` above, so a retried
+    // call can still exceed what was left of the shared deadline at the
+    // moment this call was placed. Forcing retries to 0 whenever the
+    // deadline (rather than STRIPE_REQUEST_TIMEOUT_MS) is the binding
+    // constraint would close that gap, but under runSync's real
+    // DEFAULT_RUN_BUDGET_MS (7s, well under STRIPE_REQUEST_TIMEOUT_MS's
+    // 20s) that condition is true on effectively every production call,
+    // permanently defeating STRIPE_MAX_NETWORK_RETRIES's whole reason for
+    // existing (see its own comment) rather than only on a genuinely
+    // tight-budget edge case. The per-attempt timeout is still clamped to
+    // the deadline, so any overrun here is bounded by a small, shrinking
+    // multiple of what's actually left of the run budget — not the
+    // unbounded-by-this-client's-own-logic overrun a hung request without
+    // any deadline at all would risk.
     const page = await stripeClient.subscriptions.list(
       {
         status: "active",
         limit: SUBSCRIPTIONS_PAGE_SIZE,
         starting_after: startingAfter,
       },
-      {
-        timeout: cappedTimeoutMs,
-        // The shared deadline (not this client's own STRIPE_REQUEST_TIMEOUT_MS)
-        // is the binding constraint here — one retry's own cappedTimeoutMs
-        // could otherwise stack on top of another's and push this call well
-        // past what's actually left of the run budget, defeating the point
-        // of capping the timeout at all.
-        maxNetworkRetries:
-          cappedTimeoutMs < STRIPE_REQUEST_TIMEOUT_MS
-            ? 0
-            : STRIPE_MAX_NETWORK_RETRIES,
-      },
+      { timeout: cappedTimeoutMs },
     );
 
     return {

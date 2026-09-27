@@ -5,6 +5,8 @@ import {
   fetchMediumSyndication,
   mediumProvider,
 } from "../../../../../server/integrations/syndication/medium/provider";
+import { createAbortAwareFetch } from "../../../../../server/integrations/testing/abortAwareFetch";
+import { createExhaustedDeadline } from "../../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
 import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
@@ -186,25 +188,14 @@ describe("createMediumProvider", () => {
       externalId: "dan-handle",
       secret: "rapidapi_key",
     });
-    const fetchSpy = vi.fn((_url: unknown, init?: RequestInit) => {
-      if (init?.signal?.aborted) {
-        return Promise.reject(
-          new DOMException("This operation was aborted", "AbortError"),
-        );
-      }
-      return Promise.resolve(jsonResponse({ id: "user_123" }));
-    }) as unknown as typeof fetch;
-    vi.stubGlobal("fetch", fetchSpy);
-    const alreadyAbortedController = new AbortController();
-    alreadyAbortedController.abort(new Error("already exhausted (test)"));
-    const exhaustedDeadline = {
-      signal: alreadyAbortedController.signal,
-      remainingMs: () => 0,
-    };
-
-    await expect(provider.fetch(config, exhaustedDeadline)).rejects.toThrow(
-      /timed out/,
+    const fetchSpy = createAbortAwareFetch(() =>
+      jsonResponse({ id: "user_123" }),
     );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      provider.fetch(config, createExhaustedDeadline()),
+    ).rejects.toThrow(/shared run budget was exhausted/);
   });
 });
 

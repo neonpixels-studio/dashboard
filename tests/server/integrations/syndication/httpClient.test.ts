@@ -123,7 +123,7 @@ describe("fetchJson", () => {
       deadline: { signal: deadlineController.signal, remainingMs: () => 0 },
     });
     const assertion = expect(resultPromise).rejects.toThrow(
-      "Example API request to https://example.com timed out.",
+      "Example API request to https://example.com was aborted because the sync's shared run budget was exhausted.",
     );
     deadlineController.abort();
     await assertion;
