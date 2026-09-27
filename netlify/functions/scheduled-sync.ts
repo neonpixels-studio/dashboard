@@ -6,6 +6,11 @@ import type {
   SyncSkippedRow,
   SyncSummary,
 } from "../../server/integrations/orchestrator";
+import {
+  reportError,
+  reportErrorCondition,
+} from "../../server/utils/errorReporting";
+import { initSentry, flushSentry } from "./sentry";
 
 // A Netlify Scheduled Function (https://docs.netlify.com/functions/scheduled-functions/),
 // bundled independently of the Nuxt/Nitro app by Netlify's own Functions
@@ -88,7 +93,15 @@ async function postSync(
       headers: { authorization: `Bearer ${triggerSecret}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-  } catch {
+  } catch (error) {
+    // Reported here (with the real error/stack) rather than only in
+    // scheduledSync's generic "did not complete" branch below, since this is
+    // the only place the underlying DNS/TLS/timeout failure is still
+    // available.
+    reportError(
+      "scheduled-sync: POST /api/sync request failed to complete",
+      error,
+    );
     return null;
   }
 }
@@ -166,13 +179,15 @@ function logSkippedRows(skipped: SyncSkippedRow[]): void {
 // HTTP instead of in-process).
 const MIN_ATTEMPTED_FOR_OUTAGE_ALERT = 5;
 
-export default async function scheduledSync(): Promise<Response> {
+async function runScheduledSync(): Promise<Response> {
   const siteUrl = requireSiteUrl();
   const triggerSecret = requireTriggerSecret();
 
   const response = await postSync(siteUrl, triggerSecret);
   if (!response) {
-    console.error("scheduled-sync: POST /api/sync did not complete");
+    // The underlying error (DNS/TLS/timeout) was already reported with its
+    // real stack trace inside postSync's own catch — this is just the
+    // response this invocation answers with.
     return new Response("sync trigger unreachable", { status: 502 });
   }
 
@@ -183,8 +198,12 @@ export default async function scheduledSync(): Promise<Response> {
   // function's own status so Netlify's invocation log flags it.
   if (!response.ok) {
     const body = await response.text().catch(() => "<unreadable body>");
-    console.error(
-      `scheduled-sync: POST /api/sync responded ${response.status}: ${body}`,
+    reportErrorCondition(
+      "scheduled-sync: POST /api/sync responded with a non-2xx status",
+      {
+        status: response.status,
+        body,
+      },
     );
     return new Response("sync trigger failed", { status: 502 });
   }
@@ -197,13 +216,13 @@ export default async function scheduledSync(): Promise<Response> {
   const allFailed = allAttemptedVendorsFailed(outcomes);
 
   if (allFailed) {
-    // Logged at error level regardless of the 502 gate below — a run where
-    // every attempted row failed is worse than routine budget pressure and
-    // must not be buried as a mere console.warn (see logSkippedRows above).
-    // Otherwise, as the enabled-row count grows and skipped runs become
-    // routine, a total outage would go completely unremarked at error
-    // level.
-    console.error(
+    // Reported at error level regardless of the 502 gate below — a run
+    // where every attempted row failed is worse than routine budget
+    // pressure and must not be buried as a mere console.warn (see
+    // logSkippedRows above). Otherwise, as the enabled-row count grows and
+    // skipped runs become routine, a total outage would go completely
+    // unremarked, both in the log and in Sentry.
+    reportErrorCondition(
       `scheduled-sync: all ${outcomes.length} attempted integration(s) failed this run (${skipped.length} more left unattempted by the budget)`,
     );
   }
@@ -226,6 +245,29 @@ export default async function scheduledSync(): Promise<Response> {
   }
 
   return new Response("ok", { status: 200 });
+}
+
+export default async function scheduledSync(): Promise<Response> {
+  // See netlify/functions/sentry.ts: this bundle never loads
+  // sentry.server.config.ts, so reportError/reportErrorCondition need their
+  // own client initialized in this runtime.
+  initSentry();
+  try {
+    return await runScheduledSync();
+  } catch (error) {
+    // A safety net for anything runScheduledSync doesn't already report
+    // itself (e.g. requireSiteUrl/requireTriggerSecret throwing on a missing
+    // env var) — every runtime error in this function must reach Sentry, not
+    // just Netlify's own invocation log. Rethrown so the caller/Netlify still
+    // see the original failure (and existing behavior/tests are unchanged).
+    reportError("scheduled-sync: unhandled error", error);
+    throw error;
+  } finally {
+    // Runs on every exit path (success, or the catch above rethrowing) — see
+    // flushSentry()'s comment for why skipping this on any path would
+    // silently drop that path's Sentry events.
+    await flushSentry();
+  }
 }
 
 export const config: ScheduledFunctionConfig = { schedule: SYNC_SCHEDULE_CRON };

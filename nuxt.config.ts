@@ -3,7 +3,18 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   future: { compatibilityVersion: 4 },
-  modules: ["@pinia/nuxt", "@clerk/nuxt"],
+  modules: ["@pinia/nuxt", "@clerk/nuxt", "@sentry/nuxt/module"],
+  // Uploads readable stack traces for minified production errors; matches
+  // basin/markpost/wanderist's sibling config (see README's "Error
+  // monitoring" section). @sentry/nuxt also reads these three directly from
+  // process.env on its own, but they're spelled out here so it's obvious at
+  // a glance which dotenvx vars back the source map upload.
+  sourcemap: { client: "hidden" },
+  sentry: {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+  },
   clerk: {
     // server/middleware/auth.ts registers clerkMiddleware() itself so it can
     // also resolve the database user onto the event context.
@@ -113,6 +124,15 @@ export default defineNuxtConfig({
     devtoApiKey: process.env.NUXT_DEVTO_API_KEY || "",
     mediumRapidapiKey: process.env.NUXT_MEDIUM_RAPIDAPI_KEY || "",
     mediumUsername: process.env.NUXT_MEDIUM_USERNAME || "",
+    public: {
+      // Baked at build so sentry.client.config.ts can read it via
+      // useRuntimeConfig().public.sentry.dsn. The DSN is not secret (it ships
+      // to the browser). Single source of truth: SENTRY_DSN in the dotenvx
+      // files — see README's "Error monitoring" section.
+      sentry: {
+        dsn: process.env.SENTRY_DSN || "",
+      },
+    },
   },
   // Self-hosted variable fonts, loaded before main.css so the @font-face rules
   // are registered before the type tokens that reference them. Each package
@@ -126,6 +146,13 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   nitro: {
     preset: "netlify",
+    // sentry.server.config.ts must read the DSN via process.env (Sentry loads
+    // before useRuntimeConfig() is available), and dotenvx does NOT run in
+    // the deployed function. Statically bake the build-time value into the
+    // server bundle so SENTRY_DSN stays sourced only from the dotenvx files.
+    replace: {
+      "process.env.SENTRY_DSN": JSON.stringify(process.env.SENTRY_DSN || ""),
+    },
   },
   vite: {
     plugins: [tailwindcss()],

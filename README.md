@@ -1,8 +1,9 @@
 # dashboard
 
 A Nuxt 4 app scaffolded to match the house structure (see `basin`, `markpost`,
-`wanderist`). Auth (Clerk) and the database (Neon + Drizzle) are wired in;
-Sentry is not, and follows the same pattern as the sibling apps when you want it.
+`wanderist`). Auth (Clerk), the database (Neon + Drizzle), and error
+monitoring (Sentry) are wired in, following the same pattern as the sibling
+apps.
 
 ## Stack
 
@@ -12,6 +13,9 @@ Sentry is not, and follows the same pattern as the sibling apps when you want it
 - **Pinia** — state (module ready; no stores yet)
 - **Tailwind CSS 4** — via `@tailwindcss/vite`, alongside the token-based design
   system in `app/assets/css/main.css`
+- **Sentry** (`@sentry/nuxt`) — this app's own runtime error monitoring (client,
+  server, and `netlify/functions/scheduled-sync.ts`); see "Error monitoring"
+  below
 - **Vitest** + `@vue/test-utils` — unit/component tests (`tests/`)
 - **Playwright** — e2e tests (`e2e/`)
 - **Netlify** — deploy target (`nitro` preset)
@@ -267,6 +271,49 @@ top-of-file comment) instead of silently syncing nothing.
 Generate with `openssl rand -base64 32`. Rotating it orphans any secrets
 already encrypted with the old key, so any DB-stored per-app secret needs
 re-encrypting (or the integration needs re-authenticating) after a rotation.
+
+## Error monitoring
+
+This app's own runtime errors (client, server, and
+`netlify/functions/scheduled-sync.ts`) are reported to Sentry via
+`@sentry/nuxt` — separate from the "Sentry" integration under Integrations
+above, which only _reads_ other properties' issue counts. Same pattern as
+`basin`/`markpost`/`wanderist`:
+
+- `sentry.client.config.ts` / `sentry.server.config.ts` — SDK init for the
+  browser and the Nitro server build respectively.
+- `server/utils/errorReporting.ts` — the one place app/server code talks to
+  Sentry (`reportError` for a caught exception, `reportErrorCondition` for an
+  error-level condition with no exception to catch), so every call site stays
+  testable in isolation and keeps its existing `console.error` signal while
+  also becoming visible in Sentry. See `tests/server/utils/errorReporting.test.ts`.
+- `netlify/functions/sentry.ts` — `scheduled-sync.ts` is a separate bundle
+  (see its own file-level comment) that never loads `sentry.server.config.ts`,
+  so it initializes its own Sentry client and explicitly flushes queued
+  events before the invocation freezes.
+
+`scheduled-sync.ts` reports every failure mode it detects — an unreachable
+`/api/sync`, a non-2xx response, and (the case this exists for) every
+attempted integration failing in one run — as Sentry error-level events, so a
+total sync outage is visible in Sentry without a human checking Netlify
+function logs.
+
+Setup, three vars (dotenvx files — `.env.example` documents them):
+
+1. DSN — Sentry → this app's project → Settings → Client Keys (DSN) →
+   `SENTRY_DSN`.
+2. Auth token (for source map uploads) —
+   <https://sentry.io/settings/account/api/auth-tokens/>, needs the
+   `project:releases` scope → `SENTRY_AUTH_TOKEN`.
+3. Org and project slugs (both visible in the Sentry URL) → `SENTRY_ORG`,
+   `SENTRY_PROJECT`.
+
+`SENTRY_DSN` needs the same extra step as `NUXT_SYNC_TRIGGER_SECRET` (see
+"Cross-app sync trigger" above) to reach `scheduled-sync.ts`: set it as a
+real environment variable in Netlify's own UI (Site configuration →
+Environment variables, Functions scope), matching the value in
+`.env.production` — dotenvx alone does not reach that separately-built
+function at runtime.
 
 ## Scripts
 

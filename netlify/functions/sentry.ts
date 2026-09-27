@@ -1,0 +1,52 @@
+// Netlify Functions bundle separately from the Nitro server build and never
+// load sentry.server.config.ts (see nuxt.config.ts's SENTRY_DSN bake-in
+// comment). Without an explicit Sentry.init() call here, the reportError/
+// reportErrorCondition calls scheduled-sync.ts makes via
+// ../../server/utils/errorReporting would silently no-op in this runtime —
+// the SDK never throws without a client, it just drops the event. Mirrors
+// sentry.server.config.ts's init shape so both runtimes report to the same
+// Sentry project consistently.
+//
+// Unlike server/db.ts-style helpers in sibling repos, this reads SENTRY_DSN
+// directly from process.env with no dotenvx decrypt step: this function
+// never goes through dotenvx at all (see README's "Cross-app sync trigger"
+// section for the same constraint on NUXT_SYNC_TRIGGER_SECRET) — SENTRY_DSN
+// must also be set as a real Netlify environment variable (Functions scope),
+// matching the value in .env.production.
+import * as Sentry from "@sentry/nuxt";
+
+// Milliseconds flushSentry() waits for queued events to actually leave the
+// process before giving up — see that function's comment for why this can't
+// be skipped.
+const FLUSH_TIMEOUT_MS = 2000;
+
+let initialized = false;
+
+export function initSentry(): void {
+  if (initialized) {
+    return;
+  }
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  });
+  initialized = true;
+}
+
+// Sentry.init() queues events and sends them over HTTP asynchronously — it
+// does not await delivery. A Netlify Function's execution environment is
+// frozen (or torn down) the instant its handler's promise settles, so any
+// event captured moments earlier would otherwise never actually leave the
+// process. Call this on every exit path of the handler (success or failure)
+// after initSentry() has run.
+//
+// Never throws: this runs from a bare `finally` in the caller, so a rejected
+// flush (a transport error, a client in a bad state) must not replace
+// whatever error the handler was already failing with.
+export async function flushSentry(): Promise<void> {
+  try {
+    await Sentry.flush(FLUSH_TIMEOUT_MS);
+  } catch (flushError) {
+    console.error("Failed to flush Sentry before the worker froze", flushError);
+  }
+}
