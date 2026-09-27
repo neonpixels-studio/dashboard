@@ -17,8 +17,9 @@ import * as Sentry from "@sentry/nuxt";
 
 // Milliseconds flushSentry() waits for queued events to actually leave the
 // process before giving up — see that function's comment for why this can't
-// be skipped.
-const FLUSH_TIMEOUT_MS = 2000;
+// be skipped. Exported so tests assert against this constant rather than a
+// second, independently-drifting copy of the literal.
+export const FLUSH_TIMEOUT_MS = 2000;
 
 let initialized = false;
 
@@ -32,8 +33,11 @@ export function initSentry(): void {
   // (see this file's header comment) shows up as a visible symptom instead
   // of "Sentry has nothing" being indistinguishable from "nothing failed".
   if (!process.env.SENTRY_DSN) {
+    // This module has one caller today (scheduled-sync.ts), but the message
+    // stays generic rather than naming it — a second Netlify Function
+    // reusing this helper would otherwise get a mislabeled log line.
     console.error(
-      "scheduled-sync: SENTRY_DSN is not set; Sentry reporting is disabled for this invocation",
+      "netlify/functions/sentry.ts: SENTRY_DSN is not set; Sentry reporting is disabled for this invocation",
     );
   }
   try {

@@ -112,11 +112,11 @@ describe("flushSentry", () => {
 
   it("flushes queued events before the worker freezes", async () => {
     flushMock.mockResolvedValue(true);
-    const { flushSentry } = await importFreshSentryModule();
+    const { flushSentry, FLUSH_TIMEOUT_MS } = await importFreshSentryModule();
 
     await flushSentry();
 
-    expect(flushMock).toHaveBeenCalledWith(2000);
+    expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
   });
 
   it("never throws when the flush itself rejects", async () => {

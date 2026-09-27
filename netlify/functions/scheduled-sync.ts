@@ -79,6 +79,10 @@ function requireTriggerSecret(): string {
 // DEFAULT_RUN_BUDGET_MS comment.
 const FETCH_TIMEOUT_MS = 9_000;
 
+// Caps how much of a non-2xx /api/sync response body reaches Sentry as
+// `extra` data — see its call site's own comment.
+const MAX_REPORTED_BODY_LENGTH = 1_000;
+
 // Returns null (rather than throwing) when the request itself never
 // completed — a DNS failure, TLS error, connection reset, or the
 // FETCH_TIMEOUT_MS abort above. scheduledSync below treats that the same as
@@ -202,7 +206,11 @@ async function runScheduledSync(): Promise<Response> {
       "scheduled-sync: POST /api/sync responded with a non-2xx status",
       {
         status: response.status,
-        body,
+        // Truncated before being sent to Sentry (a third party) — an
+        // unexpected non-2xx body (an HTML error page, a stack trace) could
+        // otherwise be arbitrarily large or carry more internal detail than
+        // this event needs.
+        body: body.slice(0, MAX_REPORTED_BODY_LENGTH),
       },
     );
     return new Response("sync trigger failed", { status: 502 });

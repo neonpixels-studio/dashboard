@@ -14,6 +14,18 @@ export default defineNuxtConfig({
     org: process.env.SENTRY_ORG,
     project: process.env.SENTRY_PROJECT,
     authToken: process.env.SENTRY_AUTH_TOKEN,
+    sourcemaps: {
+      // @sentry/nuxt only auto-deletes generated .map files after a
+      // *successful* upload — confirmed by building with no real Sentry
+      // credentials: the upload 404s and the client .map files are left
+      // behind in dist/_nuxt/, which Netlify serves publicly (netlify.toml's
+      // `publish = "dist"`). Deleting unconditionally here means a failed
+      // upload (bad token, Sentry outage) never leaves readable source maps
+      // in the public bundle, at the cost of also losing them locally on a
+      // failed upload — acceptable, since dist/ is a build artifact, not a
+      // source of truth.
+      filesToDeleteAfterUpload: ["dist/**/*.map"],
+    },
   },
   clerk: {
     // server/middleware/auth.ts registers clerkMiddleware() itself so it can

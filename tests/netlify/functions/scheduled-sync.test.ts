@@ -22,6 +22,7 @@ vi.mock("@sentry/nuxt", () => ({
 import scheduledSync, {
   config,
 } from "../../../netlify/functions/scheduled-sync";
+import { FLUSH_TIMEOUT_MS } from "../../../netlify/functions/sentry";
 
 const originalFetch = globalThis.fetch;
 
@@ -72,12 +73,26 @@ describe("scheduledSync", () => {
       },
     );
     expect(response.status).toBe(200);
+  });
+
+  it("initializes Sentry before running", async () => {
     // initSentry() memoizes across calls via module-scoped state in
-    // netlify/functions/sentry.ts (imported once for this whole file, unlike
-    // sentry.test.ts's fresh-module-per-test setup) — this is the first
-    // scheduledSync() call in the file, so it's the one place Sentry.init is
-    // actually observable. Every later test still exercises
-    // captureException/captureMessage/flush, just not a second init call.
+    // netlify/functions/sentry.ts, so this uses its own fresh module
+    // instance (vi.resetModules(), same pattern as
+    // tests/netlify/functions/sentry.test.ts's importFreshSentryModule)
+    // instead of relying on being the first scheduledSync() call in file
+    // execution order.
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.resetModules();
+    const { default: freshScheduledSync } =
+      await import("../../../netlify/functions/scheduled-sync");
+
+    await freshScheduledSync();
+
     expect(initMock).toHaveBeenCalledOnce();
   });
 
@@ -92,7 +107,7 @@ describe("scheduledSync", () => {
     // runScheduledSync doesn't already report itself, then flushes before
     // rethrowing — see its own comment.
     expect(captureExceptionMock).toHaveBeenCalledOnce();
-    expect(flushMock).toHaveBeenCalledWith(2000);
+    expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
   });
 
   it("throws when the trigger secret isn't set, after reporting the failure to Sentry and flushing", async () => {
@@ -103,7 +118,7 @@ describe("scheduledSync", () => {
     await expect(scheduledSync()).rejects.toThrow(/NUXT_SYNC_TRIGGER_SECRET/);
 
     expect(captureExceptionMock).toHaveBeenCalledOnce();
-    expect(flushMock).toHaveBeenCalledWith(2000);
+    expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
   });
 
   it("flushes Sentry even on the successful path", async () => {
@@ -117,7 +132,7 @@ describe("scheduledSync", () => {
 
     await scheduledSync();
 
-    expect(flushMock).toHaveBeenCalledWith(2000);
+    expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
   });
 
   it("returns a 502 (without throwing) when /api/sync itself responds non-2xx, and reports the status/body to Sentry", async () => {
@@ -139,6 +154,23 @@ describe("scheduledSync", () => {
         extra: { status: 401, body: "Unauthorized" },
       }),
     );
+  });
+
+  it("truncates an oversized non-2xx response body before sending it to Sentry", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const oversizedBody = "x".repeat(5_000);
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(oversizedBody, { status: 500 }),
+      ) as unknown as typeof fetch;
+
+    await scheduledSync();
+
+    const [, context] = captureMessageMock.mock.calls[0];
+    expect((context.extra.body as string).length).toBe(1_000);
   });
 
   it("returns a 502 (without throwing) when the request itself never completes, e.g. a timeout or DNS failure, and reports the underlying error to Sentry", async () => {
