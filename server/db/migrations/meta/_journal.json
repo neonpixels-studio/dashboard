@@ -29,6 +29,13 @@
       "when": 1790223250770,
       "tag": "0003_faithful_richard_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790551599217,
+      "tag": "0004_add_integration_config_last_attempt_at",
+      "breakpoints": true
     }
   ]
 }

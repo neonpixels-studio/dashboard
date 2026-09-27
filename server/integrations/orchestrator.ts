@@ -17,6 +17,19 @@ export interface SyncStatusWrite {
   error: string | null;
 }
 
+// What one (slug, vendor) sync attempt stamps to integration_config
+// *before* provider.fetch runs (see persist.ts's recordSyncAttempt and
+// schema.ts's comment on integration_config.last_attempt_at for why this is
+// a separate column/table from SyncStatusWrite's sync_status, not just a
+// narrower version of it). Deliberately no ok/error: this is a marker that
+// an attempt started, not a report of how it went, so it must never carry a
+// result the attempt hasn't reached yet.
+export interface SyncAttemptWrite {
+  slug: string;
+  vendor: string;
+  runAt: Date;
+}
+
 export interface SyncOutcome {
   slug: string;
   vendor: string;
@@ -56,6 +69,10 @@ export interface SyncOrchestratorDeps {
     result: ProviderResult,
   ) => Promise<unknown>;
   recordSyncStatus: (status: SyncStatusWrite) => Promise<unknown>;
+  // Stamps integration_config.last_attempt_at before provider.fetch is even
+  // called — see syncOneIntegration's use of it and SyncAttemptWrite's own
+  // comment for why this writes to a different table than recordSyncStatus.
+  recordSyncAttempt: (attempt: SyncAttemptWrite) => Promise<unknown>;
   now?: () => Date;
   // Wall-clock budget (ms) runSync's own batching loop may spend admitting
   // new batches — see BATCH_SIZE/DEFAULT_RUN_BUDGET_MS below for why this
@@ -112,32 +129,75 @@ function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-// Best-effort: the outcome syncOneIntegration is about to return (success or
-// failure) is already decided by the time this runs, so a failure recording
-// it to sync_status must never change that outcome — it's logged
-// (server-side only, so the unredacted cause is fine here) and swallowed
-// rather than re-thrown. This is also what keeps syncOneIntegration itself
-// from ever rejecting (see runSync's use of a plain Promise.all below).
-async function recordSyncStatusBestEffort(
-  deps: SyncOrchestratorDeps,
-  status: SyncStatusWrite,
+// Runs a DB write best-effort (the pre-fetch attempt stamp on
+// integration_config, or a post-fetch outcome write to sync_status):
+// whatever syncOneIntegration is about to do next (attempt a fetch, or
+// return an outcome already decided) must never be changed by a write
+// failure here — it's logged (server-side only, so the unredacted cause is
+// fine) and swallowed rather than re-thrown. This is also what keeps
+// syncOneIntegration itself from ever rejecting (see runSync's use of a
+// plain Promise.all below).
+async function writeBestEffort(
+  write: () => Promise<unknown>,
+  failureMessage: string,
 ): Promise<void> {
   try {
-    await deps.recordSyncStatus(status);
+    await write();
   } catch (writeCause) {
-    console.error(
-      `Failed to write sync_status for ${status.slug}:${status.vendor}`,
-      writeCause,
-    );
+    console.error(failureMessage, writeCause);
   }
 }
 
-// One (slug, vendor) row's full attempt: resolve its config, fetch from its
-// provider, and persist what came back. Every failure mode in that
-// path — an unresolvable secret, no registered provider, or the provider's
-// fetch/persist throwing — is caught below, so it becomes a `sync_status`
-// failure row for this vendor alone, never an exception that would stop the
-// rest of the run.
+// The two outcome writes below (success and failure) share this one
+// best-effort wrapper so the "Failed to write sync_status for slug:vendor"
+// message is built in exactly one place rather than duplicated at each call
+// site.
+async function recordOutcomeBestEffort(
+  deps: SyncOrchestratorDeps,
+  status: SyncStatusWrite,
+): Promise<void> {
+  await writeBestEffort(
+    () => deps.recordSyncStatus(status),
+    `Failed to write sync_status for ${status.slug}:${status.vendor}`,
+  );
+}
+
+// Mirrors recordOutcomeBestEffort above for the pre-fetch attempt stamp —
+// its own best-effort wrapper, so the "Failed to record sync attempt for
+// slug:vendor" message also lives in exactly one place.
+async function recordAttemptBestEffort(
+  deps: SyncOrchestratorDeps,
+  attempt: SyncAttemptWrite,
+): Promise<void> {
+  await writeBestEffort(
+    () => deps.recordSyncAttempt(attempt),
+    `Failed to record sync attempt for ${attempt.slug}:${attempt.vendor}`,
+  );
+}
+
+// One (slug, vendor) row's full attempt: stamp that an attempt started,
+// resolve its config, fetch from its provider, and persist what came back.
+// Every failure mode in the fetch/persist path — an unresolvable secret, no
+// registered provider, or the provider's fetch/persist throwing — is caught
+// below, so it becomes a `sync_status` failure row for this vendor alone,
+// never an exception that would stop the rest of the run.
+//
+// The attempt stamp (deps.recordSyncAttempt) runs and is awaited *before*
+// provider.fetch — not folded into the try block below — so it lands
+// whether or not the fetch itself ever returns. That's the fix for the
+// rotation-guarantee gap where a row's ordering key was only ever advanced
+// after the fact, so a hung fetch (whole invocation killed) or a
+// sync_status outcome write that keeps failing left it frozen. Writing the
+// attempt to integration_config.last_attempt_at (see persist.ts's
+// recordSyncAttempt and schema.ts's own comment) rather than sync_status
+// means this closes the gap for every enabled row, including a vendor's
+// very first-ever attempt — there's no insert-vs-update branch here, since
+// every enabled row already has exactly one integration_config row. It's
+// still best-effort (writeBestEffort) like every other write here — a
+// failure to record the attempt must not block the fetch that follows it,
+// though a persistently unreachable DB still freezes both this write and
+// the outcome write identically; nothing short of the DB being reachable
+// closes that.
 //
 // The error is logged to console.error as-is (`cause.message` or
 // `String(cause)`) — that's server-side only, so the unredacted cause is
@@ -155,6 +215,9 @@ async function syncOneIntegration(
   runAt: Date,
 ): Promise<SyncOutcome> {
   const identity = { slug: row.slug, vendor: row.vendor };
+
+  await recordAttemptBestEffort(deps, { ...identity, runAt });
+
   let resolvedConfig: IntegrationConfig | undefined;
 
   try {
@@ -171,7 +234,7 @@ async function syncOneIntegration(
       errorMessage(cause),
       resolvedConfig?.secret ?? undefined,
     );
-    await recordSyncStatusBestEffort(deps, {
+    await recordOutcomeBestEffort(deps, {
       ...identity,
       runAt,
       ok: false,
@@ -181,10 +244,10 @@ async function syncOneIntegration(
   }
 
   // The fetch + persist above already succeeded — the data is durable —
-  // so recording that fact goes through recordSyncStatusBestEffort too: a
+  // so recording that fact goes through recordOutcomeBestEffort too: a
   // transient failure to write sync_status must not turn an actually
   // successful vendor sync into a reported failure.
-  await recordSyncStatusBestEffort(deps, {
+  await recordOutcomeBestEffort(deps, {
     ...identity,
     runAt,
     ok: true,
@@ -195,9 +258,9 @@ async function syncOneIntegration(
 
 // The orchestration loop: every enabled integration_config row is synced
 // independently, in fixed-size concurrent batches (BATCH_SIZE), sharing one
-// `runAt` so every row from this run records the same last_run_at. Within a
-// batch, a plain Promise.all (not Promise.allSettled) is safe:
-// syncOneIntegration never rejects, per recordSyncStatusBestEffort's comment
+// `runAt` so every row from this run records the same timestamp wherever it
+// gets written. Within a batch, a plain Promise.all (not Promise.allSettled)
+// is safe: syncOneIntegration never rejects, per writeBestEffort's comment
 // above.
 //
 // Between batches, the loop checks DEFAULT_RUN_BUDGET_MS (or the deps
@@ -206,25 +269,39 @@ async function syncOneIntegration(
 // SyncSummary.skipped rather than silently vanishing from the response.
 // That's deliberately not tracked as a `SyncOutcome` failure —
 // listEnabledIntegrationConfigs (server/integrations/persist.ts) orders
-// rows oldest-synced-first, so an unattempted row is both eligible for and
-// favored by the very next scheduled invocation (every 15 minutes; see
+// rows oldest-attempted-first, so an unattempted row is both eligible for
+// and favored by the very next scheduled invocation (every 15 minutes; see
 // netlify/functions/scheduled-sync.ts), rotating which rows a routinely-hit
 // budget leaves behind rather than starving the same tail forever, with no
-// deferred-work state needed here. This rotation guarantee has two known
-// gaps, both stemming from ordering on a value (last_run_at) that's only
-// ever advanced *after* an attempt completes: (1) a row whose provider
-// hangs long enough for Netlify to kill the whole /api/sync invocation
-// never reaches recordSyncStatusBestEffort at all, and (2) a row whose
-// sync_status upsert itself keeps failing never advances last_run_at either
-// (recordSyncStatusBestEffort swallows write failures by design — see its
-// own comment). Either way the row's last_run_at is never advanced, so it
-// re-occupies the same always-admitted first-batch slot on every subsequent
-// run — with enough such rows (BATCH_SIZE), no other enabled row is ever
-// synced again, while the response still reports a routine `skipped`
-// warning with no signal distinguishing this from healthy rotation.
-// Stamping an attempt timestamp before provider.fetch (rather than only
-// recording the outcome after) would close both; out of scope here — see
-// this PR's follow-up suggestions.
+// deferred-work state needed here. This rotation guarantee used to have two
+// gaps, both stemming from ordering on a value (sync_status.last_run_at)
+// that was only ever advanced *after* an attempt completed: (1) a row whose
+// provider hangs long enough for Netlify to kill the whole /api/sync
+// invocation never reached the outcome write at all, and (2) a row whose
+// sync_status outcome write itself kept failing never advanced last_run_at
+// either (writeBestEffort swallows write failures by design — see its own
+// comment). Either way the row's ordering key would never advance, so it
+// would re-occupy the same always-admitted first-batch slot on every
+// subsequent run — with enough such rows (BATCH_SIZE), no other enabled row
+// would ever sync again, while the response still reported a routine
+// `skipped` warning with no signal distinguishing this from healthy
+// rotation. This applied just as much to a vendor's very first-ever attempt
+// (no sync_status row yet at all) as to one that had synced before — either
+// way, nothing advanced until an outcome was recorded.
+//
+// syncOneIntegration now closes both gaps for every enabled row, first-ever
+// attempt included: deps.recordSyncAttempt stamps
+// integration_config.last_attempt_at (not sync_status.last_run_at) *before*
+// provider.fetch is called and is awaited on its own, and
+// listEnabledIntegrationConfigs orders on that column instead. Since every
+// enabled row already has exactly one integration_config row, this ordering
+// key advances whether the fetch hangs, fails, or the later sync_status
+// outcome write itself fails — with no insert-vs-update branch, and without
+// ever having to create a sync_status row of defaulted values that would
+// misreport an in-flight attempt as a completed failure (see schema.ts's
+// comment on last_attempt_at for why that ruled out reusing sync_status for
+// this). Short of the DB being unreachable outright, which freezes every
+// write identically, attempt stamp included.
 //
 // The very first batch is ALWAYS admitted regardless of elapsed time (the
 // budget check below is skipped while admittedRowCount is still 0) —
