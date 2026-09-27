@@ -7,7 +7,8 @@
 // Usage (see .github/workflows/ci.yml):
 //   npm audit --json | node scripts/audit-gate.js
 
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   ALLOWED_ADVISORIES,
   ALLOWLIST_REVIEW_BY,
@@ -69,7 +70,12 @@ export function advisoryIdFromUrl(url) {
 
 // A blocking-severity advisory we cannot identify must never be silently
 // dropped — it can't match the id-keyed allowlist, so a non-null fallback id
-// keeps it in the blocking set and fails the build (fail closed).
+// keeps it in the blocking set and fails the build (fail closed). In practice
+// every advisory object npm audit currently emits carries both `url` and
+// `source`, so this `source-<n>` branch is a defensive fallback for a missing
+// or unparseable url (npm audit's JSON shape has changed before), not for the
+// plain-string "depends on vulnerable versions of X" entries — those are
+// already filtered out by isBlockingAdvisoryObject before this ever runs.
 function advisoryIdOrFallback(via) {
   const id = advisoryIdFromUrl(via.url);
   if (id) {
@@ -111,10 +117,11 @@ function keyForAdvisory(advisory) {
 function dedupeByIdAndPackage(advisories) {
   const byKey = new Map();
   for (const advisory of advisories) {
-    if (byKey.has(keyForAdvisory(advisory))) {
+    const key = keyForAdvisory(advisory);
+    if (byKey.has(key)) {
       continue;
     }
-    byKey.set(keyForAdvisory(advisory), advisory);
+    byKey.set(key, advisory);
   }
   return [...byKey.values()];
 }
@@ -265,12 +272,18 @@ async function main() {
   );
 }
 
+// Comparing `import.meta.url` against `pathToFileURL(process.argv[1])`
+// directly would fail open on a symlinked path (e.g. macOS's /tmp ->
+// /private/tmp) — `import.meta.url` resolves to the real path, but
+// `process.argv[1]` doesn't get symlinks resolved, so the two would silently
+// mismatch, `main()` would never run, and the gate would exit 0 having
+// audited nothing. Resolving both through `realpathSync` first closes that.
 function isDirectInvocation() {
   const entrypoint = process.argv[1];
   if (!entrypoint) {
     return false;
   }
-  return import.meta.url === pathToFileURL(entrypoint).href;
+  return realpathSync(entrypoint) === fileURLToPath(import.meta.url);
 }
 
 if (isDirectInvocation()) {

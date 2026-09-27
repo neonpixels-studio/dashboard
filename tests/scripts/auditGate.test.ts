@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { spawnSync } from "node:child_process";
 import {
   advisoryIdFromUrl,
   assertUsableReport,
@@ -56,10 +57,13 @@ function advisoryVia(id: string, severity: string) {
   };
 }
 
-// A chained "depends on vulnerable versions of X" advisory carries no upstream
-// GHSA url, so the id falls back to `source-<via.source>` — the shape shared
-// by every url-less-chained-advisory test below.
-function urlLessChainedReport(packageName: string, source: string) {
+// An advisory object with a missing/unparseable url falls back to
+// `source-<via.source>` for its id (see the comment on advisoryIdOrFallback in
+// audit-gate.js) — real npm audit output always carries both url and source
+// together, so this exercises a defensive fallback path, not npm's actual
+// plain-string "depends on vulnerable versions of X" shape (which
+// isBlockingAdvisoryObject already filters out before this ever runs).
+function urlLessAdvisoryReport(packageName: string, source: string) {
   return {
     vulnerabilities: {
       [packageName]: {
@@ -69,7 +73,7 @@ function urlLessChainedReport(packageName: string, source: string) {
             url: null,
             source,
             severity: "high",
-            title: "Depends on vulnerable versions",
+            title: "Advisory with no parseable url",
           },
         ],
       },
@@ -250,8 +254,8 @@ describe("partitionByAllowlist", () => {
   // `partitionByAllowlist`, by swapping the module-level `isAdvisoryAllowed`
   // it calls for a lookup built from a fixture entry via the real
   // `createAllowlistLookup` factory. Restored by the `afterEach` above.
-  it("suppresses a url-less chained advisory whose derived source id is allowlisted", () => {
-    const report = urlLessChainedReport(TEST_PACKAGE, TEST_SOURCE);
+  it("suppresses a url-less advisory whose derived source id is allowlisted", () => {
+    const report = urlLessAdvisoryReport(TEST_PACKAGE, TEST_SOURCE);
     const advisories = collectBlockingAdvisories(report);
     const derivedId = `source-${TEST_SOURCE}`;
     expect(advisories.map((advisory) => advisory.id)).toEqual([derivedId]);
@@ -396,5 +400,42 @@ describe("shouldFailForExpiry", () => {
   it("is true for a non-empty allowlist on or after the review date", () => {
     const onDate = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
     expect(shouldFailForExpiry([fixtureEntry()], onDate)).toBe(true);
+  });
+});
+
+// Runs the script as the real `node scripts/audit-gate.js` CLI process (the
+// exact invocation CI uses), rather than only importing its exports. This is
+// the one thing that exercises `isDirectInvocation` for real: importing the
+// module (as every other test in this file does) never runs `main()` at all,
+// so a regression there — e.g. comparing paths without resolving symlinks —
+// would silently exit 0 having audited nothing, and no test above would ever
+// notice.
+describe("CLI entrypoint", () => {
+  // Vitest always runs with the repo root as cwd (see package.json's
+  // `test`/`test:ci` scripts), so scripts/audit-gate.js resolves from here
+  // exactly the way CI's `node scripts/audit-gate.js` does.
+  function runCli(stdin: string) {
+    return spawnSync("node", ["scripts/audit-gate.js"], {
+      cwd: process.cwd(),
+      input: stdin,
+      encoding: "utf8",
+    });
+  }
+
+  it("exits non-zero and reports the advisory for a blocking report on stdin", () => {
+    const report = JSON.stringify({
+      vulnerabilities: {
+        [TEST_PACKAGE]: { via: [advisoryVia(TEST_ID, "critical")] },
+      },
+    });
+    const result = runCli(report);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(TEST_ID);
+  });
+
+  it("exits zero for a report with no blocking advisories", () => {
+    const result = runCli(JSON.stringify({ vulnerabilities: {} }));
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Dependency audit passed");
   });
 });
