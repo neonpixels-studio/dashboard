@@ -62,6 +62,24 @@ describe("initSentry", () => {
 
     expect(initMock).toHaveBeenCalledTimes(1);
   });
+
+  it("logs a visible warning when SENTRY_DSN is unset, since Sentry.init otherwise fails silently", async () => {
+    vi.stubEnv("SENTRY_DSN", "");
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const { initSentry } = await importFreshSentryModule();
+
+    initSentry();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("SENTRY_DSN is not set"),
+    );
+    // Still calls Sentry.init (matching sentry.server.config.ts/client's own
+    // behavior) rather than skipping it, so the SDK stays in the same state
+    // it would have without this guard — the guard only adds visibility.
+    expect(initMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe("flushSentry", () => {
@@ -95,6 +113,22 @@ describe("flushSentry", () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Failed to flush Sentry before the worker froze",
       expect.any(Error),
+    );
+  });
+
+  it("logs (without throwing) when the flush times out instead of rejecting", async () => {
+    // Sentry.flush() resolves to `false` on a timeout — it does not reject
+    // — so this is a distinct drop case from the rejection above and needs
+    // its own visible signal, not just a silent `false` return.
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    flushMock.mockResolvedValue(false);
+    const { flushSentry } = await importFreshSentryModule();
+
+    await expect(flushSentry()).resolves.toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Sentry flush timed out"),
     );
   });
 });

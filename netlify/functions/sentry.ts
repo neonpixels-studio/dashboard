@@ -26,6 +26,16 @@ export function initSentry(): void {
   if (initialized) {
     return;
   }
+  // Sentry.init({ dsn: undefined }) does not throw — it just leaves the SDK
+  // without a client, so every later captureException/captureMessage call
+  // silently drops its event. Logged here so a missing Netlify env var
+  // (see this file's header comment) shows up as a visible symptom instead
+  // of "Sentry has nothing" being indistinguishable from "nothing failed".
+  if (!process.env.SENTRY_DSN) {
+    console.error(
+      "scheduled-sync: SENTRY_DSN is not set; Sentry reporting is disabled for this invocation",
+    );
+  }
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
@@ -45,7 +55,15 @@ export function initSentry(): void {
 // whatever error the handler was already failing with.
 export async function flushSentry(): Promise<void> {
   try {
-    await Sentry.flush(FLUSH_TIMEOUT_MS);
+    // Resolves to `false` (rather than rejecting) on a timeout — that's
+    // still a real drop of whatever was queued, so it's logged the same as
+    // the throw path below, not silently ignored.
+    const flushed = await Sentry.flush(FLUSH_TIMEOUT_MS);
+    if (!flushed) {
+      console.error(
+        "Sentry flush timed out before the worker froze; queued events may have been dropped",
+      );
+    }
   } catch (flushError) {
     console.error("Failed to flush Sentry before the worker froze", flushError);
   }

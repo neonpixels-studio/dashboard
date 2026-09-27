@@ -222,8 +222,18 @@ async function runScheduledSync(): Promise<Response> {
     // logSkippedRows above). Otherwise, as the enabled-row count grows and
     // skipped runs become routine, a total outage would go completely
     // unremarked, both in the log and in Sentry.
+    //
+    // The message is a static string (counts go in `context` instead, and
+    // still reach the console via reportErrorCondition's own logging) so
+    // every total-outage run groups into the same Sentry issue/tag rather
+    // than fragmenting by attempted/skipped count — see
+    // errorReporting.ts's own comment on why `message` must stay static.
     reportErrorCondition(
-      `scheduled-sync: all ${outcomes.length} attempted integration(s) failed this run (${skipped.length} more left unattempted by the budget)`,
+      "scheduled-sync: every attempted integration failed this run",
+      {
+        attemptedCount: outcomes.length,
+        unattemptedCount: skipped.length,
+      },
     );
   }
 
