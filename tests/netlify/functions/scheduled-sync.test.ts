@@ -21,6 +21,7 @@ vi.mock("@sentry/nuxt", () => ({
 
 import scheduledSync, {
   config,
+  MAX_REPORTED_BODY_LENGTH,
 } from "../../../netlify/functions/scheduled-sync";
 import { FLUSH_TIMEOUT_MS } from "../../../netlify/functions/sentry";
 
@@ -75,7 +76,7 @@ describe("scheduledSync", () => {
     expect(response.status).toBe(200);
   });
 
-  it("initializes Sentry before running", async () => {
+  it("initializes Sentry before running, not merely at some point during the call", async () => {
     // initSentry() memoizes across calls via module-scoped state in
     // netlify/functions/sentry.ts, so this uses its own fresh module
     // instance (vi.resetModules(), same pattern as
@@ -84,9 +85,10 @@ describe("scheduledSync", () => {
     // execution order.
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
-    globalThis.fetch = vi
+    const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response("{}", { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
     vi.resetModules();
     const { default: freshScheduledSync } =
       await import("../../../netlify/functions/scheduled-sync");
@@ -94,6 +96,12 @@ describe("scheduledSync", () => {
     await freshScheduledSync();
 
     expect(initMock).toHaveBeenCalledOnce();
+    // A call count alone would still pass if initSentry() moved to run
+    // after the actual sync work — e.g. inside runScheduledSync's own try
+    // block — which would lose any error captured during that work.
+    expect(initMock.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[0],
+    );
   });
 
   it("throws when the site URL isn't set, after reporting the failure to Sentry and flushing", async () => {
@@ -170,7 +178,9 @@ describe("scheduledSync", () => {
     await scheduledSync();
 
     const [, context] = captureMessageMock.mock.calls[0];
-    expect((context.extra.body as string).length).toBe(1_000);
+    expect((context.extra.body as string).length).toBe(
+      MAX_REPORTED_BODY_LENGTH,
+    );
   });
 
   it("returns a 502 (without throwing) when the request itself never completes, e.g. a timeout or DNS failure, and reports the underlying error to Sentry", async () => {

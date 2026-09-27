@@ -81,7 +81,7 @@ const FETCH_TIMEOUT_MS = 9_000;
 
 // Caps how much of a non-2xx /api/sync response body reaches Sentry as
 // `extra` data — see its call site's own comment.
-const MAX_REPORTED_BODY_LENGTH = 1_000;
+export const MAX_REPORTED_BODY_LENGTH = 1_000;
 
 // Returns null (rather than throwing) when the request itself never
 // completed — a DNS failure, TLS error, connection reset, or the
