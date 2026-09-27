@@ -405,7 +405,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      # `--ignore-scripts`: this job's only purpose is to distrust the
+      # dependency tree, so it must never let a (potentially compromised)
+      # transitive dependency's install script run. `npm audit` reads
+      # package-lock.json and doesn't need built native modules, so nothing
+      # here relies on lifecycle scripts having run.
+      - run: npm ci --ignore-scripts
         env:
           HUSKY: 0
       - name: Audit dependencies (fail on high/critical)

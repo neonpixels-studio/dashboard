@@ -3,16 +3,19 @@ import {
   advisoryIdFromUrl,
   assertUsableReport,
   collectBlockingAdvisories,
+  findStaleAllowlistEntries,
   isAllowlistExpired,
   isAllowlistExpiryEnforced,
   parseAuditReport,
   partitionByAllowlist,
+  shouldFailForExpiry,
   UNIDENTIFIED_ADVISORY_ID,
 } from "../../scripts/audit-gate.js";
 import * as auditAllowlist from "../../scripts/audit-allowlist.js";
 import {
   ALLOWED_ADVISORIES,
   ALLOWLIST_REVIEW_BY,
+  advisoryKey,
   createAllowlistLookup,
   isAdvisoryAllowed,
 } from "../../scripts/audit-allowlist.js";
@@ -24,6 +27,25 @@ import {
 const TEST_ID = "GHSA-0000-test-abcd";
 const TEST_PACKAGE = "test-package-fixture";
 const TEST_SOURCE = "synthetic-test-source-value";
+
+// A single fixture allowlist entry, reused by every test below that needs
+// one, so the entry shape only has to be updated in one place if it changes.
+function fixtureEntry(
+  id: string = TEST_ID,
+  packages: string[] = [TEST_PACKAGE],
+) {
+  return { id, packages, reason: "fixture" };
+}
+
+// Swaps the module-level `isAdvisoryAllowed` for a lookup built from the given
+// fixture entries via the real `createAllowlistLookup` factory, so tests
+// exercise the real suppression wiring instead of a hand-rolled stand-in.
+// Restored by each describe block's `afterEach(() => vi.restoreAllMocks())`.
+function useFixtureAllowlist(entries: ReturnType<typeof fixtureEntry>[]) {
+  vi.spyOn(auditAllowlist, "isAdvisoryAllowed").mockImplementation(
+    createAllowlistLookup(entries),
+  );
+}
 
 function advisoryVia(id: string, severity: string) {
   return {
@@ -162,11 +184,7 @@ describe("partitionByAllowlist", () => {
   // the real `createAllowlistLookup`), not a hand-rolled stand-in, so this
   // fails if the id::package pairing in either implementation ever drifts.
   it("allowlisting one package sharing an advisory id does not suppress the other", () => {
-    vi.spyOn(auditAllowlist, "isAdvisoryAllowed").mockImplementation(
-      createAllowlistLookup([
-        { id: TEST_ID, packages: [TEST_PACKAGE], reason: "fixture" },
-      ]),
-    );
+    useFixtureAllowlist([fixtureEntry()]);
 
     const report = {
       vulnerabilities: {
@@ -209,11 +227,7 @@ describe("partitionByAllowlist", () => {
   // ALLOWED_ADVISORIES starts empty and this path would otherwise go
   // untested. Restored by the `afterEach` above.
   it("suppresses an advisory whose id::package pair matches an allowlist entry", () => {
-    vi.spyOn(auditAllowlist, "isAdvisoryAllowed").mockImplementation(
-      createAllowlistLookup([
-        { id: TEST_ID, packages: [TEST_PACKAGE], reason: "fixture" },
-      ]),
-    );
+    useFixtureAllowlist([fixtureEntry()]);
 
     const advisories = [
       { id: TEST_ID, severity: "high", package: TEST_PACKAGE, title: "t" },
@@ -242,11 +256,7 @@ describe("partitionByAllowlist", () => {
     const derivedId = `source-${TEST_SOURCE}`;
     expect(advisories.map((advisory) => advisory.id)).toEqual([derivedId]);
 
-    vi.spyOn(auditAllowlist, "isAdvisoryAllowed").mockImplementation(
-      createAllowlistLookup([
-        { id: derivedId, packages: [TEST_PACKAGE], reason: "fixture" },
-      ]),
-    );
+    useFixtureAllowlist([fixtureEntry(derivedId)]);
 
     const { suppressed, blocking } = partitionByAllowlist(advisories);
     expect(blocking).toEqual([]);
@@ -262,9 +272,7 @@ describe("isAdvisoryAllowed", () => {
   });
 
   it("allows an id::package pair built via createAllowlistLookup", () => {
-    const isAllowed = createAllowlistLookup([
-      { id: TEST_ID, packages: [TEST_PACKAGE], reason: "fixture" },
-    ]);
+    const isAllowed = createAllowlistLookup([fixtureEntry()]);
     expect(isAllowed(TEST_ID, TEST_PACKAGE)).toBe(true);
     expect(isAllowed(TEST_ID, "some-other-package")).toBe(false);
   });
@@ -283,7 +291,7 @@ describe("isAdvisoryAllowed", () => {
 
   it("gives every real allowlist entry a unique id::package key", () => {
     const keys = ALLOWED_ADVISORIES.flatMap((entry) =>
-      entry.packages.map((packageName) => `${entry.id}::${packageName}`),
+      entry.packages.map((packageName) => advisoryKey(entry.id, packageName)),
     );
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -343,10 +351,50 @@ describe("isAllowlistExpiryEnforced", () => {
   });
 
   it("is true once the allowlist has at least one entry", () => {
-    expect(
-      isAllowlistExpiryEnforced([
-        { id: TEST_ID, packages: [TEST_PACKAGE], reason: "fixture" },
-      ]),
-    ).toBe(true);
+    expect(isAllowlistExpiryEnforced([fixtureEntry()])).toBe(true);
+  });
+});
+
+describe("findStaleAllowlistEntries", () => {
+  it("keeps an entry whose id and package both match a suppressed advisory", () => {
+    const suppressed = [
+      { id: TEST_ID, severity: "high", package: TEST_PACKAGE, title: "t" },
+    ];
+    expect(findStaleAllowlistEntries([fixtureEntry()], suppressed)).toEqual([]);
+  });
+
+  it("flags an entry as stale when its package never matched (id-only match is not enough)", () => {
+    const suppressed = [
+      {
+        id: TEST_ID,
+        severity: "high",
+        package: "some-other-package",
+        title: "t",
+      },
+    ];
+    const stale = findStaleAllowlistEntries([fixtureEntry()], suppressed);
+    expect(stale.map((entry) => entry.id)).toEqual([TEST_ID]);
+  });
+
+  it("returns an empty array for an empty allowlist", () => {
+    expect(findStaleAllowlistEntries([], [])).toEqual([]);
+  });
+});
+
+describe("shouldFailForExpiry", () => {
+  it("is false for an empty allowlist even past the review date", () => {
+    const pastReviewDate = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
+    expect(shouldFailForExpiry([], pastReviewDate)).toBe(false);
+  });
+
+  it("is false for a non-empty allowlist before the review date", () => {
+    const dayBefore = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
+    dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+    expect(shouldFailForExpiry([fixtureEntry()], dayBefore)).toBe(false);
+  });
+
+  it("is true for a non-empty allowlist on or after the review date", () => {
+    const onDate = new Date(`${ALLOWLIST_REVIEW_BY}T00:00:00Z`);
+    expect(shouldFailForExpiry([fixtureEntry()], onDate)).toBe(true);
   });
 });

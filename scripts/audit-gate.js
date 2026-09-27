@@ -194,12 +194,22 @@ function entryMatchedAdvisory(entry, suppressedKeys) {
   );
 }
 
-function warnOnStaleAllowlistEntries(suppressedAdvisories) {
+// Pure (no logging, no reading the module-level ALLOWED_ADVISORIES) so the
+// stale-entry detection itself is unit-testable independent of console output
+// and independent of whatever the real allowlist currently contains.
+export function findStaleAllowlistEntries(entries, suppressedAdvisories) {
   const suppressedKeys = new Set(
     suppressedAdvisories.map((advisory) => keyForAdvisory(advisory)),
   );
-  const staleEntries = ALLOWED_ADVISORIES.filter(
+  return entries.filter(
     (entry) => !entryMatchedAdvisory(entry, suppressedKeys),
+  );
+}
+
+function warnOnStaleAllowlistEntries(suppressedAdvisories) {
+  const staleEntries = findStaleAllowlistEntries(
+    ALLOWED_ADVISORIES,
+    suppressedAdvisories,
   );
   if (!staleEntries.length) {
     return;
@@ -221,8 +231,19 @@ export function isAllowlistExpiryEnforced(entries = ALLOWED_ADVISORIES) {
   return entries.length > 0;
 }
 
+// Combines the two expiry policies above into the single pass/fail decision
+// `main` needs, as a pure function of `entries`/`now`, so a refactor that
+// reorders or drops one of the checks inside `main` shows up as a test
+// failure here rather than only in an actual expired-CI run.
+export function shouldFailForExpiry(
+  entries = ALLOWED_ADVISORIES,
+  now = new Date(),
+) {
+  return isAllowlistExpiryEnforced(entries) && isAllowlistExpired(now);
+}
+
 async function main() {
-  if (isAllowlistExpiryEnforced() && isAllowlistExpired()) {
+  if (shouldFailForExpiry()) {
     reportAllowlistExpired();
     process.exit(EXIT_FAILURE);
   }
