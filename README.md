@@ -296,6 +296,13 @@ Schema changes are schema-first: edit `server/db/schema.ts`, run
 `npm run db:generate`, commit the generated SQL alongside the schema change,
 then `npm run db:migrate`.
 
+The production database migrates itself: CI's `migrate-production` job runs
+`npm run db:migrate:production` on every push to `main` once the `ci` job
+passes. It needs the `DOTENV_PRIVATE_KEY_PRODUCTION` repository secret (the
+same key set in Netlify). It runs alongside Netlify's production build rather
+than before it, so for a migration the new code can't run without, apply it by
+hand before pushing.
+
 `npm run db:push` diffs `server/db/schema.ts` directly against the live
 database — it never reads `server/db/migrations/`, so hand-authored SQL that
 has no `schema.ts` counterpart (e.g. the `updated_at` triggers in
