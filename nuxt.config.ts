@@ -31,12 +31,21 @@ export default defineNuxtConfig({
     // server/middleware/auth.ts registers clerkMiddleware() itself so it can
     // also resolve the database user onto the event context.
     skipServerMiddleware: true,
+    // Baked in at build time for the same reason as runtimeConfig below: the
+    // module defaults this to undefined and expects the env var at function
+    // runtime, where dotenvx never ran.
+    publishableKey: process.env.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "",
   },
   // Read process.env INLINE (not "") so dotenvx-decrypted values bake into the
   // server bundle at build time. Nitro only serializes these defaults; the
   // Netlify preset does not re-inject NUXT_* at function runtime, so a bare ""
   // default would resolve to empty in the deployed function.
   runtimeConfig: {
+    // @clerk/nuxt's own secret key slot, which the module defaults to
+    // undefined; see the clerk.publishableKey comment above.
+    clerk: {
+      secretKey: process.env.NUXT_CLERK_SECRET_KEY || "",
+    },
     databaseUrl: process.env.E2E_DATABASE_URL || process.env.DATABASE_URL || "",
     disableSignups: process.env.NUXT_DISABLE_SIGNUPS || "",
     // Base64 AES-256-GCM key for server/utils/integrationSecrets.ts. Encrypts
