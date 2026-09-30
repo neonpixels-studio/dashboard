@@ -254,16 +254,13 @@ suffix, since there's only one writing-template app today).
 `POST /api/sync`'s `Authorization: Bearer` header to trigger a dashboard
 refresh. Generate with `openssl rand -hex 32`; no external account needed.
 
-Setting it in a dotenvx file is **not enough on its own** for
-`scheduled-sync.ts` to see it. That function is a separate bundle built by
-Netlify's own Functions build step (not the Nuxt app), so it never goes
-through the `runtimeConfig`/dotenvx-decrypt path that `server/api/sync.post.ts`
-does — it reads `process.env.NUXT_SYNC_TRIGGER_SECRET` directly at invoke
-time, which only has a value if it's also set as a real environment variable
-in Netlify's own UI (Site configuration → Environment variables, Functions
-scope), matching the value already in `.env.production`. Without that step
-the scheduled function throws on every run (fails loud — see its own
-top-of-file comment) instead of silently syncing nothing.
+`scheduled-sync.ts` reads it from `.env.production` like everything else:
+it's a separate bundle built by Netlify's own Functions build step (not the
+Nuxt app), so it decrypts that file itself at invoke time via
+`netlify/functions/env.ts` (bundled through `netlify.toml`'s
+`[functions] included_files`). No separate Netlify env var needed, but see
+"Netlify Functions env" below for the one key that must be scoped to
+Functions.
 
 ### Encrypting per-app secrets
 
@@ -308,12 +305,18 @@ Setup, four vars (dotenvx files — `.env.example` documents them):
 3. Org and project slugs (both visible in the Sentry URL) → `SENTRY_ORG`,
    `SENTRY_PROJECT`.
 
-`SENTRY_DSN` needs the same extra step as `NUXT_SYNC_TRIGGER_SECRET` (see
-"Cross-app sync trigger" above) to reach `scheduled-sync.ts`: set it as a
-real environment variable in Netlify's own UI (Site configuration →
-Environment variables, Functions scope), matching the value in
-`.env.production` — dotenvx alone does not reach that separately-built
-function at runtime.
+`SENTRY_DSN` reaches `scheduled-sync.ts` the same way as
+`NUXT_SYNC_TRIGGER_SECRET` (see "Cross-app sync trigger" above): decrypted
+from `.env.production` at runtime, so it lives only in the dotenvx file.
+
+### Netlify Functions env
+
+Standalone functions in `netlify/functions/` decrypt `.env.production` at
+runtime (`netlify/functions/env.ts`, same pattern as basin), so
+`DOTENV_PRIVATE_KEY_PRODUCTION` must be available to the **Functions** scope
+in Netlify (Site configuration → Environment variables), not just Builds.
+Without it the function throws on every run rather than running with
+still-encrypted values.
 
 ## Scripts
 

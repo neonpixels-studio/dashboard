@@ -10,6 +10,7 @@ import {
   reportError,
   reportErrorCondition,
 } from "../../server/utils/errorReporting";
+import { loadEnv } from "./env";
 import { initSentry, flushSentry } from "./sentry";
 
 // A Netlify Scheduled Function (https://docs.netlify.com/functions/scheduled-functions/),
@@ -259,6 +260,10 @@ async function runScheduledSync(): Promise<Response> {
 }
 
 export default async function scheduledSync(): Promise<Response> {
+  // Decrypts .env.production into process.env (NUXT_SYNC_TRIGGER_SECRET,
+  // SENTRY_DSN) — see ./env.ts. Throws on a missing key rather than running
+  // with ciphertext values.
+  loadEnv();
   // See netlify/functions/sentry.ts: this bundle never loads
   // sentry.server.config.ts, so reportError/reportErrorCondition need their
   // own client initialized in this runtime.

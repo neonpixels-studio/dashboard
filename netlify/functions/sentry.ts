@@ -7,13 +7,10 @@
 // sentry.server.config.ts's init shape so both runtimes report to the same
 // Sentry project consistently.
 //
-// Unlike server/db.ts-style helpers in sibling repos, this reads SENTRY_DSN
-// directly from process.env with no dotenvx decrypt step: this function
-// never goes through dotenvx at all (see README's "Cross-app sync trigger"
-// section for the same constraint on NUXT_SYNC_TRIGGER_SECRET) — SENTRY_DSN
-// must also be set as a real Netlify environment variable (Functions scope),
-// matching the value in .env.production.
+// SENTRY_DSN comes from .env.production, decrypted at runtime by loadEnv()
+// (see ./env.ts), so it never needs to be duplicated in Netlify's own UI.
 import * as Sentry from "@sentry/nuxt";
+import { loadEnv } from "./env";
 
 // Milliseconds flushSentry() waits for queued events to actually leave the
 // process before giving up — see that function's comment for why this can't
@@ -27,10 +24,11 @@ export function initSentry(): void {
   if (initialized) {
     return;
   }
+  loadEnv();
   // Sentry.init({ dsn: undefined }) does not throw — it just leaves the SDK
   // without a client, so every later captureException/captureMessage call
-  // silently drops its event. Logged here so a missing Netlify env var
-  // (see this file's header comment) shows up as a visible symptom instead
+  // silently drops its event. Logged here so a SENTRY_DSN missing from
+  // .env.production shows up as a visible symptom instead
   // of "Sentry has nothing" being indistinguishable from "nothing failed".
   if (!process.env.SENTRY_DSN) {
     // This module has one caller today (scheduled-sync.ts), but the message

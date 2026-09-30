@@ -8,6 +8,13 @@ vi.mock("@sentry/nuxt", () => ({
   flush: (...args: unknown[]) => flushMock(...args),
 }));
 
+// Stubbed so tests never decrypt the real committed .env.production (with a
+// local .env.keys present, that would inject live production secrets).
+const loadEnvMock = vi.fn();
+vi.mock("../../../netlify/functions/env", () => ({
+  loadEnv: () => loadEnvMock(),
+}));
+
 // initSentry() memoizes across calls via module-scoped state, so each test
 // needs a fresh module instance to observe "first call initializes" in
 // isolation from the others.
@@ -20,6 +27,7 @@ describe("initSentry", () => {
   beforeEach(() => {
     initMock.mockReset();
     flushMock.mockReset();
+    loadEnvMock.mockReset();
   });
 
   afterEach(() => {
@@ -38,6 +46,22 @@ describe("initSentry", () => {
       dsn: "https://example@o0.ingest.sentry.io/1",
       tracesSampleRate: 1.0,
     });
+  });
+
+  it("initializes with the DSN decrypted from the env file", async () => {
+    vi.stubEnv("SENTRY_DSN", "");
+    loadEnvMock.mockImplementation(() => {
+      process.env.SENTRY_DSN = "https://decrypted@o0.ingest.sentry.io/1";
+    });
+    const { initSentry } = await importFreshSentryModule();
+
+    initSentry();
+
+    expect(initMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dsn: "https://decrypted@o0.ingest.sentry.io/1",
+      }),
+    );
   });
 
   it("uses a reduced trace rate in production", async () => {

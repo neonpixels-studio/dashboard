@@ -19,6 +19,13 @@ vi.mock("@sentry/nuxt", () => ({
   flush: (...args: unknown[]) => flushMock(...args),
 }));
 
+// Stubbed so tests never decrypt the real committed .env.production (with a
+// local .env.keys present, that would inject live production secrets).
+const loadEnvMock = vi.fn();
+vi.mock("../../../netlify/functions/env", () => ({
+  loadEnv: () => loadEnvMock(),
+}));
+
 import scheduledSync, {
   config,
   MAX_REPORTED_BODY_LENGTH,
@@ -43,6 +50,7 @@ afterEach(() => {
   initMock.mockClear();
   flushMock.mockClear();
   flushMock.mockResolvedValue(true);
+  loadEnvMock.mockReset();
 });
 
 describe("scheduled-sync config", () => {
@@ -102,6 +110,38 @@ describe("scheduledSync", () => {
     expect(initMock.mock.invocationCallOrder[0]).toBeLessThan(
       fetchMock.mock.invocationCallOrder[0],
     );
+  });
+
+  it("reads the trigger secret from the decrypted env file, not a pre-set Netlify var", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "");
+    loadEnvMock.mockImplementation(() => {
+      process.env.NUXT_SYNC_TRIGGER_SECRET = "decrypted-secret";
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await scheduledSync();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({
+        headers: { authorization: "Bearer decrypted-secret" },
+      }),
+    );
+  });
+
+  it("fails before syncing when the env file can't be decrypted", async () => {
+    loadEnvMock.mockImplementation(() => {
+      throw new Error("MISSING_PRIVATE_KEY");
+    });
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(scheduledSync()).rejects.toThrow("MISSING_PRIVATE_KEY");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("throws when the site URL isn't set, after reporting the failure to Sentry and flushing", async () => {
