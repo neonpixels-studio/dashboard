@@ -1,7 +1,7 @@
 # dashboard
 
 A Nuxt 4 app scaffolded to match the house structure (see `basin`, `markpost`,
-`wanderist`). Auth (Clerk), the database (Neon + Drizzle), and error
+`farflung`). Auth (Clerk), the database (Neon + Drizzle), and error
 monitoring (Sentry) are wired in, following the same pattern as the sibling
 apps.
 
@@ -151,7 +151,7 @@ Stripe's product IDs.
 ### Stripe
 
 Reports MRR and active subscriber counts for the product-template apps
-(basin, markpost, wanderist). One shared Stripe account across properties,
+(basin, markpost, farflung). One shared Stripe account across properties,
 scoped per property by product ID — see
 `server/integrations/stripe/provider.ts`.
 
@@ -184,7 +184,7 @@ simply produces no rows (not a zeroed metric, not a thrown error).
 ### Sentry
 
 Reports open-issue and fatal-issue counts for the product-template apps
-(basin, markpost, wanderist) — grimicorn.dev and neonpixels.dev don't use
+(basin, markpost, farflung) — grimicorn.dev and neonpixels.dev don't use
 Sentry and get no `integration_config` row for it. One shared Sentry org
 across properties, scoped per property by project slug — see
 `server/integrations/sentry/provider.ts`. The per-app status-chip
@@ -275,7 +275,7 @@ This app's own runtime errors (client, server, and
 `netlify/functions/scheduled-sync.ts`) are reported to Sentry via
 `@sentry/nuxt` — separate from the "Sentry" integration under Integrations
 above, which only _reads_ other properties' issue counts. Same pattern as
-`basin`/`markpost`/`wanderist`:
+`basin`/`markpost`/`farflung`:
 
 - `sentry.client.config.ts` / `sentry.server.config.ts` — SDK init for the
   browser and the Nitro server build respectively.
@@ -396,7 +396,7 @@ then `chromium` (everything else, with that session).
 
 `ci.yml`'s `e2e` job runs each `e2e/*.spec.ts` file as its own matrix shard
 (skipped outside pull requests, and skipped when no e2e-relevant path
-changed), mirroring the pattern in `basin`/`markpost`/`wanderist`: it decrypts
+changed), mirroring the pattern in `basin`/`markpost`/`farflung`: it decrypts
 `.env.e2e` with the `DOTENV_PRIVATE_KEY_E2E` repository secret, then uses the
 `NEON_API_KEY`/`NEON_PROJECT_ID` stored inside that same file to create a
 fresh Neon branch per shard (deleted again in a final `if: always()` step)

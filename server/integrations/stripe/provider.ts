@@ -46,7 +46,7 @@ function resolveProductIdsSource(config: IntegrationConfig): string | null {
  * real one (stripeClient.ts).
  *
  * Per the issue's account model, this provider applies only to the
- * product-template apps (basin, markpost, wanderist). Apps without a Stripe
+ * product-template apps (basin, markpost, farflung). Apps without a Stripe
  * row, or with a row but no product ids configured anywhere yet, simply
  * never reach here (the orchestrator only calls providers for enabled
  * config rows), and the empty-productIds branch below is this function's

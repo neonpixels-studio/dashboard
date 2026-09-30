@@ -97,7 +97,7 @@ describe("resolveIntegrationConfig", () => {
   it("throws when a vendor-scoped secretRef's trailing segment belongs to a different app", () => {
     vi.stubEnv("NUXT_CLERK_SECRET_KEY_BASIN", "basins-secret");
     const row = buildRow({
-      slug: "wanderist",
+      slug: "farflung",
       vendor: "clerk",
       secretRef: "NUXT_CLERK_SECRET_KEY_BASIN",
     });
@@ -106,7 +106,7 @@ describe("resolveIntegrationConfig", () => {
       IntegrationConfigError,
     );
     expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
-      /belongs to app "basin", not "wanderist"/,
+      /belongs to app "basin", not "farflung"/,
     );
   });
 
@@ -126,9 +126,9 @@ describe("resolveIntegrationConfig", () => {
   it("decrypts a per-app encrypted secret, keyed by slug:vendor", () => {
     const key = randomBytes(32);
     const row = buildRow({
-      slug: "wanderist",
+      slug: "farflung",
       vendor: "clerk",
-      encryptedSecret: encryptSecret("per-app-secret", key, "wanderist:clerk"),
+      encryptedSecret: encryptSecret("per-app-secret", key, "farflung:clerk"),
     });
 
     const config = resolveIntegrationConfig(row, () => key);
@@ -140,16 +140,16 @@ describe("resolveIntegrationConfig", () => {
     const key = randomBytes(32);
     const wrongKey = randomBytes(32);
     const row = buildRow({
-      slug: "wanderist",
+      slug: "farflung",
       vendor: "clerk",
-      encryptedSecret: encryptSecret("per-app-secret", key, "wanderist:clerk"),
+      encryptedSecret: encryptSecret("per-app-secret", key, "farflung:clerk"),
     });
 
     expect(() => resolveIntegrationConfig(row, () => wrongKey)).toThrow(
       IntegrationSecretError,
     );
     expect(() => resolveIntegrationConfig(row, () => wrongKey)).toThrow(
-      /wanderist:clerk/,
+      /farflung:clerk/,
     );
   });
 
@@ -210,9 +210,9 @@ describe("resolveIntegrationConfig", () => {
       integrationEncryptionKey: key.toString("base64"),
     }));
     const row = buildRow({
-      slug: "wanderist",
+      slug: "farflung",
       vendor: "clerk",
-      encryptedSecret: encryptSecret("per-app-secret", key, "wanderist:clerk"),
+      encryptedSecret: encryptSecret("per-app-secret", key, "farflung:clerk"),
     });
 
     const config = resolveIntegrationConfig(row);

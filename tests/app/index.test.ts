@@ -100,7 +100,7 @@ function overviewFixture(
       capturedAt: "2026-09-19T00:00:00.000Z",
       delta: { value: 22, pct: 5.8 },
       byApp: [
-        { slug: "wanderist", value: 55 },
+        { slug: "farflung", value: 55 },
         { slug: "basin", value: 126 },
         { slug: "markpost", value: 220 },
       ],
@@ -328,7 +328,7 @@ describe("index.vue rollup tiles", () => {
     expect(items.map((item) => item.label)).toEqual([
       "basin.fm",
       "markpost.io",
-      "wanderist.io",
+      "farflung.io",
     ]);
   });
 
@@ -482,7 +482,7 @@ describe("index.vue property grid", () => {
     );
     // A slug the response didn't include at all merges in as null, not
     // whatever row happened to be left over positionally.
-    expect(propertyCardsBySlug.get("wanderist")!.props("app").card).toBeNull();
+    expect(propertyCardsBySlug.get("farflung")!.props("app").card).toBeNull();
   });
 
   it("passes the fetch error through to every card instead of blocking the whole grid", () => {

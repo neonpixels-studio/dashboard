@@ -293,7 +293,7 @@ describe("scheduledSync", () => {
       outcomes: [
         { slug: "basin", vendor: "stripe", ok: false, error: "expired key" },
       ],
-      skipped: [{ slug: "wanderist", vendor: "sentry" }],
+      skipped: [{ slug: "farflung", vendor: "sentry" }],
     };
     globalThis.fetch = vi
       .fn()
@@ -331,7 +331,7 @@ describe("scheduledSync", () => {
       outcomes: [
         { slug: "basin", vendor: "stripe", ok: false, error: "500" },
         { slug: "markpost", vendor: "stripe", ok: false, error: "500" },
-        { slug: "wanderist", vendor: "stripe", ok: false, error: "500" },
+        { slug: "farflung", vendor: "stripe", ok: false, error: "500" },
         { slug: "grimicorn", vendor: "stripe", ok: false, error: "500" },
         { slug: "neonpixels", vendor: "stripe", ok: false, error: "500" },
       ],
@@ -406,7 +406,7 @@ describe("scheduledSync", () => {
     const summary = {
       outcomes: [
         { slug: "basin", vendor: "stripe", ok: true },
-        { slug: "wanderist", vendor: "sentry", ok: false, error: "500" },
+        { slug: "farflung", vendor: "sentry", ok: false, error: "500" },
       ],
     };
     globalThis.fetch = vi
@@ -456,7 +456,7 @@ describe("scheduledSync", () => {
       .mockImplementation(() => {});
     const summary = {
       outcomes: [{ slug: "basin", vendor: "stripe", ok: true }],
-      skipped: [{ slug: "wanderist", vendor: "sentry" }],
+      skipped: [{ slug: "farflung", vendor: "sentry" }],
     };
     globalThis.fetch = vi
       .fn()
@@ -471,7 +471,7 @@ describe("scheduledSync", () => {
     // be visible in the invocation log, not silently dropped.
     expect(response.status).toBe(200);
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("wanderist:sentry"),
+      expect.stringContaining("farflung:sentry"),
     );
     // Restoration is handled by the file-level afterEach above, even if
     // the assertions above this line fail.

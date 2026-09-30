@@ -49,7 +49,7 @@ function resolveProjectSlug(config: IntegrationConfig): string | null {
  * real one (sentryClient.ts).
  *
  * Per the issue's scope, this provider applies only to the product-template
- * apps (basin, markpost, wanderist) — grimicorn.dev and neonpixels.dev don't
+ * apps (basin, markpost, farflung) — grimicorn.dev and neonpixels.dev don't
  * use Sentry and get no `integration_config` row for it at all. A property
  * with a row but no project slug configured anywhere yet simply never
  * reaches here (the orchestrator only calls providers for enabled config

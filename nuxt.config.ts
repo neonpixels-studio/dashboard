@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   future: { compatibilityVersion: 4 },
   modules: ["@pinia/nuxt", "@clerk/nuxt", "@sentry/nuxt/module"],
   // Uploads readable stack traces for minified production errors; matches
-  // basin/markpost/wanderist's sibling config (see README's "Error
+  // basin/markpost/farflung's sibling config (see README's "Error
   // monitoring" section). @sentry/nuxt also reads these three directly from
   // process.env on its own, but they're spelled out here so it's obvious at
   // a glance which dotenvx vars back the source map upload.
@@ -68,8 +68,7 @@ export default defineNuxtConfig({
     // function's process.env, not read via useRuntimeConfig() anywhere.
     stripeProductIdBasin: process.env.NUXT_STRIPE_PRODUCT_ID_BASIN || "",
     stripeProductIdMarkpost: process.env.NUXT_STRIPE_PRODUCT_ID_MARKPOST || "",
-    stripeProductIdWanderist:
-      process.env.NUXT_STRIPE_PRODUCT_ID_WANDERIST || "",
+    stripeProductIdFarflung: process.env.NUXT_STRIPE_PRODUCT_ID_FARFLUNG || "",
     // Shared secret POST /api/sync (server/api/sync.post.ts) requires on the
     // Authorization: Bearer header — see server/utils/syncTrigger.ts. Read
     // via useRuntimeConfig() (not process.env directly) since, unlike
@@ -92,7 +91,7 @@ export default defineNuxtConfig({
     // product ids.
     ga4PropertyIdBasin: process.env.NUXT_GA4_PROPERTY_ID_BASIN || "",
     ga4PropertyIdMarkpost: process.env.NUXT_GA4_PROPERTY_ID_MARKPOST || "",
-    ga4PropertyIdWanderist: process.env.NUXT_GA4_PROPERTY_ID_WANDERIST || "",
+    ga4PropertyIdFarflung: process.env.NUXT_GA4_PROPERTY_ID_FARFLUNG || "",
     ga4PropertyIdDanholloran:
       process.env.NUXT_GA4_PROPERTY_ID_DANHOLLORAN || "",
     ga4PropertyIdGrimicorn: process.env.NUXT_GA4_PROPERTY_ID_GRIMICORN || "",
@@ -105,7 +104,7 @@ export default defineNuxtConfig({
     // process.env), and the org slug via a plain process.env read in
     // server/integrations/sentry/provider.ts, neither via
     // useRuntimeConfig(). Scoped to the product-template apps only (basin,
-    // markpost, wanderist) — grimicorn.dev and neonpixels.dev don't use
+    // markpost, farflung) — grimicorn.dev and neonpixels.dev don't use
     // Sentry, per issue #16.
     sentryAuthToken: process.env.NUXT_SENTRY_AUTH_TOKEN || "",
     sentryOrg: process.env.NUXT_SENTRY_ORG || "",
@@ -115,7 +114,7 @@ export default defineNuxtConfig({
     // product ids / GA4's property ids.
     sentryProjectBasin: process.env.NUXT_SENTRY_PROJECT_BASIN || "",
     sentryProjectMarkpost: process.env.NUXT_SENTRY_PROJECT_MARKPOST || "",
-    sentryProjectWanderist: process.env.NUXT_SENTRY_PROJECT_WANDERIST || "",
+    sentryProjectFarflung: process.env.NUXT_SENTRY_PROJECT_FARFLUNG || "",
     // The Clerk provider's per-app secret keys
     // (server/integrations/clerk) — one per product-template app, each its
     // own Clerk instance (separate from this dashboard's own auth, configured
@@ -127,7 +126,7 @@ export default defineNuxtConfig({
     // directly), not useRuntimeConfig().
     clerkSecretKeyBasin: process.env.NUXT_CLERK_SECRET_KEY_BASIN || "",
     clerkSecretKeyMarkpost: process.env.NUXT_CLERK_SECRET_KEY_MARKPOST || "",
-    clerkSecretKeyWanderist: process.env.NUXT_CLERK_SECRET_KEY_WANDERIST || "",
+    clerkSecretKeyFarflung: process.env.NUXT_CLERK_SECRET_KEY_FARFLUNG || "",
     // The blog-syndication providers' shared studio-wide credentials
     // (server/integrations/syndication) — same reasoning as the Stripe/GA4
     // entries above: declared here purely so the Netlify preset forwards

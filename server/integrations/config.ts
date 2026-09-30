@@ -34,14 +34,14 @@ const KNOWN_APP_SLUGS = new Set(APPS.map((app) => app.slug.toUpperCase()));
 // A fixed allowlist of full names can't work here: per
 // server/db/schema.ts's comment on `integrationConfig`, a vendor whose
 // credential varies per app (clerk) uses a per-slug suffix, e.g.
-// "NUXT_CLERK_SECRET_KEY_BASIN" vs "...WANDERIST" — there's no fixed set of
+// "NUXT_CLERK_SECRET_KEY_BASIN" vs "...FARFLUNG" — there's no fixed set of
 // literal names to enumerate. Instead:
 //   1. the ref must be scoped to the row's own vendor via a "NUXT_<VENDOR>_"
 //      prefix, which every legitimate name (shared or per-slug) satisfies
 //      and no unrelated env var can;
 //   2. if the ref's trailing segment happens to name a *different* known
 //      app, it's rejected too — otherwise a `slug: "basin"` row could still
-//      read `NUXT_CLERK_SECRET_KEY_WANDERIST` and leak another property's
+//      read `NUXT_CLERK_SECRET_KEY_FARFLUNG` and leak another property's
 //      credential to a provider.
 function assertSecretRefIsSafe(
   row: IntegrationConfigRow,

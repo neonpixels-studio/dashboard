@@ -180,7 +180,7 @@ describe("persistProviderResult", () => {
 
   it("stamps every row with the config row's slug before inserting", async () => {
     const { db, insert, values } = createFakeDb();
-    const row = configRow({ slug: "wanderist" });
+    const row = configRow({ slug: "farflung" });
     const result: ProviderResult = {
       ...EMPTY_RESULT,
       metrics: [
@@ -204,7 +204,7 @@ describe("persistProviderResult", () => {
         value: 42,
         period: "current",
         capturedAt: result.metrics[0]!.capturedAt,
-        slug: "wanderist",
+        slug: "farflung",
       },
     ]);
   });

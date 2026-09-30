@@ -384,7 +384,7 @@ describe("metricRollupWithSplit", () => {
     expect(
       metricRollupWithSplit(
         [basinRow, markpostRow],
-        ["basin", "markpost", "wanderist"],
+        ["basin", "markpost", "farflung"],
         "mrr",
         "current",
       ),
