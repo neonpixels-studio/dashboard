@@ -205,21 +205,25 @@ export function persistProviderResult(
 // (caught and logged by orchestrator.ts's writeBestEffort like every other
 // write here, not a special case).
 //
-// `updated_at` isn't set here at all — schema.ts's own DB trigger
-// (0002_add-updated-at-trigger.sql, updated by this column's own migration,
-// 0005) is what stamps it, and that trigger's diff explicitly excludes
-// `last_attempt_at` alongside `updated_at` itself, so this UPDATE (which
-// only ever changes `last_attempt_at`) doesn't bump it. Without that
-// exclusion, every enabled row's `updated_at` would track its last sync
-// attempt (every ~15 minutes) rather than its last real configuration edit.
+// Drizzle's `$onUpdate` on schema.ts's `updatedAt` still adds a fresh
+// `updated_at` to this UPDATE's SET clause automatically — this `.set()`
+// call only naming `lastAttemptAt` doesn't opt out of that. What actually
+// keeps it from bumping is the DB trigger (0002_add-updated-at-trigger.sql,
+// replaced by this column's own migration, 0005): its diff excludes
+// `last_attempt_at` alongside `updated_at` itself, sees no other change, and
+// restores `OLD.updated_at`. Without that exclusion, every enabled row's
+// `updated_at` would track its last sync attempt (every ~15 minutes) rather
+// than its last real configuration edit.
 //
 // @todo this repo has no real-Postgres test harness yet, so migration
 // 0005's SQL (unlike everything else in this file) is verified only by
 // reading it, not by a test. Once one exists (e.g. via pglite/testcontainers),
-// add coverage for: (1) the trigger's exclusion of last_attempt_at — update
-// the column and assert updated_at is unchanged; (2) the backfill UPDATE ...
-// FROM sync_status join — seed a matching and a non-matching sync_status
-// row and assert last_attempt_at ends up set and NULL respectively.
+// add coverage for: (1) the trigger's exclusion of last_attempt_at — run a
+// real query-builder UPDATE (so $onUpdate's injected updated_at is actually
+// on the wire, not just this function's `.set()` argument) and assert
+// updated_at is unchanged; (2) the backfill UPDATE ... FROM sync_status
+// join — seed a matching and a non-matching sync_status row and assert
+// last_attempt_at ends up set and NULL respectively.
 //
 // attempt.vendor is plain `string` (SyncAttemptWrite, like SyncStatusWrite,
 // is orchestrator.ts's own type — it doesn't import the DB schema), while
