@@ -92,10 +92,18 @@ exports[`PropertyCard > matches its snapshot with card data 1`] = `
     </svg>
   </div>
   <ul data-v-feb2cf09="" class="chips">
-    <li data-v-feb2cf09="" class="chip-tag ok">STRIPE</li>
-    <li data-v-feb2cf09="" class="chip-tag danger">SENTRY</li>
-    <li data-v-feb2cf09="" class="chip-tag warn">CLERK</li>
-    <li data-v-feb2cf09="" class="chip-tag muted">+ CONNECT MEDIUM</li>
+    <li data-v-feb2cf09="" class="chip-tag ok">STRIPE
+      <!--v-if-->
+    </li>
+    <li data-v-feb2cf09="" class="chip-tag danger">SENTRY
+      <!--v-if-->
+    </li>
+    <li data-v-feb2cf09="" class="chip-tag warn">CLERK
+      <!--v-if-->
+    </li>
+    <li data-v-feb2cf09="" class="chip-tag muted">+ CONNECT MEDIUM
+      <!--v-if-->
+    </li>
   </ul>
 </a>"
 `;

@@ -11,18 +11,23 @@
 // this app, not the full integration catalog, so there's no honest way to
 // name which vendors are absent — that needs the integration_config catalog,
 // which this endpoint doesn't return.
-import type { SyncSource } from "#shared/types/dashboard";
+import type {
+  IntegrationEnvironment,
+  SyncSource,
+} from "#shared/types/dashboard";
 import { formatSyncedDate } from "./rollupFormat";
 
 export interface SourceChip {
   label: string;
   tone?: "ok" | "warn";
+  environment: IntegrationEnvironment | null;
 }
 
 export function buildSourceChips(sources: SyncSource[]): SourceChip[] {
   return sources.map((source) => ({
     label: sourceChipLabel(source),
     tone: source.ok ? "ok" : "warn",
+    environment: source.environment,
   }));
 }
 

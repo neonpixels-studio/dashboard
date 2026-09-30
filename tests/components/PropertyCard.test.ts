@@ -22,6 +22,7 @@ function buildIntegration(
   return {
     vendor: "sentry",
     enabled: true,
+    environment: null,
     ok: true,
     lastRunAt: null,
     lastSuccessAt: null,
@@ -244,6 +245,21 @@ describe("PropertyCard", () => {
         expect(chip.classes()).toContain(expectedClass);
       },
     );
+
+    it("tags a vendor running on a development credential", () => {
+      const wrapper = mountCard({
+        ...card,
+        integrations: [
+          buildIntegration({ vendor: "stripe", environment: "development" }),
+          buildIntegration({ vendor: "clerk", environment: "production" }),
+          buildIntegration({ vendor: "sentry", environment: null }),
+        ],
+      });
+      const chips = wrapper.findAll(".chip-tag");
+      expect(chips[0]!.find(".env-chip").text()).toBe("development");
+      expect(chips[1]!.find(".env-chip").exists()).toBe(false);
+      expect(chips[2]!.find(".env-chip").exists()).toBe(false);
+    });
   });
 
   it("matches its snapshot in the loading state", () => {

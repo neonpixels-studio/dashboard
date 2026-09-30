@@ -1,6 +1,7 @@
 import { getRouterParam } from "h3";
 import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
+import { integrationEnvironments } from "../../integrations/credentialEnvironment";
 import { requireUser } from "../../utils/auth";
 import {
   fetchIntegrationConfigs,
@@ -61,7 +62,11 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),
     syndication: syndicationMatrixForApp(posts),
     alerts: alertsForApp(syncRows, configRows, slug),
-    sources: syncSourcesForApp(syncRows, slug),
+    sources: syncSourcesForApp(
+      syncRows,
+      slug,
+      integrationEnvironments(configRows),
+    ),
     lastSyncedAt: latestSyncedAt(syncRows),
   };
 });

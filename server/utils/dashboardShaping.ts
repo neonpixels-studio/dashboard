@@ -14,6 +14,7 @@ import type {
   AppMetricSplit,
   AppStatus,
   CurrentMetric,
+  IntegrationEnvironment,
   IntegrationHealth,
   MetricPoint,
   MetricSeries,
@@ -24,6 +25,10 @@ import type {
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
 import { METRIC_SESSIONS, PERIOD_30D, PERIOD_DAILY } from "./dashboardMetrics";
+import {
+  integrationEnvironmentKey,
+  type IntegrationEnvironmentMap,
+} from "../integrations/credentialEnvironment";
 
 function toIso(date: Date): string {
   return date.toISOString();
@@ -691,6 +696,14 @@ export function computeAppStatus(
   return { label: `${count} ISSUE${count === 1 ? "" : "S"}`, tone: "danger" };
 }
 
+function environmentFor(
+  environments: IntegrationEnvironmentMap,
+  slug: string,
+  vendor: string,
+): IntegrationEnvironment | null {
+  return environments.get(integrationEnvironmentKey(slug, vendor)) ?? null;
+}
+
 // Every configured integration for the app, joined with its latest
 // sync_status row when one exists. `ok`/timestamps/`error` are all null for
 // a vendor that's configured but has never been polled.
@@ -698,6 +711,7 @@ export function integrationHealthForApp(
   syncRows: SyncStatusRow[],
   configRows: IntegrationConfigRow[],
   slug: string,
+  environments: IntegrationEnvironmentMap = new Map(),
 ): IntegrationHealth[] {
   return configRows
     .filter((config) => config.slug === slug)
@@ -708,6 +722,7 @@ export function integrationHealthForApp(
       return {
         vendor: config.vendor,
         enabled: config.enabled,
+        environment: environmentFor(environments, slug, config.vendor),
         ok: sync?.ok ?? null,
         lastRunAt: toIsoOrNull(sync?.lastRunAt ?? null),
         lastSuccessAt: toIsoOrNull(sync?.lastSuccessAt ?? null),
@@ -721,11 +736,13 @@ export function integrationHealthForApp(
 export function syncSourcesForApp(
   syncRows: SyncStatusRow[],
   slug: string,
+  environments: IntegrationEnvironmentMap = new Map(),
 ): SyncSource[] {
   return syncRows
     .filter((row) => row.slug === slug)
     .map((row) => ({
       vendor: row.vendor,
+      environment: environmentFor(environments, slug, row.vendor),
       ok: row.ok,
       lastRunAt: toIsoOrNull(row.lastRunAt),
       lastSuccessAt: toIsoOrNull(row.lastSuccessAt),
