@@ -5,6 +5,8 @@ import {
   fetchMediumSyndication,
   mediumProvider,
 } from "../../../../../server/integrations/syndication/medium/provider";
+import { createAbortAwareFetch } from "../../../../../server/integrations/testing/abortAwareFetch";
+import { createExhaustedDeadline } from "../../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
 import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
@@ -343,6 +345,76 @@ describe("createMediumProvider", () => {
       syndicationPosts: [],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("threads a passed-in deadline through to the real Medium client (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just fetchJson's own behavior in isolation (see
+    // httpClient.test.ts): if createMediumProvider's fetch ever dropped its
+    // `deadline` argument on the way to createMediumArticleIdLister, this
+    // already-aborted deadline would be ignored and the stubbed fetch below
+    // would resolve normally instead of this rejecting.
+    const { provider } = buildProvider({
+      lastSuccessfulSyncAt: null, // never synced -> always due
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = createAbortAwareFetch(() =>
+      jsonResponse({ id: "user_123" }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      provider.fetch(config, createExhaustedDeadline()),
+    ).rejects.toThrow(/shared run budget was exhausted/);
+  });
+
+  it("threads the same deadline into the per-article info fetch too, not just the id lister (issue #62)", async () => {
+    // The test above proves createMediumArticleIdLister gets `deadline`, but
+    // it uses an ALREADY-exhausted deadline, so it fails on the very first
+    // request and never proves anything about createMediumArticleInfoFetcher
+    // — if that second call site ever dropped its `deadline` argument, this
+    // suite would stay green. Here the deadline starts open (both id-lookup
+    // requests succeed), then aborts between the id lister finishing and the
+    // per-article info fetch starting, so only a provider that actually
+    // threads `deadline` all the way through rejects.
+    const { provider } = buildProvider({
+      lastSuccessfulSyncAt: null, // never synced -> always due
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const controller = new AbortController();
+    const deadline = { signal: controller.signal, remainingMs: () => 5_000 };
+    let requestCount = 0;
+    const fetchStub = vi.fn((_url: unknown, init?: RequestInit) => {
+      requestCount += 1;
+      if (init?.signal?.aborted) {
+        return Promise.reject(
+          new DOMException("This operation was aborted", "AbortError"),
+        );
+      }
+      if (requestCount === 1) {
+        return Promise.resolve(jsonResponse({ id: "user_123" }));
+      }
+      // The id lister's second (and last) request. Abort right after it
+      // resolves, before fetchMediumSyndication's loop makes its first
+      // per-article info request.
+      controller.abort(new Error("shared run budget exhausted (test)"));
+      return Promise.resolve(
+        jsonResponse({ associated_articles: [["article-1"]] }),
+      );
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchStub);
+
+    await expect(provider.fetch(config, deadline)).rejects.toThrow(/aborted/i);
+    expect(fetchStub).toHaveBeenCalledTimes(3);
   });
 });
 

@@ -3,6 +3,7 @@ import {
   fetchStripeMetrics,
   stripeProvider,
 } from "../../../../server/integrations/stripe/provider";
+import { createExhaustedDeadline } from "../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../server/integrations/testing/testConfig";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type { StripeSubscriptionPage } from "../../../../server/integrations/stripe/types";
@@ -81,9 +82,29 @@ describe("stripeProvider", () => {
 
     expect(mockSubscriptionsList).toHaveBeenCalledWith(
       expect.objectContaining({ status: "active" }),
+      expect.objectContaining({ timeout: expect.any(Number) }),
     );
     const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");
     expect(mrrMetric?.value).toBe(15);
+  });
+
+  it("threads a passed-in deadline through to the real Stripe client (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just createStripeSubscriptionLister's own
+    // behavior in isolation (see stripeClient.test.ts): if
+    // stripeProvider.fetch ever dropped its `deadline` argument on the way
+    // to createStripeSubscriptionLister, this exhausted deadline would be
+    // ignored and mockSubscriptionsList would still resolve normally
+    // instead of this rejecting.
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "stripe",
+      externalId: "prod_basin_core",
+      secret: "sk_test_e2e",
+    });
+    await expect(
+      stripeProvider.fetch(config, createExhaustedDeadline()),
+    ).rejects.toThrow(/shared run budget was already exhausted/);
+    expect(mockSubscriptionsList).not.toHaveBeenCalled();
   });
 });
 
