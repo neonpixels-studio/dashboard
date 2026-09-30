@@ -2,7 +2,7 @@
 // orchestration loop in orchestrator.ts — the loop takes these as injected
 // functions, so it never imports this module (or drizzle) directly, and
 // this module never needs a fake provider or a fake clock to be exercised.
-import { and, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, isNull, lte, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
   integrationConfig,
@@ -12,7 +12,7 @@ import {
   trafficBreakdown,
 } from "../db/schema";
 import type { DrizzleDb } from "../utils/dashboardQueries";
-import type { SyncStatusWrite } from "./orchestrator";
+import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
 import type { IntegrationConfigRow, ProviderResult } from "./types";
 
 // Stamps the orchestrator's own slug onto every row a provider returned
@@ -55,41 +55,34 @@ function dedupeByConflictKey<Row>(
   return [...rowsByConflictKey.values()];
 }
 
-// Ordered oldest-synced-first (a row with no sync_status row at all — never
-// synced — sorts before every row that has one), rather than left in
-// whatever order Postgres happens to return. server/integrations/
-// orchestrator.ts's runSync can cut a run short under its own time budget,
-// leaving a tail of enabled rows unattempted; without this ordering, an
-// unordered/heap-order result set would leave the *same* tail behind every
-// time the budget is hit, rather than rotating which rows lose out. The
-// join is at most one sync_status row per (slug, vendor) — enforced by
-// sync_status_slug_vendor_idx in schema.ts — so it can't fan this query out
-// to duplicate integration_config rows.
+// Ordered oldest-attempted-first (a row never yet attempted sorts before
+// every row that has been), rather than left in whatever order Postgres
+// happens to return. server/integrations/orchestrator.ts's runSync can cut
+// a run short under its own time budget, leaving a tail of enabled rows
+// unattempted; without this ordering, an unordered/heap-order result set
+// would leave the *same* tail behind every time the budget is hit, rather
+// than rotating which rows lose out.
 //
-// integration_config.vendor is the integration_vendor Postgres enum, while
-// sync_status.vendor is plain text (schema.ts: sync_status also tracks
-// vendors with no integration_config row at all, e.g. GitHub issue counts —
-// see that table's own comment — so it can't use the enum type). Postgres
-// has no implicit enum<->text cast for a column-to-column comparison, so the
-// enum side is cast explicitly here or this join fails outright at query
-// time (`operator does not exist: text = integration_vendor`) — every
-// /api/sync invocation, not just the ordering feature.
+// Ordered on integration_config.last_attempt_at, not sync_status.
+// last_run_at (no join to sync_status at all here) — every enabled row here
+// already has exactly one integration_config row, so recordConfigSyncAttempt
+// (called before provider.fetch — see orchestrator.ts's syncOneIntegration)
+// always has somewhere to stamp an attempt, including a vendor's very
+// first-ever one, with nothing else to insert or coordinate. That's what
+// closes the rotation guarantee's known gaps (a hung fetch, or a sync_status
+// outcome write that keeps failing) for every row, not only ones that have
+// already completed at least one sync — see schema.ts's own comment on this
+// column, and orchestrator.ts's rotation-guarantee comment for the fuller
+// history.
 export function listEnabledIntegrationConfigs(
   db: DrizzleDb,
 ): Promise<IntegrationConfigRow[]> {
   return db
     .select(getTableColumns(integrationConfig))
     .from(integrationConfig)
-    .leftJoin(
-      syncStatus,
-      and(
-        eq(syncStatus.slug, integrationConfig.slug),
-        eq(syncStatus.vendor, sql`${integrationConfig.vendor}::text`),
-      ),
-    )
     .where(eq(integrationConfig.enabled, true))
     .orderBy(
-      sql`${syncStatus.lastRunAt} asc nulls first, ${integrationConfig.id} asc`,
+      sql`${integrationConfig.lastAttemptAt} asc nulls first, ${integrationConfig.id} asc`,
     );
 }
 
@@ -195,6 +188,74 @@ export function persistProviderResult(
   return db.batch(writes as unknown as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
 }
 
+// Stamps `integration_config.last_attempt_at`, before the row's
+// provider.fetch runs — see orchestrator.ts's syncOneIntegration and
+// runSync's rotation-guarantee comment for why, and schema.ts's own comment
+// on this column for why it lives on integration_config rather than
+// sync_status. Every enabled row already has exactly one integration_config
+// row (it's what listEnabledIntegrationConfigs above selects from), so —
+// unlike an attempt marker written to sync_status — this UPDATE always
+// matches something, including a vendor's very first-ever attempt, with no
+// insert-vs-update branch to get wrong and nothing else to coordinate with
+// sync_status's `ok`/`error`/`last_success_at` columns at all. It's still
+// possible for this to match zero rows (the row was deleted or its vendor
+// changed between listEnabledIntegrationConfigs's read and this write) —
+// silently doing nothing would leave that row's ordering key frozen, the
+// exact rotation gap this exists to close, so a zero-row match throws
+// (caught and logged by orchestrator.ts's writeBestEffort like every other
+// write here, not a special case).
+//
+// Drizzle's `$onUpdate` on schema.ts's `updatedAt` still adds a fresh
+// `updated_at` to this UPDATE's SET clause automatically — this `.set()`
+// call only naming `lastAttemptAt` doesn't opt out of that. What actually
+// keeps it from bumping is the DB trigger (0002_add-updated-at-trigger.sql,
+// replaced by this column's own migration, 0005): its diff excludes
+// `last_attempt_at` alongside `updated_at` itself, sees no other change, and
+// restores `OLD.updated_at`. Without that exclusion, every enabled row's
+// `updated_at` would track its last sync attempt (every ~15 minutes) rather
+// than its last real configuration edit.
+//
+// @todo this repo has no real-Postgres test harness yet, so migration
+// 0005's SQL (unlike everything else in this file) is verified only by
+// reading it, not by a test. Once one exists (e.g. via pglite/testcontainers),
+// add coverage for: (1) the trigger's exclusion of last_attempt_at — run a
+// real query-builder UPDATE (so $onUpdate's injected updated_at is actually
+// on the wire, not just this function's `.set()` argument) and assert
+// updated_at is unchanged; (2) the backfill UPDATE ... FROM sync_status
+// join — seed a matching and a non-matching sync_status row and assert
+// last_attempt_at ends up set and NULL respectively.
+//
+// attempt.vendor is plain `string` (SyncAttemptWrite, like SyncStatusWrite,
+// is orchestrator.ts's own type — it doesn't import the DB schema), while
+// integration_config.vendor is the integration_vendor Postgres enum, so the
+// two can't be compared with a plain `eq()` as-is. The *parameter* is cast
+// to the enum (`::integration_vendor`) rather than casting the column to
+// text — casting the column would keep this comparison from using
+// integration_config_slug_vendor_idx for its vendor half, since Postgres
+// can't use an index on a cast expression.
+export async function recordConfigSyncAttempt(
+  db: DrizzleDb,
+  attempt: SyncAttemptWrite,
+): Promise<unknown> {
+  const updatedRows = await db
+    .update(integrationConfig)
+    .set({ lastAttemptAt: attempt.runAt })
+    .where(
+      and(
+        eq(integrationConfig.slug, attempt.slug),
+        sql`${integrationConfig.vendor} = ${attempt.vendor}::integration_vendor`,
+      ),
+    )
+    .returning({ id: integrationConfig.id });
+
+  if (!updatedRows.length) {
+    throw new Error(
+      `recordConfigSyncAttempt matched no integration_config row for ${attempt.slug}:${attempt.vendor}`,
+    );
+  }
+  return updatedRows;
+}
+
 // One row per (slug, vendor), overwritten every run (see schema.ts). On
 // failure, `lastSuccessAt` is left untouched by referencing the table's own
 // current value in the UPDATE — so the health chips can still show "last
@@ -225,4 +286,56 @@ export function recordSyncStatus(
           : sql`${syncStatus.lastSuccessAt}`,
       },
     });
+}
+
+// Attempt-independent watermark, deliberately separate from recordSyncStatus
+// above: that function is only ever called by the orchestrator, once per row
+// per tick, AFTER a provider's fetch() has already returned or thrown — and
+// it runs on every tick, including one where a provider's own guard decided
+// to skip and never made a real network call at all (see
+// server/utils/dashboardQueries.ts's fetchLastAttemptedSyncAt comment). This
+// one is called directly by a provider itself (currently only Medium's, see
+// server/integrations/syndication/medium/provider.ts), right before it makes
+// a real, rate-limited network call, so `last_attempted_at` only ever
+// advances on a genuine attempt — success or failure alike.
+//
+// Atomic claim, not a plain upsert: the caller's own pre-check (e.g. Medium's
+// isMediumSyncDue) reads the watermark and decides "due" in one step, then
+// would write it in a separate step — two overlapping calls (a slow tick
+// still running when the next one fires, or a scheduled tick racing a manual
+// POST /api/sync) can both read "due" before either writes, and both go on to
+// call the real, rate-limited API. `setWhere` folds the same staleness check
+// into the UPDATE itself, so only the call that actually lands within
+// Postgres's row-level lock ever gets a row back from `.returning()` — the
+// other sees zero rows and knows it lost the race. `minIntervalMs` is passed
+// in (rather than hardcoded here) so this stays a generic sync_status
+// primitive with no Medium-specific policy baked in; Medium passes
+// mediumSyncGuard.ts's MEDIUM_MIN_SYNC_INTERVAL_MS.
+//
+// Only ever sets last_attempted_at; every other sync_status column
+// (last_run_at, ok, error, last_success_at) is left exactly as
+// recordSyncStatus already manages it, including on first insert (their
+// schema.ts defaults/nullability apply) — this call has no opinion on
+// run/outcome bookkeeping, only on when a real attempt started.
+export async function recordSyncAttempt(
+  db: DrizzleDb,
+  slug: string,
+  vendor: string,
+  attemptedAt: Date,
+  minIntervalMs: number,
+): Promise<boolean> {
+  const staleBefore = new Date(attemptedAt.getTime() - minIntervalMs);
+  const claimedRows = await db
+    .insert(syncStatus)
+    .values({ slug, vendor, lastAttemptedAt: attemptedAt })
+    .onConflictDoUpdate({
+      target: [syncStatus.slug, syncStatus.vendor],
+      set: { lastAttemptedAt: attemptedAt },
+      setWhere: or(
+        isNull(syncStatus.lastAttemptedAt),
+        lte(syncStatus.lastAttemptedAt, staleBefore),
+      ),
+    })
+    .returning({ slug: syncStatus.slug });
+  return claimedRows.length > 0;
 }

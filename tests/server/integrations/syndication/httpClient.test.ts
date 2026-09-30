@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchJson } from "../../../../server/integrations/syndication/httpClient";
+import { createHangingFetch } from "../../../../server/integrations/testing/hangingFetch";
 import { jsonResponse } from "../../../../server/integrations/testing/httpFixtures";
 
 afterEach(() => {
@@ -110,6 +111,22 @@ describe("fetchJson", () => {
         vendorLabel: "Example API",
       }),
     ).rejects.toThrow("Example API returned a body that isn't valid JSON.");
+  });
+
+  it("aborts on a shared deadline (issue #62) even though its own timeoutMs hasn't elapsed", async () => {
+    const deadlineController = new AbortController();
+
+    const resultPromise = fetchJson("https://example.com", {
+      fetchImpl: createHangingFetch(),
+      vendorLabel: "Example API",
+      timeoutMs: 20_000,
+      deadline: { signal: deadlineController.signal, remainingMs: () => 0 },
+    });
+    const assertion = expect(resultPromise).rejects.toThrow(
+      "Example API request to https://example.com was aborted because the sync's shared run budget was exhausted.",
+    );
+    deadlineController.abort();
+    await assertion;
   });
 
   it("defaults to the global fetch when fetchImpl isn't provided", async () => {

@@ -67,6 +67,27 @@ export const integrationConfig = pgTable(
     externalId: text("external_id"),
     secretRef: text("secret_ref"),
     encryptedSecret: text("encrypted_secret"),
+    // Stamped by server/integrations/persist.ts's recordConfigSyncAttempt, before
+    // that row's provider.fetch is even called (see orchestrator.ts's
+    // syncOneIntegration) — deliberately a column on integration_config,
+    // not sync_status: every enabled row already has exactly one
+    // integration_config row (this table), so an attempt always has
+    // somewhere to land, including a vendor's very first-ever attempt,
+    // without ever inserting a sync_status row of defaulted
+    // (ok=false/error=null) values that would misreport an in-flight or
+    // still-pending attempt as a completed failure to every sync_status
+    // reader (integrationHealthForApp, computeAppStatus, alertsForApp,
+    // syncSourcesForApp). listEnabledIntegrationConfigs orders on this
+    // column, oldest-attempted-first, so the rotation guarantee described
+    // there no longer depends on an outcome (sync_status) ever being
+    // recorded at all.
+    //
+    // Not to be confused with sync_status.last_attempted_at below (a
+    // per-vendor rate-limit watermark some providers, e.g. Medium's own
+    // guard, use to decide whether a real network call is even due): this
+    // column is the rotation ordering key, unconditionally stamped for
+    // every enabled row on every tick.
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -216,6 +237,10 @@ export const syncStatus = pgTable(
     vendor: text("vendor").notNull(),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    // Attempt-independent watermark (success or failure alike) — see
+    // recordSyncAttempt in server/integrations/persist.ts for who writes it
+    // and why it's kept separate from lastRunAt above.
+    lastAttemptedAt: timestamp("last_attempted_at", { withTimezone: true }),
     ok: boolean("ok").notNull().default(false),
     // Rendered directly in the health chips — the poller that writes this
     // MUST NOT store a raw upstream error. Vendor SDK errors routinely echo

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSentryIssueSearcher } from "../../../../server/integrations/sentry/sentryClient";
+import { createHangingFetch } from "../../../../server/integrations/testing/hangingFetch";
 
 // A real Sentry response always carries a Link header with a "next" entry
 // (see mapping.ts's parseSentryNextCursor) — this is the default "last page,
@@ -233,20 +234,10 @@ describe("createSentryIssueSearcher", () => {
 
   it("aborts the request once the request timeout elapses, instead of hanging forever on a stalled response", async () => {
     vi.useFakeTimers();
-    // Simulates a real fetch: never settles on its own, but rejects as soon
-    // as its AbortSignal fires — this is the exact seam the timeout in
-    // sentryClient.ts's createSentryIssueSearcher relies on.
-    const fetchStub = vi.fn((_url: unknown, init?: RequestInit) => {
-      return new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => {
-          reject(new DOMException("This operation was aborted", "AbortError"));
-        });
-      });
-    }) as unknown as typeof fetch;
     const searchSentryIssues = createSentryIssueSearcher(
       "token_abc",
       "acme",
-      fetchStub,
+      createHangingFetch(),
     );
 
     const resultPromise = searchSentryIssues({
@@ -257,6 +248,28 @@ describe("createSentryIssueSearcher", () => {
       expect(resultPromise).rejects.toThrow(/markpost.*timed out/);
     // Matches sentryClient.ts's SENTRY_REQUEST_TIMEOUT_MS.
     await vi.advanceTimersByTimeAsync(20_000);
+    await assertion;
+  });
+
+  it("aborts on a shared deadline (issue #62), distinctly from its own request timeout, once the run's budget is exhausted", async () => {
+    // Here the shared deadline's signal — not sentryClient.ts's own
+    // SENTRY_REQUEST_TIMEOUT_MS — is what fires.
+    const deadlineController = new AbortController();
+    const searchSentryIssues = createSentryIssueSearcher(
+      "token_abc",
+      "acme",
+      createHangingFetch(),
+      { signal: deadlineController.signal, remainingMs: () => 0 },
+    );
+
+    const resultPromise = searchSentryIssues({
+      projectSlug: "markpost",
+      query: "is:unresolved",
+    });
+    const assertion = expect(resultPromise).rejects.toThrow(
+      /markpost.*shared run budget was exhausted/,
+    );
+    deadlineController.abort();
     await assertion;
   });
 });

@@ -1,4 +1,6 @@
+import { NO_DEADLINE } from "../../types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
@@ -56,7 +58,10 @@ export async function fetchDevtoSyndication(
 
 export const devtoProvider: IntegrationProvider = {
   vendor: DEVTO_VENDOR,
-  async fetch(config: IntegrationConfig): Promise<ProviderResult> {
+  async fetch(
+    config: IntegrationConfig,
+    deadline: FetchDeadline = NO_DEADLINE,
+  ): Promise<ProviderResult> {
     if (!config.secret) {
       throw new Error(
         `DEV.to provider for "${config.slug}" has no API key configured.`,
@@ -66,7 +71,11 @@ export const devtoProvider: IntegrationProvider = {
     // identifies the account, and /articles/me/published scopes to it — see
     // devtoClient.ts. Unlike Hashnode/GA4/Stripe, there is no
     // unconfigured-external-id branch here for that reason.
-    const fetchArticlesPage = createDevtoArticlesPageFetcher(config.secret);
+    const fetchArticlesPage = createDevtoArticlesPageFetcher(
+      config.secret,
+      undefined,
+      deadline,
+    );
     return fetchDevtoSyndication(fetchArticlesPage);
   },
 };

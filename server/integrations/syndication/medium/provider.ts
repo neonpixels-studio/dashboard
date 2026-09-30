@@ -1,7 +1,13 @@
 import { useDb } from "../../../db";
 import { METRIC_POSTS } from "../../../utils/dashboardMetrics";
-import { fetchLatestMetricCapturedAt } from "../../../utils/dashboardQueries";
+import {
+  fetchLastAttemptedSyncAt,
+  fetchLatestMetricCapturedAt,
+} from "../../../utils/dashboardQueries";
+import { recordSyncAttempt } from "../../persist";
+import { NO_DEADLINE } from "../../types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
@@ -13,7 +19,10 @@ import {
   createMediumArticleIdLister,
   createMediumArticleInfoFetcher,
 } from "./mediumClient";
-import { isMediumSyncDue } from "./mediumSyncGuard";
+import {
+  isMediumSyncDue,
+  MEDIUM_MIN_SYNC_INTERVAL_MS,
+} from "./mediumSyncGuard";
 import { toSyndicationSourcePost } from "./mapping";
 import type { FetchMediumArticleInfo, ListMediumArticleIds } from "./types";
 
@@ -116,33 +125,70 @@ async function defaultGetLastSuccessfulSyncAt(
   );
 }
 
+async function defaultGetLastAttemptedSyncAt(
+  slug: string,
+): Promise<Date | null> {
+  return fetchLastAttemptedSyncAt(useDb(), slug, MEDIUM_VENDOR);
+}
+
+// Deliberately not best-effort (unlike orchestrator.ts's
+// recordSyncStatusBestEffort) and returns whether this call actually claimed
+// the attempt — see recordSyncAttempt in persist.ts for why both of those
+// matter (a paid, capped resource, plus an atomic claim against overlapping
+// callers).
+async function defaultRecordAttempt(
+  slug: string,
+  attemptedAt: Date,
+): Promise<boolean> {
+  return recordSyncAttempt(
+    useDb(),
+    slug,
+    MEDIUM_VENDOR,
+    attemptedAt,
+    MEDIUM_MIN_SYNC_INTERVAL_MS,
+  );
+}
+
 export interface CreateMediumProviderOptions {
-  // Overridable for tests; production wiring defers to
-  // defaultGetLastSuccessfulSyncAt, which lazily calls useDb() only once
-  // fetch() actually runs (never at provider-construction/module-load time —
-  // see providers/index.ts, which builds every provider, including this
-  // one, at import time with no Nitro request context available yet).
+  // Both overridable for tests; production wiring defers to
+  // defaultGetLastSuccessfulSyncAt/defaultGetLastAttemptedSyncAt, which
+  // lazily call useDb() only once fetch() actually runs (never at
+  // provider-construction/module-load time — see providers/index.ts, which
+  // builds every provider, including this one, at import time with no Nitro
+  // request context available yet).
   getLastSuccessfulSyncAt?: (slug: string) => Promise<Date | null>;
+  getLastAttemptedSyncAt?: (slug: string) => Promise<Date | null>;
+  // Returns false when another concurrent call already claimed this
+  // attempt window — see defaultRecordAttempt's comment.
+  recordAttempt?: (slug: string, attemptedAt: Date) => Promise<boolean>;
   now?: () => Date;
 }
 
 /**
  * Builds the Medium IntegrationProvider. A factory (unlike stripeProvider/
  * ga4Provider's plain exported objects) because, uniquely among these three
- * platforms, it needs an injectable "when did this last actually succeed"
- * lookup for its rate-limit guard — see mediumSyncGuard.ts and
- * server/utils/dashboardQueries.ts's fetchLatestMetricCapturedAt.
+ * platforms, it needs an injectable "when did this last actually succeed" AND
+ * "when did this last actually try" lookup for its rate-limit guard — see
+ * mediumSyncGuard.ts, server/utils/dashboardQueries.ts's
+ * fetchLatestMetricCapturedAt/fetchLastAttemptedSyncAt, and
+ * server/integrations/persist.ts's recordSyncAttempt.
  */
 export function createMediumProvider(
   options: CreateMediumProviderOptions = {},
 ): IntegrationProvider {
   const getLastSuccessfulSyncAt =
     options.getLastSuccessfulSyncAt ?? defaultGetLastSuccessfulSyncAt;
+  const getLastAttemptedSyncAt =
+    options.getLastAttemptedSyncAt ?? defaultGetLastAttemptedSyncAt;
+  const recordAttempt = options.recordAttempt ?? defaultRecordAttempt;
   const now = options.now ?? (() => new Date());
 
   return {
     vendor: MEDIUM_VENDOR,
-    async fetch(config: IntegrationConfig): Promise<ProviderResult> {
+    async fetch(
+      config: IntegrationConfig,
+      deadline: FetchDeadline = NO_DEADLINE,
+    ): Promise<ProviderResult> {
       // NAMED ASSUMPTION (issue #17): unlike Hashnode/DEV.to/Stripe/GA4
       // (which throw when an *enabled* row is missing its secret — a real
       // misconfiguration, since those vendors' secretRef should already
@@ -160,16 +206,45 @@ export function createMediumProvider(
         return emptySyndicationResult();
       }
 
-      const lastSuccessfulSyncAt = await getLastSuccessfulSyncAt(config.slug);
-      if (!isMediumSyncDue(now(), lastSuccessfulSyncAt)) {
+      // Read once and reused for both the guard check and the watermark
+      // stamp below — two separate now() calls would let the instant that
+      // was actually checked drift from the instant that gets persisted.
+      const attemptAt = now();
+      const [lastSuccessfulSyncAt, lastAttemptedSyncAt] = await Promise.all([
+        getLastSuccessfulSyncAt(config.slug),
+        getLastAttemptedSyncAt(config.slug),
+      ]);
+      if (
+        !isMediumSyncDue(attemptAt, lastSuccessfulSyncAt, lastAttemptedSyncAt)
+      ) {
+        return emptySyndicationResult();
+      }
+
+      // Claimed BEFORE the real network calls below (fetchMediumSyndication),
+      // not after, and not inside a try/catch around that call — the whole
+      // point of this watermark is that it advances independent of whether
+      // the attempt about to happen succeeds or throws, so a persistently
+      // failing Medium sync still only retries once per
+      // MEDIUM_MIN_SYNC_INTERVAL_HOURS instead of every orchestrator tick.
+      // A false return means a concurrent call already won this attempt
+      // window (see defaultRecordAttempt's comment) — bail out the same as
+      // an ordinary "not due yet" rather than also making the Medium call.
+      const claimedAttempt = await recordAttempt(config.slug, attemptAt);
+      if (!claimedAttempt) {
         return emptySyndicationResult();
       }
 
       const listArticleIds = createMediumArticleIdLister(
         username,
         config.secret,
+        undefined,
+        deadline,
       );
-      const fetchArticleInfo = createMediumArticleInfoFetcher(config.secret);
+      const fetchArticleInfo = createMediumArticleInfoFetcher(
+        config.secret,
+        undefined,
+        deadline,
+      );
       return fetchMediumSyndication(listArticleIds, fetchArticleInfo);
     },
   };

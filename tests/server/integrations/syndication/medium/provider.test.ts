@@ -5,6 +5,8 @@ import {
   fetchMediumSyndication,
   mediumProvider,
 } from "../../../../../server/integrations/syndication/medium/provider";
+import { createAbortAwareFetch } from "../../../../../server/integrations/testing/abortAwareFetch";
+import { createExhaustedDeadline } from "../../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
 import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
@@ -52,16 +54,32 @@ describe("mediumProvider (the default, real-wiring export)", () => {
 describe("createMediumProvider", () => {
   function buildProvider(overrides: {
     lastSuccessfulSyncAt?: Date | null;
+    lastAttemptedSyncAt?: Date | null;
     now?: Date;
   }) {
     const getLastSuccessfulSyncAt = vi.fn(
       async () => overrides.lastSuccessfulSyncAt ?? null,
     );
+    const getLastAttemptedSyncAt = vi.fn(
+      async () => overrides.lastAttemptedSyncAt ?? null,
+    );
+    // Defaults to "claimed" (true) — recordSyncAttempt's atomic upsert in
+    // persist.ts only returns false when a concurrent call already won this
+    // attempt window; that's an explicit per-test override (see the
+    // "loses the race" test below), not the common case.
+    const recordAttempt = vi.fn(async () => true);
     const provider = createMediumProvider({
       getLastSuccessfulSyncAt,
+      getLastAttemptedSyncAt,
+      recordAttempt,
       now: () => overrides.now ?? new Date("2026-09-20T12:00:00Z"),
     });
-    return { provider, getLastSuccessfulSyncAt };
+    return {
+      provider,
+      getLastSuccessfulSyncAt,
+      getLastAttemptedSyncAt,
+      recordAttempt,
+    };
   }
 
   it("emits no rows, silently, when the key is absent — never throws (NAMED ASSUMPTION: unlike Hashnode/DEV.to)", async () => {
@@ -122,8 +140,8 @@ describe("createMediumProvider", () => {
     );
   });
 
-  it("skips the fetch — emits no rows, and never calls the Medium API — when the guard says it isn't due yet", async () => {
-    const { provider } = buildProvider({
+  it("skips the fetch — emits no rows, never calls the Medium API, and never records a new attempt — when the guard says it isn't due yet (last success)", async () => {
+    const { provider, recordAttempt } = buildProvider({
       lastSuccessfulSyncAt: new Date("2026-09-20T11:00:00Z"), // 1h ago
       now: new Date("2026-09-20T12:00:00Z"),
     });
@@ -144,11 +162,81 @@ describe("createMediumProvider", () => {
       syndicationPosts: [],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(recordAttempt).not.toHaveBeenCalled();
   });
 
-  it("proceeds when the guard says the last successful sync is stale enough", async () => {
-    const { provider } = buildProvider({
+  it("skips the fetch — emits no rows, never calls the Medium API — when the guard says it isn't due yet because of a recent attempt, even with no prior success (retry-storm regression)", async () => {
+    const { provider, recordAttempt } = buildProvider({
+      lastSuccessfulSyncAt: null, // never succeeded
+      lastAttemptedSyncAt: new Date("2026-09-20T11:55:00Z"), // 5m ago, failed
+      now: new Date("2026-09-20T12:00:00Z"),
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await provider.fetch(config);
+
+    expect(result).toEqual({
+      metrics: [],
+      trafficBreakdown: [],
+      syndicationPosts: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(recordAttempt).not.toHaveBeenCalled();
+  });
+
+  it("proceeds when the guard says the last successful sync is stale enough, and records the attempt watermark before calling the Medium API", async () => {
+    const { provider, recordAttempt } = buildProvider({
       lastSuccessfulSyncAt: null, // never synced -> always due
+      now: new Date("2026-09-20T12:00:00Z"),
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const callOrder: string[] = [];
+    recordAttempt.mockImplementation(async () => {
+      callOrder.push("recordAttempt");
+      return true;
+    });
+    const fetchSpy = vi.fn(async (url: string) => {
+      callOrder.push("medium-api");
+      return jsonResponse(
+        url.includes("/user/id_for/")
+          ? { id: "user_123" }
+          : { associated_articles: [], count: 0 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await provider.fetch(config);
+
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(recordAttempt).toHaveBeenCalledWith(
+      "danholloran",
+      new Date("2026-09-20T12:00:00Z"),
+    );
+    // recordAttempt must be stamped before ANY real Medium API call, however
+    // many requests this sync ends up making.
+    expect(callOrder[0]).toBe("recordAttempt");
+    expect(callOrder.length).toBeGreaterThan(1);
+    expect(callOrder.slice(1)).toEqual(
+      callOrder.slice(1).map(() => "medium-api"),
+    );
+  });
+
+  it("proceeds when the last successful sync was long ago and the last attempt (which failed) was also long ago, passing that attempt watermark through to the guard rather than a hardcoded null", async () => {
+    const { provider, getLastAttemptedSyncAt, recordAttempt } = buildProvider({
+      lastSuccessfulSyncAt: null,
+      lastAttemptedSyncAt: new Date("2026-09-19T00:00:00Z"), // >24h before `now`
       now: new Date("2026-09-20T12:00:00Z"),
     });
     const config = createTestIntegrationConfig({
@@ -168,7 +256,165 @@ describe("createMediumProvider", () => {
 
     await provider.fetch(config);
 
+    expect(getLastAttemptedSyncAt).toHaveBeenCalledWith("danholloran");
     expect(fetchSpy).toHaveBeenCalled();
+    expect(recordAttempt).toHaveBeenCalledWith(
+      "danholloran",
+      new Date("2026-09-20T12:00:00Z"),
+    );
+  });
+
+  it("still records the attempt watermark even when the Medium API call throws (the retry-storm case this watermark exists to prevent)", async () => {
+    const { provider, recordAttempt } = buildProvider({
+      lastSuccessfulSyncAt: null,
+      now: new Date("2026-09-20T12:00:00Z"),
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = vi.fn(async () => {
+      throw new Error("network down");
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // mediumClient.ts wraps the underlying fetch failure into its own
+    // request-failed error rather than rethrowing it verbatim — assert on
+    // that wrapped rejection rather than the raw "network down" message.
+    await expect(provider.fetch(config)).rejects.toThrow(/request.*failed/);
+
+    expect(recordAttempt).toHaveBeenCalledWith(
+      "danholloran",
+      new Date("2026-09-20T12:00:00Z"),
+    );
+  });
+
+  it("never calls the Medium API, and propagates the failure, when persisting the attempt watermark itself fails", async () => {
+    // This watermark guards a paid, capped resource (mediumapi.com's
+    // 150-requests/month plan) — unlike sync_status's own best-effort
+    // bookkeeping writes, a failure here must NOT be swallowed and must NOT
+    // let the real Medium call through, or a persistently-failing DB write
+    // would look identical to an attempt that was never made and reopen the
+    // exact retry-storm hole this guard exists to close.
+    const { provider, recordAttempt } = buildProvider({
+      lastSuccessfulSyncAt: null,
+      now: new Date("2026-09-20T12:00:00Z"),
+    });
+    recordAttempt.mockRejectedValue(new Error("db unreachable"));
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(provider.fetch(config)).rejects.toThrow("db unreachable");
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("never calls the Medium API when recordAttempt reports the attempt was already claimed by a concurrent call (lost the race)", async () => {
+    // recordSyncAttempt (persist.ts) is an atomic conditional upsert that
+    // returns false when another overlapping fetch() already claimed this
+    // window — e.g. a scheduled tick racing a manual POST /api/sync. Both
+    // calls can read isMediumSyncDue as true, but only one may ever reach
+    // the real Medium API for a given window.
+    const { provider, recordAttempt } = buildProvider({
+      lastSuccessfulSyncAt: null,
+      now: new Date("2026-09-20T12:00:00Z"),
+    });
+    recordAttempt.mockResolvedValue(false);
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await provider.fetch(config);
+
+    expect(result).toEqual({
+      metrics: [],
+      trafficBreakdown: [],
+      syndicationPosts: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("threads a passed-in deadline through to the real Medium client (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just fetchJson's own behavior in isolation (see
+    // httpClient.test.ts): if createMediumProvider's fetch ever dropped its
+    // `deadline` argument on the way to createMediumArticleIdLister, this
+    // already-aborted deadline would be ignored and the stubbed fetch below
+    // would resolve normally instead of this rejecting.
+    const { provider } = buildProvider({
+      lastSuccessfulSyncAt: null, // never synced -> always due
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = createAbortAwareFetch(() =>
+      jsonResponse({ id: "user_123" }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      provider.fetch(config, createExhaustedDeadline()),
+    ).rejects.toThrow(/shared run budget was exhausted/);
+  });
+
+  it("threads the same deadline into the per-article info fetch too, not just the id lister (issue #62)", async () => {
+    // The test above proves createMediumArticleIdLister gets `deadline`, but
+    // it uses an ALREADY-exhausted deadline, so it fails on the very first
+    // request and never proves anything about createMediumArticleInfoFetcher
+    // — if that second call site ever dropped its `deadline` argument, this
+    // suite would stay green. Here the deadline starts open (both id-lookup
+    // requests succeed), then aborts between the id lister finishing and the
+    // per-article info fetch starting, so only a provider that actually
+    // threads `deadline` all the way through rejects.
+    const { provider } = buildProvider({
+      lastSuccessfulSyncAt: null, // never synced -> always due
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const controller = new AbortController();
+    const deadline = { signal: controller.signal, remainingMs: () => 5_000 };
+    let requestCount = 0;
+    const fetchStub = vi.fn((_url: unknown, init?: RequestInit) => {
+      requestCount += 1;
+      if (init?.signal?.aborted) {
+        return Promise.reject(
+          new DOMException("This operation was aborted", "AbortError"),
+        );
+      }
+      if (requestCount === 1) {
+        return Promise.resolve(jsonResponse({ id: "user_123" }));
+      }
+      // The id lister's second (and last) request. Abort right after it
+      // resolves, before fetchMediumSyndication's loop makes its first
+      // per-article info request.
+      controller.abort(new Error("shared run budget exhausted (test)"));
+      return Promise.resolve(
+        jsonResponse({ associated_articles: [["article-1"]] }),
+      );
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchStub);
+
+    await expect(provider.fetch(config, deadline)).rejects.toThrow(/aborted/i);
+    expect(fetchStub).toHaveBeenCalledTimes(3);
   });
 });
 

@@ -1,3 +1,4 @@
+import type { FetchDeadline } from "../../types";
 import { fetchJson } from "../httpClient";
 import type {
   FetchMediumArticleInfo,
@@ -56,6 +57,11 @@ export function createMediumArticleIdLister(
   username: string,
   rapidApiKey: string,
   fetchImpl: typeof fetch = fetch,
+  // Threaded straight through to fetchJson's own `deadline` option (see
+  // ../httpClient.ts) — undefined here defaults to NO_DEADLINE there, so
+  // exercising this function directly (every existing unit test) needs no
+  // deadline at all.
+  deadline?: FetchDeadline,
 ): ListMediumArticleIds {
   return async () => {
     const idForPath = `/user/id_for/${encodeURIComponent(username)}`;
@@ -65,6 +71,7 @@ export function createMediumArticleIdLister(
         headers: mediumHeaders(rapidApiKey),
         fetchImpl,
         vendorLabel: `Medium API (${idForPath})`,
+        deadline,
       },
     );
     const userId = assertUserId(rawUserId, username);
@@ -77,6 +84,7 @@ export function createMediumArticleIdLister(
           headers: mediumHeaders(rapidApiKey),
           fetchImpl,
           vendorLabel: `Medium API (${articlesPath})`,
+          deadline,
         },
       );
     return assertArticleIdPages(rawArticleIdPages).flat();
@@ -91,6 +99,11 @@ export function createMediumArticleIdLister(
 export function createMediumArticleInfoFetcher(
   rapidApiKey: string,
   fetchImpl: typeof fetch = fetch,
+  // Threaded straight through to fetchJson's own `deadline` option (see
+  // ../httpClient.ts) — undefined here defaults to NO_DEADLINE there, so
+  // exercising this function directly (every existing unit test) needs no
+  // deadline at all.
+  deadline?: FetchDeadline,
 ): FetchMediumArticleInfo {
   return (articleId: string): Promise<MediumArticleInfo> => {
     const path = `/article/${encodeURIComponent(articleId)}`;
@@ -98,6 +111,7 @@ export function createMediumArticleInfoFetcher(
       headers: mediumHeaders(rapidApiKey),
       fetchImpl,
       vendorLabel: `Medium API (${path})`,
+      deadline,
     });
   };
 }

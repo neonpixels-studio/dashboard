@@ -4,6 +4,10 @@ import {
   createGa4ReportRunner,
   normalizeServiceAccountPrivateKey,
 } from "../../../../server/integrations/ga4/ga4Client";
+import {
+  createDeadline,
+  createExhaustedDeadline,
+} from "../../../../server/integrations/testing/deadlineFixtures";
 
 // Only the memoization test below needs the real "@google-analytics/data"
 // module mocked (it deliberately doesn't pass a stub client, to exercise
@@ -65,6 +69,46 @@ describe("createGa4ReportRunner", () => {
       },
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
+  });
+
+  it("caps the request timeout to whatever's left of a shared deadline, when that's less than GA4_REQUEST_TIMEOUT_MS", async () => {
+    const runReport = vi.fn(async () => [{ rows: [] }]);
+    const runGa4Report = createGa4ReportRunner(
+      { clientEmail: "sa@example.com", privateKey: "unused" },
+      buildStubGa4Client(runReport as never),
+      createDeadline(500),
+    );
+
+    await runGa4Report({
+      propertyId: "123456",
+      dimension: "date",
+      startDate: "29daysAgo",
+      endDate: "today",
+    });
+
+    expect(runReport).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 500 }),
+    );
+  });
+
+  it("throws instead of placing a call once the shared deadline is already exhausted, rather than sending a request with an ineffective timeout", async () => {
+    const runReport = vi.fn(async () => [{ rows: [] }]);
+    const runGa4Report = createGa4ReportRunner(
+      { clientEmail: "sa@example.com", privateKey: "unused" },
+      buildStubGa4Client(runReport as never),
+      createExhaustedDeadline(),
+    );
+
+    await expect(
+      runGa4Report({
+        propertyId: "123456",
+        dimension: "date",
+        startDate: "29daysAgo",
+        endDate: "today",
+      }),
+    ).rejects.toThrow(/shared run budget was already exhausted/);
+    expect(runReport).not.toHaveBeenCalled();
   });
 
   it("maps report rows to plain dimensionValue/metricValue pairs", async () => {

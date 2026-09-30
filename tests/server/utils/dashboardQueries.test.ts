@@ -1,8 +1,10 @@
-import { desc } from "drizzle-orm";
+import { desc, SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
   fetchIntegrationConfigs,
+  fetchLastAttemptedSyncAt,
   fetchLatestMetricCapturedAt,
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
@@ -15,6 +17,15 @@ import {
 import { metricSnapshot } from "../../../server/db/schema";
 
 type FakeDb = Parameters<typeof fetchMetricSnapshotSeries>[0];
+
+// Renders a drizzle SQL fragment to literal query text + params without a
+// live connection, so an assertion here can check the actual `where`
+// condition (slug AND vendor) rather than just "where() was called with
+// something" — mirrors persist.test.ts's renderSql/renderSqlParams.
+function renderSqlCondition(fragment: SQL): { sql: string; params: unknown[] } {
+  const { sql, params } = new PgDialect().sqlToQuery(fragment);
+  return { sql, params };
+}
 
 // Stubs `select().from().where().orderBy()` — the chain used by the bounded
 // series fetch (metric_snapshot).
@@ -300,5 +311,57 @@ describe("fetchLatestMetricCapturedAt", () => {
     ).resolves.toEqual(capturedAt);
     expect(where).toHaveBeenCalled();
     expect(limit).toHaveBeenCalledWith(1);
+  });
+});
+
+// Stubs `select().from().where().limit()` — the chain used by
+// fetchLastAttemptedSyncAt (medium's rate-limit guard's attempt watermark;
+// no orderBy since sync_status has at most one row per (slug, vendor)).
+function createWhereLimitedFakeDb(rows: { lastAttemptedAt: Date | null }[]) {
+  const limit = vi.fn().mockResolvedValue(rows);
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+  return { db: { select } as unknown as FakeDb, where, limit };
+}
+
+describe("fetchLastAttemptedSyncAt", () => {
+  it("returns null when no sync_status row exists yet for this (slug, vendor)", async () => {
+    const { db } = createWhereLimitedFakeDb([]);
+
+    await expect(
+      fetchLastAttemptedSyncAt(db, "danholloran", "medium"),
+    ).resolves.toBeNull();
+  });
+
+  it("returns null when the row exists but has never recorded an attempt", async () => {
+    const { db } = createWhereLimitedFakeDb([{ lastAttemptedAt: null }]);
+
+    await expect(
+      fetchLastAttemptedSyncAt(db, "danholloran", "medium"),
+    ).resolves.toBeNull();
+  });
+
+  it("returns the row's lastAttemptedAt when one is set", async () => {
+    const lastAttemptedAt = new Date("2026-09-20T11:55:00Z");
+    const { db, where, limit } = createWhereLimitedFakeDb([
+      { lastAttemptedAt },
+    ]);
+
+    await expect(
+      fetchLastAttemptedSyncAt(db, "danholloran", "medium"),
+    ).resolves.toEqual(lastAttemptedAt);
+    expect(limit).toHaveBeenCalledWith(1);
+
+    // Guards against a query that stops filtering by slug and/or vendor
+    // (which `where` having been called at all would not catch) — this
+    // watermark gates a paid, capped API, so a query that silently widened
+    // to match every row would be exactly the kind of bug worth failing loud
+    // on.
+    const condition = where.mock.calls[0]![0] as SQL;
+    const { sql, params } = renderSqlCondition(condition);
+    expect(sql).toContain('"slug" = $1');
+    expect(sql).toContain('"vendor" = $2');
+    expect(params).toEqual(["danholloran", "medium"]);
   });
 });
