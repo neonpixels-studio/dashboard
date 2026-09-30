@@ -17,7 +17,7 @@ exports[`index.vue rollup tiles > matches its rollup-grid snapshot with live dat
       <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #FF3EA5;"></span><span data-v-5cd44a83="" class="label">markpost.io</span><span data-v-5cd44a83="" class="value">220</span>
         <!--v-if-->
       </li>
-      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #22D3EE;"></span><span data-v-5cd44a83="" class="label">wanderist.io</span><span data-v-5cd44a83="" class="value">55</span>
+      <li data-v-5cd44a83="" class="stat-row"><span data-v-5cd44a83="" class="swatch" style="background: #22D3EE;"></span><span data-v-5cd44a83="" class="label">farflung.io</span><span data-v-5cd44a83="" class="value">55</span>
         <!--v-if-->
       </li>
     </ul>

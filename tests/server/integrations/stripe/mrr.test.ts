@@ -265,7 +265,7 @@ describe("computeMrrForProducts (fixture: mixed-tier-active-subscriptions)", () 
 
     const result = computeMrrForProducts(
       fixture.data,
-      new Set(["prod_wanderist_core"]),
+      new Set(["prod_farflung_core"]),
     );
 
     expect(result).toEqual({ mrr: 0, activeSubscribers: 0 });

@@ -11,7 +11,7 @@ import type { SearchSentryIssues } from "./types";
 // this provider that could burn through that whole budget on its own. 20
 // pages (Sentry's default page size, ~25-100 issues/page, so 500-2,000
 // issues) is comfortably past any realistic open-issue count for basin/
-// markpost/wanderist; a project that legitimately exceeds it needs this
+// markpost/farflung; a project that legitimately exceeds it needs this
 // provider's fan-out reworked (see scheduled-sync.ts's own comment on
 // FETCH_TIMEOUT_MS — this is the same tight-budget tension, not a new one),
 // not a bigger number here.

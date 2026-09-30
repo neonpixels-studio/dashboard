@@ -152,7 +152,7 @@ describe("runSync", () => {
       .spyOn(console, "error")
       .mockImplementation(() => {});
     const healthyRow = configRow({ slug: "basin", vendor: "stripe" });
-    const brokenRow = configRow({ slug: "wanderist", vendor: "sentry" });
+    const brokenRow = configRow({ slug: "farflung", vendor: "sentry" });
     const healthyFetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
     const brokenFetch = vi.fn().mockRejectedValue(new Error("Sentry 500"));
     const deps = createDeps({
@@ -170,7 +170,7 @@ describe("runSync", () => {
     // A failing vendor must show up in server-side logs, not just silently
     // in the DB — nothing else surfaces a total-outage run otherwise.
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Sync failed for wanderist:sentry",
+      "Sync failed for farflung:sentry",
       expect.any(Error),
     );
     consoleErrorSpy.mockRestore();
@@ -178,7 +178,7 @@ describe("runSync", () => {
     expect(summary.outcomes).toEqual(
       expect.arrayContaining([
         { slug: "basin", vendor: "stripe", ok: true },
-        { slug: "wanderist", vendor: "sentry", ok: false, error: "Sentry 500" },
+        { slug: "farflung", vendor: "sentry", ok: false, error: "Sentry 500" },
       ]),
     );
     // The failing vendor never reaches persistProviderResult at all — no
@@ -189,7 +189,7 @@ describe("runSync", () => {
       EMPTY_RESULT,
     );
     expect(deps.recordSyncStatus).toHaveBeenCalledWith({
-      slug: "wanderist",
+      slug: "farflung",
       vendor: "sentry",
       runAt: new Date("2026-09-20T12:00:00Z"),
       ok: false,
@@ -235,7 +235,7 @@ describe("runSync", () => {
     // redactSecrets()'s pattern-based passes — this only gets caught
     // because syncOneIntegration passes the row's own resolved secret
     // through as the exact-match fallback.
-    const row = configRow({ slug: "wanderist", vendor: "sentry" });
+    const row = configRow({ slug: "farflung", vendor: "sentry" });
     const deps = createDeps({
       listEnabledConfigRows: async () => [row],
       resolveConfig: (): IntegrationConfig => ({
@@ -483,7 +483,7 @@ describe("runSync", () => {
 
   it("preserves the original vendor failure reason even when the failure-path sync_status write also throws, without affecting a sibling vendor", async () => {
     const brokenRow = configRow({ slug: "basin", vendor: "stripe" });
-    const healthyRow = configRow({ slug: "wanderist", vendor: "sentry" });
+    const healthyRow = configRow({ slug: "farflung", vendor: "sentry" });
     const brokenFetch = vi.fn().mockRejectedValue(new Error("Stripe 500"));
     const healthyFetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
     const recordSyncStatus = vi.fn(
@@ -514,7 +514,7 @@ describe("runSync", () => {
     expect(summary.outcomes).toEqual(
       expect.arrayContaining([
         { slug: "basin", vendor: "stripe", ok: false, error: "Stripe 500" },
-        { slug: "wanderist", vendor: "sentry", ok: true },
+        { slug: "farflung", vendor: "sentry", ok: true },
       ]),
     );
   });

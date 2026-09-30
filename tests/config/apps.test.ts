@@ -42,7 +42,7 @@ describe("apps config", () => {
 describe("sortByAppOrder", () => {
   it("reorders rows to match APPS' declared order, regardless of input order", () => {
     const rows = [
-      { slug: "wanderist", value: 75 },
+      { slug: "farflung", value: 75 },
       { slug: "basin", value: 96 },
       { slug: "markpost", value: 141 },
     ];
@@ -50,7 +50,7 @@ describe("sortByAppOrder", () => {
     expect(sortByAppOrder(rows).map((row) => row.slug)).toEqual([
       "basin",
       "markpost",
-      "wanderist",
+      "farflung",
     ]);
   });
 
