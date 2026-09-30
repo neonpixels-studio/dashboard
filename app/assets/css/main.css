@@ -667,6 +667,18 @@ h4 {
   letter-spacing: 0.08em;
   color: var(--ink-3);
 }
+/* Nested inside a vendor chip (SourcesFooter's .source-chip, PropertyCard's
+   .chip-tag) when that integration's credential is a test/dev key — see
+   IntegrationEnvironment in shared/types/dashboard.ts. Global for the same
+   reason as .sample-chip: both hosts render it identically. */
+.env-chip {
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--warn);
+}
 .delta {
   font-size: 11px;
   font-weight: 600;

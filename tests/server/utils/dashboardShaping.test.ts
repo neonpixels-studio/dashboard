@@ -800,11 +800,32 @@ describe("integrationHealthForApp", () => {
       {
         vendor: "stripe",
         enabled: true,
+        environment: null,
         ok: null,
         lastRunAt: null,
         lastSuccessAt: null,
         error: null,
       },
+    ]);
+  });
+
+  it("stamps the environment resolved for that (slug, vendor) credential", () => {
+    const configRows = [
+      integrationConfigRow({ vendor: "stripe", enabled: true }),
+      integrationConfigRow({ vendor: "clerk", enabled: true }),
+    ];
+    const environments = new Map([["basin:stripe", "development" as const]]);
+
+    const health = integrationHealthForApp(
+      [],
+      configRows,
+      "basin",
+      environments,
+    );
+
+    expect(health.map((row) => [row.vendor, row.environment])).toEqual([
+      ["stripe", "development"],
+      ["clerk", null],
     ]);
   });
 
@@ -819,6 +840,7 @@ describe("integrationHealthForApp", () => {
       {
         vendor: "ga4",
         enabled: true,
+        environment: null,
         ok: false,
         lastRunAt: syncRows[0].lastRunAt?.toISOString(),
         lastSuccessAt: syncRows[0].lastSuccessAt?.toISOString(),
@@ -842,12 +864,28 @@ describe("syncSourcesForApp", () => {
     expect(syncSourcesForApp(rows, "basin")).toEqual([
       {
         vendor: "ga4",
+        environment: null,
         ok: true,
         lastRunAt: rows[0].lastRunAt?.toISOString(),
         lastSuccessAt: rows[0].lastSuccessAt?.toISOString(),
         error: null,
       },
     ]);
+  });
+
+  it("stamps the environment resolved for that (slug, vendor) credential", () => {
+    const rows = [
+      syncRow({ vendor: "clerk", ok: true }),
+      syncRow({ slug: "markpost", vendor: "clerk", ok: true }),
+    ];
+    const environments = new Map([["basin:clerk", "development" as const]]);
+
+    expect(syncSourcesForApp(rows, "basin", environments)[0]?.environment).toBe(
+      "development",
+    );
+    expect(
+      syncSourcesForApp(rows, "markpost", environments)[0]?.environment,
+    ).toBeNull();
   });
 });
 

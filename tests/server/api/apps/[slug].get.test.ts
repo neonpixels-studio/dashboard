@@ -119,6 +119,7 @@ describe("GET /api/apps/[slug]", () => {
     expect(result.sources).toEqual([
       {
         vendor: "sentry",
+        environment: null,
         ok: false,
         lastRunAt: new Date("2026-09-19T00:00:00Z").toISOString(),
         lastSuccessAt: null,

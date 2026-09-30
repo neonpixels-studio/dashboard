@@ -1,5 +1,6 @@
 import { APPS } from "../../app/config/apps";
 import { useDb } from "../db";
+import { integrationEnvironments } from "../integrations/credentialEnvironment";
 import { requireUser } from "../utils/auth";
 import {
   fetchIntegrationConfigs,
@@ -32,11 +33,18 @@ export default defineEventHandler(async (event): Promise<AppsResponse> => {
       fetchIntegrationConfigs(db, slugs),
     ]);
 
+  const environments = integrationEnvironments(configRows);
+
   return slugs.map((slug) => ({
     slug,
     status: computeAppStatus(syncRows, configRows, slug),
     metrics: latestMetricsBySlug(latestMetricRows, slug),
     sparklines: metricSeriesBySlug(seriesMetricRows, slug),
-    integrations: integrationHealthForApp(syncRows, configRows, slug),
+    integrations: integrationHealthForApp(
+      syncRows,
+      configRows,
+      slug,
+      environments,
+    ),
   }));
 });

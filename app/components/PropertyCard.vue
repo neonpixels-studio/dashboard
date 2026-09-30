@@ -73,6 +73,9 @@
         :class="integrationHealthTone(integration)"
       >
         {{ integrationChipLabel(integration) }}
+        <span v-if="integration.environment === 'development'" class="env-chip">
+          development
+        </span>
       </li>
     </ul>
   </NuxtLink>
@@ -151,10 +154,14 @@ const isLoading = computed(() =>
   padding: 11px 0 0;
   list-style: none;
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   border-top: 1px solid var(--line-3);
 }
 .chip-tag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   padding: 2px 6px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-xs);

@@ -46,11 +46,19 @@ export interface AppStatus {
   tone: HealthTone;
 }
 
+// Which vendor environment an integration's credential points at, read off
+// the key's own prefix (Stripe and Clerk both issue `sk_test_` vs
+// `sk_live_` keys — see server/integrations/credentialEnvironment.ts).
+// `null` means the key carries no such marker or couldn't be resolved:
+// "unknown", never "production".
+export type IntegrationEnvironment = "development" | "production";
+
 // One integration_config row for an app, joined with its latest sync_status
 // (if any poll has ever run for that vendor).
 export interface IntegrationHealth {
   vendor: string;
   enabled: boolean;
+  environment: IntegrationEnvironment | null;
   ok: boolean | null;
   lastRunAt: string | null;
   lastSuccessAt: string | null;
@@ -61,6 +69,7 @@ export interface IntegrationHealth {
 // ever synced for this app, whether or not it's still enabled.
 export interface SyncSource {
   vendor: string;
+  environment: IntegrationEnvironment | null;
   ok: boolean;
   lastRunAt: string | null;
   lastSuccessAt: string | null;

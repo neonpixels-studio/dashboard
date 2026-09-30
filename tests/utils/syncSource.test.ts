@@ -5,6 +5,7 @@ import type { SyncSource } from "../../shared/types/dashboard";
 function source(overrides: Partial<SyncSource> = {}): SyncSource {
   return {
     vendor: "ga4",
+    environment: null,
     ok: true,
     lastRunAt: null,
     lastSuccessAt: null,
@@ -33,6 +34,15 @@ describe("buildSourceChips", () => {
       source({ vendor: "ga4", lastSuccessAt: "2026-09-19T00:00:00.000Z" }),
     ]);
     expect(chips[0]!.label).toBe("GA4 · 19 SEP 2026");
+  });
+
+  it("carries the source's credential environment through to the chip", () => {
+    const chips = buildSourceChips([
+      source({ vendor: "stripe", environment: "development" }),
+      source({ vendor: "ga4" }),
+    ]);
+    expect(chips[0]!.environment).toBe("development");
+    expect(chips[1]!.environment).toBeNull();
   });
 
   it("labels a source with no successful sync yet, never a fabricated timestamp", () => {

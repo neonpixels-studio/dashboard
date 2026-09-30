@@ -19,6 +19,22 @@ describe("SourcesFooter", () => {
     expect(chips[1].classes()).toContain("warn");
   });
 
+  it("tags only a source on a development credential", () => {
+    const wrapper = mount(SourcesFooter, {
+      props: {
+        sources: [
+          { label: "STRIPE · 4m", environment: "development" },
+          { label: "CLERK · 4m", environment: "production" },
+          { label: "SENTRY · 4m" },
+        ],
+      },
+    });
+    const chips = wrapper.findAll(".source-chip");
+    expect(chips[0]!.find(".env-chip").text()).toBe("development");
+    expect(chips[1]!.find(".env-chip").exists()).toBe(false);
+    expect(chips[2]!.find(".env-chip").exists()).toBe(false);
+  });
+
   it("omits the note and note-tag spans when not given", () => {
     const wrapper = mount(SourcesFooter, {
       props: { sources: [{ label: "CLERK · 4m" }] },

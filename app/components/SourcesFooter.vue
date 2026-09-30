@@ -10,6 +10,9 @@
       >
         <span class="dot" aria-hidden="true"></span>
         {{ source.label }}
+        <span v-if="source.environment === 'development'" class="env-chip">
+          development
+        </span>
       </li>
     </ul>
     <span class="grow"></span>
@@ -19,8 +22,14 @@
 </template>
 
 <script setup lang="ts">
+import type { IntegrationEnvironment } from "#shared/types/dashboard";
+
 const props = defineProps<{
-  sources: { label: string; tone?: "ok" | "warn" }[];
+  sources: {
+    label: string;
+    tone?: "ok" | "warn";
+    environment?: IntegrationEnvironment | null;
+  }[];
   note?: string;
   noteTag?: string;
 }>();
@@ -29,6 +38,7 @@ const chips = computed(() =>
   props.sources.map((source) => ({
     label: source.label,
     tone: source.tone ?? "ok",
+    environment: source.environment ?? null,
   })),
 );
 </script>
