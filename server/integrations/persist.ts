@@ -12,7 +12,7 @@ import {
   trafficBreakdown,
 } from "../db/schema";
 import type { DrizzleDb } from "../utils/dashboardQueries";
-import type { SyncStatusWrite } from "./orchestrator";
+import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
 import type { IntegrationConfigRow, ProviderResult } from "./types";
 
 // Stamps the orchestrator's own slug onto every row a provider returned
@@ -55,41 +55,34 @@ function dedupeByConflictKey<Row>(
   return [...rowsByConflictKey.values()];
 }
 
-// Ordered oldest-synced-first (a row with no sync_status row at all — never
-// synced — sorts before every row that has one), rather than left in
-// whatever order Postgres happens to return. server/integrations/
-// orchestrator.ts's runSync can cut a run short under its own time budget,
-// leaving a tail of enabled rows unattempted; without this ordering, an
-// unordered/heap-order result set would leave the *same* tail behind every
-// time the budget is hit, rather than rotating which rows lose out. The
-// join is at most one sync_status row per (slug, vendor) — enforced by
-// sync_status_slug_vendor_idx in schema.ts — so it can't fan this query out
-// to duplicate integration_config rows.
+// Ordered oldest-attempted-first (a row never yet attempted sorts before
+// every row that has been), rather than left in whatever order Postgres
+// happens to return. server/integrations/orchestrator.ts's runSync can cut
+// a run short under its own time budget, leaving a tail of enabled rows
+// unattempted; without this ordering, an unordered/heap-order result set
+// would leave the *same* tail behind every time the budget is hit, rather
+// than rotating which rows lose out.
 //
-// integration_config.vendor is the integration_vendor Postgres enum, while
-// sync_status.vendor is plain text (schema.ts: sync_status also tracks
-// vendors with no integration_config row at all, e.g. GitHub issue counts —
-// see that table's own comment — so it can't use the enum type). Postgres
-// has no implicit enum<->text cast for a column-to-column comparison, so the
-// enum side is cast explicitly here or this join fails outright at query
-// time (`operator does not exist: text = integration_vendor`) — every
-// /api/sync invocation, not just the ordering feature.
+// Ordered on integration_config.last_attempt_at, not sync_status.
+// last_run_at (no join to sync_status at all here) — every enabled row here
+// already has exactly one integration_config row, so recordConfigSyncAttempt
+// (called before provider.fetch — see orchestrator.ts's syncOneIntegration)
+// always has somewhere to stamp an attempt, including a vendor's very
+// first-ever one, with nothing else to insert or coordinate. That's what
+// closes the rotation guarantee's known gaps (a hung fetch, or a sync_status
+// outcome write that keeps failing) for every row, not only ones that have
+// already completed at least one sync — see schema.ts's own comment on this
+// column, and orchestrator.ts's rotation-guarantee comment for the fuller
+// history.
 export function listEnabledIntegrationConfigs(
   db: DrizzleDb,
 ): Promise<IntegrationConfigRow[]> {
   return db
     .select(getTableColumns(integrationConfig))
     .from(integrationConfig)
-    .leftJoin(
-      syncStatus,
-      and(
-        eq(syncStatus.slug, integrationConfig.slug),
-        eq(syncStatus.vendor, sql`${integrationConfig.vendor}::text`),
-      ),
-    )
     .where(eq(integrationConfig.enabled, true))
     .orderBy(
-      sql`${syncStatus.lastRunAt} asc nulls first, ${integrationConfig.id} asc`,
+      sql`${integrationConfig.lastAttemptAt} asc nulls first, ${integrationConfig.id} asc`,
     );
 }
 
@@ -193,6 +186,74 @@ export function persistProviderResult(
     return writes[0]!;
   }
   return db.batch(writes as unknown as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+}
+
+// Stamps `integration_config.last_attempt_at`, before the row's
+// provider.fetch runs — see orchestrator.ts's syncOneIntegration and
+// runSync's rotation-guarantee comment for why, and schema.ts's own comment
+// on this column for why it lives on integration_config rather than
+// sync_status. Every enabled row already has exactly one integration_config
+// row (it's what listEnabledIntegrationConfigs above selects from), so —
+// unlike an attempt marker written to sync_status — this UPDATE always
+// matches something, including a vendor's very first-ever attempt, with no
+// insert-vs-update branch to get wrong and nothing else to coordinate with
+// sync_status's `ok`/`error`/`last_success_at` columns at all. It's still
+// possible for this to match zero rows (the row was deleted or its vendor
+// changed between listEnabledIntegrationConfigs's read and this write) —
+// silently doing nothing would leave that row's ordering key frozen, the
+// exact rotation gap this exists to close, so a zero-row match throws
+// (caught and logged by orchestrator.ts's writeBestEffort like every other
+// write here, not a special case).
+//
+// Drizzle's `$onUpdate` on schema.ts's `updatedAt` still adds a fresh
+// `updated_at` to this UPDATE's SET clause automatically — this `.set()`
+// call only naming `lastAttemptAt` doesn't opt out of that. What actually
+// keeps it from bumping is the DB trigger (0002_add-updated-at-trigger.sql,
+// replaced by this column's own migration, 0005): its diff excludes
+// `last_attempt_at` alongside `updated_at` itself, sees no other change, and
+// restores `OLD.updated_at`. Without that exclusion, every enabled row's
+// `updated_at` would track its last sync attempt (every ~15 minutes) rather
+// than its last real configuration edit.
+//
+// @todo this repo has no real-Postgres test harness yet, so migration
+// 0005's SQL (unlike everything else in this file) is verified only by
+// reading it, not by a test. Once one exists (e.g. via pglite/testcontainers),
+// add coverage for: (1) the trigger's exclusion of last_attempt_at — run a
+// real query-builder UPDATE (so $onUpdate's injected updated_at is actually
+// on the wire, not just this function's `.set()` argument) and assert
+// updated_at is unchanged; (2) the backfill UPDATE ... FROM sync_status
+// join — seed a matching and a non-matching sync_status row and assert
+// last_attempt_at ends up set and NULL respectively.
+//
+// attempt.vendor is plain `string` (SyncAttemptWrite, like SyncStatusWrite,
+// is orchestrator.ts's own type — it doesn't import the DB schema), while
+// integration_config.vendor is the integration_vendor Postgres enum, so the
+// two can't be compared with a plain `eq()` as-is. The *parameter* is cast
+// to the enum (`::integration_vendor`) rather than casting the column to
+// text — casting the column would keep this comparison from using
+// integration_config_slug_vendor_idx for its vendor half, since Postgres
+// can't use an index on a cast expression.
+export async function recordConfigSyncAttempt(
+  db: DrizzleDb,
+  attempt: SyncAttemptWrite,
+): Promise<unknown> {
+  const updatedRows = await db
+    .update(integrationConfig)
+    .set({ lastAttemptAt: attempt.runAt })
+    .where(
+      and(
+        eq(integrationConfig.slug, attempt.slug),
+        sql`${integrationConfig.vendor} = ${attempt.vendor}::integration_vendor`,
+      ),
+    )
+    .returning({ id: integrationConfig.id });
+
+  if (!updatedRows.length) {
+    throw new Error(
+      `recordConfigSyncAttempt matched no integration_config row for ${attempt.slug}:${attempt.vendor}`,
+    );
+  }
+  return updatedRows;
 }
 
 // One row per (slug, vendor), overwritten every run (see schema.ts). On

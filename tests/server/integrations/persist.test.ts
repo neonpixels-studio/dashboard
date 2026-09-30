@@ -4,6 +4,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import {
   listEnabledIntegrationConfigs,
   persistProviderResult,
+  recordConfigSyncAttempt,
   recordSyncAttempt,
   recordSyncStatus,
 } from "../../../server/integrations/persist";
@@ -34,20 +35,20 @@ function thenableQuery(resolvedValue: unknown = undefined) {
 
 function createFakeDb() {
   const batch = vi.fn().mockResolvedValue(undefined);
-  // listEnabledIntegrationConfigs' chain: select -> from -> leftJoin ->
-  // where -> orderBy, with orderBy's return value being what's actually
-  // awaited (a plain resolved array stands in for the real query result).
+  // listEnabledIntegrationConfigs' chain: select -> from -> where ->
+  // orderBy, with orderBy's return value being what's actually awaited (a
+  // plain resolved array stands in for the real query result).
   const orderBy = vi.fn().mockResolvedValue([]);
   const where = vi.fn().mockReturnValue({ orderBy });
-  const leftJoin = vi.fn().mockReturnValue({ where });
-  const from = vi.fn().mockReturnValue({ leftJoin });
+  const from = vi.fn().mockReturnValue({ where });
   const select = vi.fn().mockReturnValue({ from });
 
   // Defaults to "claimed" (a non-empty .returning() result) — recordSyncStatus
   // never calls .returning() at all (it just awaits the onConflictDoUpdate()
   // result directly via `.then`, which thenableQuery() already provides), so
-  // this only matters to recordSyncAttempt's tests, which override it via
-  // `returning.mockResolvedValue([])` for the "lost the race" case.
+  // this only matters to recordSyncAttempt's tests (the sync_status one),
+  // which override it via `returning.mockResolvedValue([])` for the "lost
+  // the race" case.
   const returning = vi.fn().mockResolvedValue([{ slug: "danholloran" }]);
   const onConflictDoUpdate = vi.fn().mockReturnValue({
     ...thenableQuery(),
@@ -63,16 +64,29 @@ function createFakeDb() {
   }));
   const insert = vi.fn().mockReturnValue({ values });
 
+  // recordConfigSyncAttempt's chain: update -> set -> where -> returning,
+  // with returning's return value being what's actually awaited. Defaults to
+  // one matched row (`[{ id: 1 }]`) — the common case every test other than
+  // the dedicated zero-match test below exercises — since
+  // recordConfigSyncAttempt throws when this resolves empty.
+  const updateReturning = vi.fn().mockResolvedValue([{ id: 1 }]);
+  const updateWhere = vi.fn().mockReturnValue({ returning: updateReturning });
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set: updateSet });
+
   return {
-    db: { select, insert, batch } as unknown as FakeDb,
+    db: { select, insert, update, batch } as unknown as FakeDb,
     select,
     from,
-    leftJoin,
     where,
     orderBy,
     insert,
     values,
     onConflictDoUpdate,
+    update,
+    updateSet,
+    updateWhere,
+    updateReturning,
     returning,
     batch,
   };
@@ -89,6 +103,7 @@ function configRow(
     externalId: null,
     secretRef: null,
     encryptedSecret: null,
+    lastAttemptAt: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
@@ -113,32 +128,13 @@ function renderSqlParams(fragment: SQL): unknown[] {
 }
 
 describe("listEnabledIntegrationConfigs", () => {
-  it("selects every integration_config column, joined to sync_status, filtered to enabled rows, ordered oldest-synced-first", async () => {
-    const { db, select, from, leftJoin, where, orderBy } = createFakeDb();
+  it("selects every integration_config column, filtered to enabled rows, ordered oldest-attempted-first — no join to sync_status", async () => {
+    const { db, select, from, where, orderBy } = createFakeDb();
 
     await listEnabledIntegrationConfigs(db);
 
-    // Explicit column selection (not select()'s no-arg "everything,
-    // including the join's columns" form) is what keeps the return shape
-    // flat as IntegrationConfigRow despite the leftJoin below.
     expect(select).toHaveBeenCalledWith(getTableColumns(integrationConfig));
     expect(from).toHaveBeenCalledWith(integrationConfig);
-
-    // integration_config.vendor is the integration_vendor Postgres enum;
-    // sync_status.vendor is plain text. Without the explicit ::text cast
-    // this join fails outright against a real database (`operator does not
-    // exist: text = integration_vendor`) even though it type-checks and
-    // this exact mock-based assertion would still pass without it — so the
-    // cast is asserted on the rendered SQL text, not just "a condition was
-    // passed."
-    const [joinTarget, joinCondition] = leftJoin.mock.calls[0] as [
-      unknown,
-      SQL,
-    ];
-    expect(joinTarget).toBe(syncStatus);
-    expect(renderSql(joinCondition)).toBe(
-      '("sync_status"."slug" = "integration_config"."slug" and "sync_status"."vendor" = "integration_config"."vendor"::text)',
-    );
 
     // Asserted on the rendered SQL text AND its bound param (not just
     // "where was called") so a predicate that filtered on the wrong column,
@@ -148,13 +144,19 @@ describe("listEnabledIntegrationConfigs", () => {
     expect(renderSql(whereArg)).toBe('"integration_config"."enabled" = $1');
     expect(renderSqlParams(whereArg)).toEqual([true]);
 
-    // Nulls (never synced) first, then oldest-synced first, with the row id
-    // as a stable tiebreaker — this is what lets runSync's budget-limited
-    // skip path (orchestrator.ts) rotate which rows lose out instead of
-    // starving the same tail every time the budget is hit.
+    // Nulls (never attempted) first, then oldest-attempted first, with the
+    // row id as a stable tiebreaker — this is what lets runSync's
+    // budget-limited skip path (orchestrator.ts) rotate which rows lose out
+    // instead of starving the same tail every time the budget is hit.
+    // Ordered on integration_config.last_attempt_at (stamped by
+    // recordConfigSyncAttempt before provider.fetch — see orchestrator.ts's
+    // syncOneIntegration), not sync_status.last_run_at, and with no join at
+    // all — every enabled row already has exactly one integration_config
+    // row, so there's nothing to join for this ordering key (see
+    // schema.ts's comment on last_attempt_at for why it lives here).
     const [orderByArg] = orderBy.mock.calls[0] as [SQL];
     expect(renderSql(orderByArg)).toBe(
-      '"sync_status"."last_run_at" asc nulls first, "integration_config"."id" asc',
+      '"integration_config"."last_attempt_at" asc nulls first, "integration_config"."id" asc',
     );
   });
 });
@@ -531,6 +533,69 @@ describe("recordSyncStatus", () => {
     expect(conflictArgs.set.lastSuccessAt).toBeInstanceOf(SQL);
     expect(conflictArgs.set.lastSuccessAt.queryChunks).toContain(
       syncStatus.lastSuccessAt,
+    );
+  });
+});
+
+describe("recordConfigSyncAttempt", () => {
+  it("updates integration_config, not sync_status — every enabled row already has exactly one integration_config row, so this always has somewhere to land, including a vendor's very first-ever attempt", async () => {
+    const { db, update } = createFakeDb();
+    const runAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordConfigSyncAttempt(db, {
+      slug: "basin",
+      vendor: "stripe",
+      runAt,
+    });
+
+    expect(update).toHaveBeenCalledWith(integrationConfig);
+  });
+
+  it("passes only lastAttemptAt to set()", async () => {
+    const { db, updateSet } = createFakeDb();
+    const runAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordConfigSyncAttempt(db, {
+      slug: "basin",
+      vendor: "stripe",
+      runAt,
+    });
+
+    expect(updateSet).toHaveBeenCalledWith({ lastAttemptAt: runAt });
+  });
+
+  it("scopes the update to exactly this (slug, vendor) pair, casting the plain-string vendor to the integration_vendor enum (not the column to text) so the comparison can still use integration_config_slug_vendor_idx", async () => {
+    const { db, updateWhere } = createFakeDb();
+    const runAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordConfigSyncAttempt(db, {
+      slug: "basin",
+      vendor: "stripe",
+      runAt,
+    });
+
+    const [whereArg] = updateWhere.mock.calls[0] as [SQL];
+    expect(renderSql(whereArg)).toBe(
+      '("integration_config"."slug" = $1 and "integration_config"."vendor" = $2::integration_vendor)',
+    );
+    expect(renderSqlParams(whereArg)).toEqual(["basin", "stripe"]);
+  });
+
+  it("throws when the update matches no integration_config row, rather than silently leaving last_attempt_at frozen", async () => {
+    const { db, updateReturning } = createFakeDb();
+    updateReturning.mockResolvedValue([]);
+    const runAt = new Date("2026-09-20T12:00:00Z");
+
+    // A no-match here (the row was deleted, or its vendor changed, between
+    // listEnabledIntegrationConfigs's read and this write) must not be a
+    // silent no-op — that would reproduce the exact rotation gap this
+    // column exists to close. orchestrator.ts's writeBestEffort is what
+    // catches and logs this in the real call path; recordConfigSyncAttempt's
+    // own job is just to make the failure loud instead of swallowing it here.
+    await expect(
+      recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt }),
+    ).rejects.toThrow(
+      "recordConfigSyncAttempt matched no integration_config row for basin:stripe",
     );
   });
 });

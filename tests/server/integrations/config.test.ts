@@ -21,6 +21,7 @@ function buildRow(
     externalId: "project-slug",
     secretRef: null,
     encryptedSecret: null,
+    lastAttemptAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
