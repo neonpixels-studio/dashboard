@@ -207,11 +207,17 @@ export function persistProviderResult(
 //
 // `updated_at` isn't set here at all — schema.ts's own DB trigger
 // (0002_add-updated-at-trigger.sql, updated by this column's own migration,
-// 0004) is what stamps it, and that trigger's diff explicitly excludes
+// 0005) is what stamps it, and that trigger's diff explicitly excludes
 // `last_attempt_at` alongside `updated_at` itself, so this UPDATE (which
 // only ever changes `last_attempt_at`) doesn't bump it. Without that
 // exclusion, every enabled row's `updated_at` would track its last sync
 // attempt (every ~15 minutes) rather than its last real configuration edit.
+//
+// @todo this repo has no real-Postgres test harness yet, so the trigger's
+// exclusion of last_attempt_at (unlike everything else in this file) is
+// verified only by reading the SQL, not by a test — add one (e.g. via
+// pglite/testcontainers) that updates last_attempt_at and asserts
+// updated_at is unchanged, once such a harness exists.
 //
 // attempt.vendor is plain `string` (SyncAttemptWrite, like SyncStatusWrite,
 // is orchestrator.ts's own type — it doesn't import the DB schema), while

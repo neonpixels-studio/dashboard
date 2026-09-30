@@ -81,6 +81,12 @@ export const integrationConfig = pgTable(
     // column, oldest-attempted-first, so the rotation guarantee described
     // there no longer depends on an outcome (sync_status) ever being
     // recorded at all.
+    //
+    // Not to be confused with sync_status.last_attempted_at below (a
+    // per-vendor rate-limit watermark some providers, e.g. Medium's own
+    // guard, use to decide whether a real network call is even due): this
+    // column is the rotation ordering key, unconditionally stamped for
+    // every enabled row on every tick.
     lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

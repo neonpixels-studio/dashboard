@@ -149,7 +149,7 @@ describe("listEnabledIntegrationConfigs", () => {
     // budget-limited skip path (orchestrator.ts) rotate which rows lose out
     // instead of starving the same tail every time the budget is hit.
     // Ordered on integration_config.last_attempt_at (stamped by
-    // recordSyncAttempt before provider.fetch — see orchestrator.ts's
+    // recordConfigSyncAttempt before provider.fetch — see orchestrator.ts's
     // syncOneIntegration), not sync_status.last_run_at, and with no join at
     // all — every enabled row already has exactly one integration_config
     // row, so there's nothing to join for this ordering key (see
@@ -542,7 +542,11 @@ describe("recordConfigSyncAttempt", () => {
     const { db, update } = createFakeDb();
     const runAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
+    await recordConfigSyncAttempt(db, {
+      slug: "basin",
+      vendor: "stripe",
+      runAt,
+    });
 
     expect(update).toHaveBeenCalledWith(integrationConfig);
   });
@@ -551,7 +555,11 @@ describe("recordConfigSyncAttempt", () => {
     const { db, updateSet } = createFakeDb();
     const runAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
+    await recordConfigSyncAttempt(db, {
+      slug: "basin",
+      vendor: "stripe",
+      runAt,
+    });
 
     expect(updateSet).toHaveBeenCalledWith({ lastAttemptAt: runAt });
   });
@@ -560,7 +568,11 @@ describe("recordConfigSyncAttempt", () => {
     const { db, updateWhere } = createFakeDb();
     const runAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
+    await recordConfigSyncAttempt(db, {
+      slug: "basin",
+      vendor: "stripe",
+      runAt,
+    });
 
     const [whereArg] = updateWhere.mock.calls[0] as [SQL];
     expect(renderSql(whereArg)).toBe(

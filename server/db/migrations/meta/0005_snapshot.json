@@ -502,9 +502,7 @@
         "users_provider_id_unique": {
           "name": "users_provider_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "provider_id"
-          ]
+          "columns": ["provider_id"]
         }
       },
       "policies": {},
@@ -529,11 +527,7 @@
     "public.syndication_status": {
       "name": "syndication_status",
       "schema": "public",
-      "values": [
-        "synced",
-        "pending",
-        "failed"
-      ]
+      "values": ["synced", "pending", "failed"]
     }
   },
   "schemas": {},
