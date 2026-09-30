@@ -1,7 +1,36 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+
+// Mocked at the real external boundary (the Sentry SDK itself), not at
+// server/utils/errorReporting.ts or netlify/functions/sentry.ts — so the
+// actual reportError/reportErrorCondition/initSentry/flushSentry code under
+// test still runs, and both its console output and its Sentry calls are
+// observable from here in one place. Matches the mocking style in
+// tests/server/utils/errorReporting.test.ts and
+// tests/netlify/functions/sentry.test.ts.
+const captureExceptionMock = vi.fn();
+const captureMessageMock = vi.fn();
+const initMock = vi.fn();
+const flushMock = vi.fn().mockResolvedValue(true);
+
+vi.mock("@sentry/nuxt", () => ({
+  captureException: (...args: unknown[]) => captureExceptionMock(...args),
+  captureMessage: (...args: unknown[]) => captureMessageMock(...args),
+  init: (...args: unknown[]) => initMock(...args),
+  flush: (...args: unknown[]) => flushMock(...args),
+}));
+
+// Stubbed so tests never decrypt the real committed .env.production (with a
+// local .env.keys present, that would inject live production secrets).
+const loadEnvMock = vi.fn();
+vi.mock("../../../netlify/functions/env", () => ({
+  loadEnv: () => loadEnvMock(),
+}));
+
 import scheduledSync, {
   config,
+  MAX_REPORTED_BODY_LENGTH,
 } from "../../../netlify/functions/scheduled-sync";
+import { FLUSH_TIMEOUT_MS } from "../../../netlify/functions/sentry";
 
 const originalFetch = globalThis.fetch;
 
@@ -13,6 +42,15 @@ afterEach(() => {
   // own restore call — otherwise a stubbed console leaks into every
   // subsequent test in this file.
   vi.restoreAllMocks();
+  // Runs AFTER restoreAllMocks (which would otherwise wipe flushMock's
+  // default implementation too) so every test starts from the same known
+  // state: no recorded calls, and flush "succeeding" by default.
+  captureExceptionMock.mockClear();
+  captureMessageMock.mockClear();
+  initMock.mockClear();
+  flushMock.mockClear();
+  flushMock.mockResolvedValue(true);
+  loadEnvMock.mockReset();
 });
 
 describe("scheduled-sync config", () => {
@@ -46,23 +84,109 @@ describe("scheduledSync", () => {
     expect(response.status).toBe(200);
   });
 
-  it("throws when the site URL isn't set", async () => {
-    vi.stubEnv("URL", "");
+  it("initializes Sentry before running, not merely at some point during the call", async () => {
+    // initSentry() memoizes across calls via module-scoped state in
+    // netlify/functions/sentry.ts, so this uses its own fresh module
+    // instance (vi.resetModules(), same pattern as
+    // tests/netlify/functions/sentry.test.ts's importFreshSentryModule)
+    // instead of relying on being the first scheduledSync() call in file
+    // execution order.
+    vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    vi.resetModules();
+    const { default: freshScheduledSync } =
+      await import("../../../netlify/functions/scheduled-sync");
 
-    await expect(scheduledSync()).rejects.toThrow(/process\.env\.URL/);
+    await freshScheduledSync();
+
+    expect(initMock).toHaveBeenCalledOnce();
+    // A call count alone would still pass if initSentry() moved to run
+    // after the actual sync work — e.g. inside runScheduledSync's own try
+    // block — which would lose any error captured during that work.
+    expect(initMock.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[0],
+    );
   });
 
-  it("throws when the trigger secret isn't set", async () => {
+  it("reads the trigger secret from the decrypted env file, not a pre-set Netlify var", async () => {
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "");
+    loadEnvMock.mockImplementation(() => {
+      process.env.NUXT_SYNC_TRIGGER_SECRET = "decrypted-secret";
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    await expect(scheduledSync()).rejects.toThrow(/NUXT_SYNC_TRIGGER_SECRET/);
+    await scheduledSync();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({
+        headers: { authorization: "Bearer decrypted-secret" },
+      }),
+    );
   });
 
-  it("returns a 502 (without throwing) when /api/sync itself responds non-2xx", async () => {
+  it("fails before syncing when the env file can't be decrypted", async () => {
+    loadEnvMock.mockImplementation(() => {
+      throw new Error("MISSING_PRIVATE_KEY");
+    });
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(scheduledSync()).rejects.toThrow("MISSING_PRIVATE_KEY");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("throws when the site URL isn't set, after reporting the failure to Sentry and flushing", async () => {
+    vi.stubEnv("URL", "");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(scheduledSync()).rejects.toThrow(/process\.env\.URL/);
+
+    // The outer safety-net catch in scheduledSync reports anything
+    // runScheduledSync doesn't already report itself, then flushes before
+    // rethrowing — see its own comment.
+    expect(captureExceptionMock).toHaveBeenCalledOnce();
+    expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
+  });
+
+  it("throws when the trigger secret isn't set, after reporting the failure to Sentry and flushing", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(scheduledSync()).rejects.toThrow(/NUXT_SYNC_TRIGGER_SECRET/);
+
+    expect(captureExceptionMock).toHaveBeenCalledOnce();
+    expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
+  });
+
+  it("flushes Sentry even on the successful path", async () => {
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ outcomes: [] }), { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    await scheduledSync();
+
+    expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
+  });
+
+  it("returns a 502 (without throwing) when /api/sync itself responds non-2xx, and reports the status/body to Sentry", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    vi.spyOn(console, "error").mockImplementation(() => {});
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(
@@ -72,18 +196,54 @@ describe("scheduledSync", () => {
     const response = await scheduledSync();
 
     expect(response.status).toBe(502);
+    expect(captureMessageMock).toHaveBeenCalledWith(
+      "scheduled-sync: POST /api/sync responded with a non-2xx status",
+      expect.objectContaining({
+        extra: { status: 401, body: "Unauthorized" },
+      }),
+    );
   });
 
-  it("returns a 502 (without throwing) when the request itself never completes, e.g. a timeout or DNS failure", async () => {
+  it("truncates an oversized non-2xx response body before sending it to Sentry", async () => {
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const oversizedBody = "x".repeat(5_000);
     globalThis.fetch = vi
       .fn()
-      .mockRejectedValue(new Error("ECONNRESET")) as unknown as typeof fetch;
+      .mockResolvedValue(
+        new Response(oversizedBody, { status: 500 }),
+      ) as unknown as typeof fetch;
+
+    await scheduledSync();
+
+    const [, context] = captureMessageMock.mock.calls[0];
+    expect((context.extra.body as string).length).toBe(
+      MAX_REPORTED_BODY_LENGTH,
+    );
+  });
+
+  it("returns a 502 (without throwing) when the request itself never completes, e.g. a timeout or DNS failure, and reports the underlying error to Sentry", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const connectionError = new Error("ECONNRESET");
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(connectionError) as unknown as typeof fetch;
 
     const response = await scheduledSync();
 
     expect(response.status).toBe(502);
+    expect(captureExceptionMock).toHaveBeenCalledWith(
+      connectionError,
+      expect.objectContaining({
+        tags: {
+          reportSite:
+            "scheduled-sync: POST /api/sync request failed to complete",
+        },
+      }),
+    );
   });
 
   it("returns a 502 (without throwing) when a non-2xx response's body itself fails to read", async () => {
@@ -148,7 +308,19 @@ describe("scheduledSync", () => {
     // at error level, not buried in logSkippedRows' plain warn.
     expect(response.status).toBe(200);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("all 1 attempted integration(s) failed"),
+      "scheduled-sync: every attempted integration failed this run",
+      { attemptedCount: 1, unattemptedCount: 1 },
+    );
+    // This is the case reportErrorCondition's Sentry reporting exists for
+    // (see README's "Error monitoring" section) — asserting only the console
+    // line above would still pass if this call were ever accidentally
+    // dropped.
+    expect(captureMessageMock).toHaveBeenCalledWith(
+      "scheduled-sync: every attempted integration failed this run",
+      expect.objectContaining({
+        level: "error",
+        extra: { attemptedCount: 1, unattemptedCount: 1 },
+      }),
     );
   });
 
