@@ -14,20 +14,53 @@
 // 15 minutes — see netlify/functions/scheduled-sync.ts).
 export const MEDIUM_MIN_SYNC_INTERVAL_HOURS = 24;
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
+// Exported so provider.ts's atomic attempt-claim (recordSyncAttempt in
+// persist.ts) can enforce this same cadence at the DB layer — see that
+// function's comment for why.
+export const MEDIUM_MIN_SYNC_INTERVAL_MS =
+  MEDIUM_MIN_SYNC_INTERVAL_HOURS * MILLISECONDS_PER_HOUR;
+
+// Later of two possibly-null watermarks; null only when both are.
+function laterOf(first: Date | null, second: Date | null): Date | null {
+  if (!first) {
+    return second;
+  }
+  if (!second) {
+    return first;
+  }
+  return first.getTime() >= second.getTime() ? first : second;
+}
 
 /**
- * True when enough time has passed since the last successful Medium sync to
- * run another one (or none has ever succeeded). Pure and clock-injected —
- * unit tests exercise it with fixed `now`/`lastSuccessfulSyncAt` values
- * rather than real timers.
+ * True when enough time has passed since the last successful Medium sync — or
+ * the last Medium sync *attempt*, whichever is more recent — to run another
+ * one (or neither has ever happened).
+ *
+ * `lastAttemptedSyncAt` is what keeps a persistently-failing sync (bad key, a
+ * mapping bug, a transient mediumapi.com outage) from retrying on every
+ * 15-minute orchestrator tick, since `lastSuccessfulSyncAt` alone only
+ * advances on a full success (provider.ts's buildSyndicationResult) and would
+ * otherwise never push the clock forward. It instead advances the moment a
+ * real network attempt starts, independent of whether it goes on to succeed
+ * or throw — see provider.ts's recordAttempt call. Trade-off: after fixing a
+ * revoked key, the next sync (scheduled or a manual POST /api/sync) still
+ * waits out the same interval from that last failed attempt — to force an
+ * immediate retry, clear the watermark by hand:
+ * `UPDATE sync_status SET last_attempted_at = NULL WHERE vendor = 'medium'`.
+ *
+ * Pure and clock-injected — unit tests exercise it with fixed
+ * `now`/`lastSuccessfulSyncAt`/`lastAttemptedSyncAt` values rather than real
+ * timers.
  */
 export function isMediumSyncDue(
   now: Date,
   lastSuccessfulSyncAt: Date | null,
+  lastAttemptedSyncAt: Date | null,
 ): boolean {
-  if (!lastSuccessfulSyncAt) {
+  const lastGateAt = laterOf(lastSuccessfulSyncAt, lastAttemptedSyncAt);
+  if (!lastGateAt) {
     return true;
   }
-  const elapsedMs = now.getTime() - lastSuccessfulSyncAt.getTime();
-  return elapsedMs >= MEDIUM_MIN_SYNC_INTERVAL_HOURS * MILLISECONDS_PER_HOUR;
+  const elapsedMs = now.getTime() - lastGateAt.getTime();
+  return elapsedMs >= MEDIUM_MIN_SYNC_INTERVAL_MS;
 }
