@@ -803,4 +803,36 @@ describe("runSync", () => {
     expect(abortListenerAdds.length).toBeGreaterThan(0);
     expect(abortListenerRemoves.length).toBe(abortListenerAdds.length);
   });
+
+  it("does not double-log an ordinary provider rejection that wins the race before the deadline ever fires", async () => {
+    // The stray-rejection warning above only fires once `deadline.signal
+    // .aborted` is already true — an ordinary failure (the row simply
+    // rejects, deadline never involved) must be left to syncOneIntegration's
+    // own "Sync failed" log alone, or every normal failure would be logged
+    // twice under a misleading "settled after the shared run budget" label.
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    const fetch = vi.fn().mockRejectedValue(new Error("vendor auth failure"));
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: 5_000,
+    });
+
+    const summary = await runSync(deps);
+
+    expect(summary.outcomes).toEqual([
+      { slug: "basin", vendor: "stripe", ok: false, error: expect.any(String) },
+    ]);
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Sync failed for basin:stripe",
+      expect.any(Error),
+    );
+  });
 });
