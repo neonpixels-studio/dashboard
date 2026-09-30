@@ -660,4 +660,147 @@ describe("runSync", () => {
     );
     expect(fetch).toHaveBeenCalledTimes(5);
   });
+
+  it("treats a runBudgetMs above setTimeout's max delay (~24.8 days) as no effective bound, rather than the ~1ms Node coerces it to", async () => {
+    // Node's setTimeout silently truncates any delay above 2147483647ms to
+    // 1ms instead of throwing — left unguarded, this would fail every row
+    // in the run just like an unguarded NaN/Infinity budget would.
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: 1e10,
+    });
+
+    const summary = await runSync(deps);
+
+    expect(summary.outcomes).toEqual([
+      { slug: "basin", vendor: "stripe", ok: true },
+    ]);
+  });
+
+  it("never starts a row's provider.fetch once the shared deadline has already aborted, rather than discarding a wasted call", async () => {
+    vi.useFakeTimers();
+    // 6 rows over BATCH_SIZE 5 forces two batches: the first batch's rows
+    // hang until the shared deadline aborts them, so by the time the
+    // second batch is admitted the deadline has already fired.
+    const hangingRows = Array.from({ length: 5 }, (_, index) =>
+      configRow({ slug: `app-${index}`, vendor: "stripe" }),
+    );
+    const lateRow = configRow({ slug: "late", vendor: "sentry" });
+    const hangingFetch = vi.fn(
+      (_config: IntegrationConfig, deadline?: { signal: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          deadline?.signal.addEventListener("abort", () => {
+            reject(deadline.signal.reason);
+          });
+        }),
+    );
+    const lateFetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
+    // A fixed fixture, not the real clock, so the batch-admission loop's
+    // own budget check stays independent of the fake timers driving the
+    // deadline below — this proves the SECOND batch is admitted (not
+    // skipped by the admission check) yet still never calls lateFetch,
+    // because the deadline itself has already aborted by then.
+    const elapsedFixture = [0, 0, 10];
+    let tick = 0;
+    const monotonicNow = () =>
+      elapsedFixture[tick++] ?? elapsedFixture.at(-1) ?? 0;
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [...hangingRows, lateRow],
+      registry: {
+        get: (vendor: string) =>
+          vendor === "stripe"
+            ? stubProvider("stripe", hangingFetch)
+            : stubProvider("sentry", lateFetch),
+      },
+      runBudgetMs: 50,
+      monotonicNow,
+    });
+
+    const summaryPromise = runSync(deps);
+    await vi.advanceTimersByTimeAsync(50);
+    const summary = await summaryPromise;
+
+    expect(lateFetch).not.toHaveBeenCalled();
+    expect(summary.outcomes).toContainEqual({
+      slug: "late",
+      vendor: "sentry",
+      ok: false,
+      error: expect.stringContaining("Shared run budget"),
+    });
+  });
+
+  it("logs a stray provider rejection that arrives after the shared deadline already decided the race", async () => {
+    vi.useFakeTimers();
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    let rejectStray: ((cause: unknown) => void) | undefined;
+    const fetch = vi.fn(
+      () =>
+        new Promise<never>((_resolve, reject) => {
+          rejectStray = reject;
+        }),
+    );
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: 50,
+    });
+
+    const summaryPromise = runSync(deps);
+    await vi.advanceTimersByTimeAsync(50);
+    // The deadline has now aborted and syncOneIntegration has already
+    // recorded the row's outcome; the provider's own promise is still
+    // unsettled (its `.catch` below is the only thing still attached).
+    rejectStray?.(new Error("vendor auth failure"));
+    await vi.advanceTimersByTimeAsync(0);
+    await summaryPromise;
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "Provider fetch for basin:stripe settled after the shared run budget was already exhausted",
+      ),
+      expect.any(Error),
+    );
+  });
+
+  it("removes its abort listener once a provider wins the race, rather than leaving it attached to the shared signal forever", async () => {
+    // The leak this guards against only shows up on the WINNER path: the
+    // listener is registered with `{ once: true }`, so when the deadline
+    // itself fires first, the platform's own "once" bookkeeping already
+    // removes it — there'd be nothing to prove here. It's the opposite
+    // case (the provider settles before the deadline ever fires) where
+    // nothing auto-removes the listener unless raceAgainstDeadline's own
+    // `.finally` does it explicitly.
+    const addEventListenerSpy = vi.spyOn(
+      AbortSignal.prototype,
+      "addEventListener",
+    );
+    const removeEventListenerSpy = vi.spyOn(
+      AbortSignal.prototype,
+      "removeEventListener",
+    );
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: 5_000,
+    });
+
+    await runSync(deps);
+
+    const abortListenerAdds = addEventListenerSpy.mock.calls.filter(
+      ([eventName]) => eventName === "abort",
+    );
+    const abortListenerRemoves = removeEventListenerSpy.mock.calls.filter(
+      ([eventName]) => eventName === "abort",
+    );
+    expect(abortListenerAdds.length).toBeGreaterThan(0);
+    expect(abortListenerRemoves.length).toBe(abortListenerAdds.length);
+  });
 });

@@ -99,6 +99,16 @@ const BATCH_SIZE = 5;
 // which batches this loop starts.
 const DEFAULT_RUN_BUDGET_MS = 7_000;
 
+// Node's setTimeout silently coerces any delay above this (~24.8 days) down
+// to 1ms instead of throwing or clamping to its own max — the same
+// "instantly-expired deadline fails every row" failure createRunDeadline's
+// non-finite guard below exists to prevent, just reachable through a
+// same-order-of-magnitude finite number instead of NaN/Infinity. Unreachable
+// via DEFAULT_RUN_BUDGET_MS, but deps.runBudgetMs is an injectable override
+// (see SyncOrchestratorDeps's comment), so nothing stops a caller from
+// passing one this large.
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
 // Builds the FetchDeadline every row admitted in this runSync call shares
 // (see types.ts's FetchDeadline for what each field is for and why). One
 // deadline per run, built once here and threaded into every
@@ -120,9 +130,11 @@ function createRunDeadline(budgetMs: number): FetchDeadline & {
   // effective bound" here, not "expire almost immediately": Math.max(0, NaN)
   // is itself NaN, and Node's setTimeout coerces a NaN/negative delay to
   // ~1ms, which would fail every row in the run rather than just softly
-  // falling back to unbounded. NO_DEADLINE's own signal never aborts, so
-  // `dispose` here is a no-op (there's no timer to clear).
-  if (!Number.isFinite(budgetMs)) {
+  // falling back to unbounded. A finite budget above MAX_TIMER_DELAY_MS gets
+  // the same treatment, for the same reason (see that constant's comment).
+  // NO_DEADLINE's own signal never aborts, so `dispose` here is a no-op
+  // (there's no timer to clear).
+  if (!Number.isFinite(budgetMs) || budgetMs > MAX_TIMER_DELAY_MS) {
     return { ...NO_DEADLINE, dispose: () => {} };
   }
 
@@ -179,18 +191,42 @@ function errorMessage(cause: unknown): string {
 //
 // This can't cancel the underlying call — JS has no way to force that from
 // the outside once it's already in flight — it only stops THIS row from
-// holding up the rest of the run past the deadline. The loser's eventual
-// settlement is deliberately swallowed (not left as an unhandled rejection):
-// nothing further depends on it once the race below is decided.
+// holding up the rest of the run past the deadline.
+//
+// `createResultPromise` is a thunk, not a plain Promise, specifically so the
+// aborted-check below can run BEFORE the real call starts: a row admitted
+// into a batch right as the shared budget expires would otherwise still
+// fire its provider.fetch (a real, possibly rate-limited vendor request —
+// see MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC's monthly-cap comment for how
+// costly that can be) only to have the result immediately discarded.
 function raceAgainstDeadline<Result>(
-  resultPromise: Promise<Result>,
+  identity: { slug: string; vendor: string },
+  createResultPromise: () => Promise<Result>,
   deadline: FetchDeadline,
 ): Promise<Result> {
-  resultPromise.catch(() => {});
-
   if (deadline.signal.aborted) {
     return Promise.reject(deadline.signal.reason);
   }
+
+  const resultPromise = createResultPromise();
+  // The loser's eventual settlement is never left as an unhandled
+  // rejection — nothing further awaits it once the race below is decided —
+  // but silently discarding it would hide a real vendor error (e.g. an
+  // auth failure) that happens to arrive just after the deadline, behind
+  // what sync_status would otherwise record as merely "ran out of time."
+  // Only log when the deadline has ALREADY aborted by the time this
+  // settles: a resultPromise that wins the race by rejecting first hits
+  // this same handler while `deadline.signal.aborted` is still false, and
+  // is already logged once by syncOneIntegration's own catch — logging it
+  // here too would double-report the identical cause.
+  resultPromise.catch((cause) => {
+    if (deadline.signal.aborted) {
+      console.warn(
+        `Provider fetch for ${identity.slug}:${identity.vendor} settled after the shared run budget was already exhausted`,
+        cause,
+      );
+    }
+  });
 
   // Removed once the race settles either way — without this, a provider
   // that wins the race (finishes before the deadline fires) leaves its
@@ -266,8 +302,10 @@ async function syncOneIntegration(
       throw new Error(`No provider registered for vendor "${row.vendor}".`);
     }
     resolvedConfig = deps.resolveConfig(row);
+    const config = resolvedConfig;
     const result = await raceAgainstDeadline(
-      provider.fetch(resolvedConfig, deadline),
+      identity,
+      () => provider.fetch(config, deadline),
       deadline,
     );
     await deps.persistProviderResult(row, result);
