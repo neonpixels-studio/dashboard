@@ -528,7 +528,7 @@ describe("runSync", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("treats a non-finite runBudgetMs (NaN/Infinity) as no effective bound, rather than an instantly-expired deadline that fails every row", async () => {
+  it("treats a NaN runBudgetMs as no effective bound, rather than an instantly-expired deadline that fails every row", async () => {
     const row = configRow({ slug: "basin", vendor: "stripe" });
     const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
     const deps = createDeps({
@@ -542,6 +542,27 @@ describe("runSync", () => {
     expect(summary.outcomes).toEqual([
       { slug: "basin", vendor: "stripe", ok: true },
     ]);
+  });
+
+  it("treats an Infinity runBudgetMs as no effective bound, and hands the provider a deadline whose remainingMs() never runs out", async () => {
+    const row = configRow({ slug: "basin", vendor: "stripe" });
+    let observedRemainingMs: number | undefined;
+    const fetch = vi.fn().mockImplementation(async (_config, deadline) => {
+      observedRemainingMs = deadline.remainingMs();
+      return EMPTY_RESULT;
+    });
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("stripe", fetch) },
+      runBudgetMs: Number.POSITIVE_INFINITY,
+    });
+
+    const summary = await runSync(deps);
+
+    expect(summary.outcomes).toEqual([
+      { slug: "basin", vendor: "stripe", ok: true },
+    ]);
+    expect(observedRemainingMs).toBe(Number.POSITIVE_INFINITY);
   });
 
   it("batches concurrent fetches in groups of exactly 5 rather than awaiting every row at once", async () => {

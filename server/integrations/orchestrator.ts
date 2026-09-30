@@ -191,16 +191,27 @@ function raceAgainstDeadline<Result>(
   if (deadline.signal.aborted) {
     return Promise.reject(deadline.signal.reason);
   }
+
+  // Removed once the race settles either way — without this, a provider
+  // that wins the race (finishes before the deadline fires) leaves its
+  // "abort" listener attached to deadline.signal forever. That's a
+  // non-issue for the real per-run AbortController (it's GC'd with the run),
+  // but a non-finite runBudgetMs makes createRunDeadline hand out the
+  // module-level NO_DEADLINE/NEVER_ABORTS signal instead, which lives for
+  // the life of a warm function instance — every sync run would otherwise
+  // pile one more permanently-dangling listener onto it.
+  let onAbort: (() => void) | undefined;
   return Promise.race([
     resultPromise,
     new Promise<never>((_resolve, reject) => {
-      deadline.signal.addEventListener(
-        "abort",
-        () => reject(deadline.signal.reason),
-        { once: true },
-      );
+      onAbort = () => reject(deadline.signal.reason);
+      deadline.signal.addEventListener("abort", onAbort, { once: true });
     }),
-  ]);
+  ]).finally(() => {
+    if (onAbort) {
+      deadline.signal.removeEventListener("abort", onAbort);
+    }
+  });
 }
 
 // Best-effort: the outcome syncOneIntegration is about to return (success or
