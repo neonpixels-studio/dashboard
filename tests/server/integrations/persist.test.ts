@@ -551,7 +551,7 @@ describe("recordConfigSyncAttempt", () => {
     expect(update).toHaveBeenCalledWith(integrationConfig);
   });
 
-  it("passes only lastAttemptAt to set() — updated_at is left to schema.ts's own $onUpdate/DB trigger, not set explicitly here", async () => {
+  it("passes only lastAttemptAt to set() — this function itself never sets updated_at explicitly (see persist.ts's own comment on why the DB trigger, not this code, is what keeps it from bumping on every attempt)", async () => {
     const { db, updateSet } = createFakeDb();
     const runAt = new Date("2026-09-20T12:00:00Z");
 

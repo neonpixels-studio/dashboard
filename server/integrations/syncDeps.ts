@@ -22,6 +22,6 @@ export function buildSyncOrchestratorDeps(db: DrizzleDb): SyncOrchestratorDeps {
     persistProviderResult: (row, result) =>
       persistProviderResult(db, row, result),
     recordSyncStatus: (status) => recordSyncStatus(db, status),
-    recordSyncAttempt: (attempt) => recordConfigSyncAttempt(db, attempt),
+    recordConfigSyncAttempt: (attempt) => recordConfigSyncAttempt(db, attempt),
   };
 }

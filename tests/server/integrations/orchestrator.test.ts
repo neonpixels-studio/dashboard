@@ -58,11 +58,11 @@ function createDeps(
 ): SyncOrchestratorDeps & {
   persistProviderResult: ReturnType<typeof vi.fn>;
   recordSyncStatus: ReturnType<typeof vi.fn>;
-  recordSyncAttempt: ReturnType<typeof vi.fn>;
+  recordConfigSyncAttempt: ReturnType<typeof vi.fn>;
 } {
   const persistProviderResult = vi.fn().mockResolvedValue(undefined);
   const recordSyncStatus = vi.fn().mockResolvedValue(undefined);
-  const recordSyncAttempt = vi.fn().mockResolvedValue(undefined);
+  const recordConfigSyncAttempt = vi.fn().mockResolvedValue(undefined);
   return {
     listEnabledConfigRows: async () => [],
     resolveConfig: (row: IntegrationConfigRow): IntegrationConfig => ({
@@ -74,7 +74,7 @@ function createDeps(
     registry: { get: () => undefined },
     persistProviderResult,
     recordSyncStatus,
-    recordSyncAttempt,
+    recordConfigSyncAttempt,
     now: () => new Date("2026-09-20T12:00:00Z"),
     ...overrides,
   };
@@ -282,7 +282,7 @@ describe("runSync", () => {
   it("stamps a sync attempt before calling provider.fetch, so a hang or a failed outcome write can't leave last_attempt_at frozen (issue #58)", async () => {
     const row = configRow({ slug: "basin", vendor: "stripe" });
     const callOrder: string[] = [];
-    const recordSyncAttempt = vi.fn().mockImplementation(async () => {
+    const recordConfigSyncAttempt = vi.fn().mockImplementation(async () => {
       // Yields at least one microtask before recording — proves the order
       // below depends on syncOneIntegration genuinely awaiting the attempt
       // write before moving on. A mock that records synchronously would
@@ -302,7 +302,7 @@ describe("runSync", () => {
     const deps = createDeps({
       listEnabledConfigRows: async () => [row],
       registry: { get: () => stubProvider("stripe", fetch) },
-      recordSyncAttempt,
+      recordConfigSyncAttempt,
     });
 
     await runSync(deps);
@@ -311,7 +311,7 @@ describe("runSync", () => {
     // called — a fetch that hangs (or one whose provider isn't registered)
     // must not be able to prevent last_attempt_at from advancing.
     expect(callOrder).toEqual(["attempt", "fetch"]);
-    expect(recordSyncAttempt).toHaveBeenCalledWith({
+    expect(recordConfigSyncAttempt).toHaveBeenCalledWith({
       slug: "basin",
       vendor: "stripe",
       runAt: new Date("2026-09-20T12:00:00Z"),
@@ -321,7 +321,7 @@ describe("runSync", () => {
   it("stamps a sync attempt before the failure outcome write, even when no provider is registered for the vendor", async () => {
     const row = configRow({ slug: "basin", vendor: "ga4" });
     const callOrder: string[] = [];
-    const recordSyncAttempt = vi.fn().mockImplementation(async () => {
+    const recordConfigSyncAttempt = vi.fn().mockImplementation(async () => {
       // See the previous test for why this yield is what makes the
       // ordering assertion below meaningful rather than incidental.
       await Promise.resolve();
@@ -334,7 +334,7 @@ describe("runSync", () => {
     const deps = createDeps({
       listEnabledConfigRows: async () => [row],
       registry: { get: () => undefined },
-      recordSyncAttempt,
+      recordConfigSyncAttempt,
       recordSyncStatus,
     });
 
@@ -345,26 +345,26 @@ describe("runSync", () => {
     // there's no fetch step here to hang, only the failure-path outcome
     // write below it, which the attempt stamp must still precede.
     expect(callOrder).toEqual(["attempt", "status"]);
-    expect(recordSyncAttempt).toHaveBeenCalledWith({
+    expect(recordConfigSyncAttempt).toHaveBeenCalledWith({
       slug: "basin",
       vendor: "ga4",
       runAt: new Date("2026-09-20T12:00:00Z"),
     } satisfies SyncAttemptWrite);
   });
 
-  it("still attempts the fetch and reports the true outcome when recordSyncAttempt itself fails", async () => {
+  it("still attempts the fetch and reports the true outcome when recordConfigSyncAttempt itself fails", async () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
     const row = configRow({ slug: "basin", vendor: "stripe" });
     const fetch = vi.fn().mockResolvedValue(EMPTY_RESULT);
-    const recordSyncAttempt = vi
+    const recordConfigSyncAttempt = vi
       .fn()
       .mockRejectedValue(new Error("attempt write failed"));
     const deps = createDeps({
       listEnabledConfigRows: async () => [row],
       registry: { get: () => stubProvider("stripe", fetch) },
-      recordSyncAttempt,
+      recordConfigSyncAttempt,
     });
 
     const summary = await runSync(deps);
@@ -459,9 +459,9 @@ describe("runSync", () => {
     // ever ran, and separately from it — this is precisely gap (2) from
     // runSync's rotation-guarantee comment (an outcome write that keeps
     // failing): integration_config.last_attempt_at already advanced via
-    // recordSyncAttempt, so this row isn't stuck even though its
+    // recordConfigSyncAttempt, so this row isn't stuck even though its
     // sync_status outcome write failed.
-    expect(deps.recordSyncAttempt).toHaveBeenCalledTimes(1);
+    expect(deps.recordConfigSyncAttempt).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Failed to write sync_status for basin:stripe",
       expect.any(Error),
@@ -534,11 +534,11 @@ describe("runSync", () => {
     // The pre-fetch attempt stamp shares the same run-scoped runAt too —
     // it's the same clock reading, just written at a different point in
     // each row's attempt.
-    const attemptRunAts = deps.recordSyncAttempt.mock.calls.map(
+    const attemptRunAts = deps.recordConfigSyncAttempt.mock.calls.map(
       ([attempt]: [SyncAttemptWrite]) => attempt.runAt.getTime(),
     );
     expect(new Set(attemptRunAts)).toEqual(new Set(runAts));
-    expect(deps.recordSyncAttempt).toHaveBeenCalledTimes(2);
+    expect(deps.recordConfigSyncAttempt).toHaveBeenCalledTimes(2);
   });
 
   it("batches concurrent fetches in groups of exactly 5 rather than awaiting every row at once", async () => {

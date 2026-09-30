@@ -72,7 +72,7 @@ export interface SyncOrchestratorDeps {
   // Stamps integration_config.last_attempt_at before provider.fetch is even
   // called — see syncOneIntegration's use of it and SyncAttemptWrite's own
   // comment for why this writes to a different table than recordSyncStatus.
-  recordSyncAttempt: (attempt: SyncAttemptWrite) => Promise<unknown>;
+  recordConfigSyncAttempt: (attempt: SyncAttemptWrite) => Promise<unknown>;
   now?: () => Date;
   // Wall-clock budget (ms) runSync's own batching loop may spend admitting
   // new batches — see BATCH_SIZE/DEFAULT_RUN_BUDGET_MS below for why this
@@ -170,7 +170,7 @@ async function recordAttemptBestEffort(
   attempt: SyncAttemptWrite,
 ): Promise<void> {
   await writeBestEffort(
-    () => deps.recordSyncAttempt(attempt),
+    () => deps.recordConfigSyncAttempt(attempt),
     `Failed to record sync attempt for ${attempt.slug}:${attempt.vendor}`,
   );
 }
@@ -182,7 +182,7 @@ async function recordAttemptBestEffort(
 // below, so it becomes a `sync_status` failure row for this vendor alone,
 // never an exception that would stop the rest of the run.
 //
-// The attempt stamp (deps.recordSyncAttempt) runs and is awaited *before*
+// The attempt stamp (deps.recordConfigSyncAttempt) runs and is awaited *before*
 // provider.fetch — not folded into the try block below — so it lands
 // whether or not the fetch itself ever returns. That's the fix for the
 // rotation-guarantee gap where a row's ordering key was only ever advanced
@@ -290,7 +290,7 @@ async function syncOneIntegration(
 // way, nothing advanced until an outcome was recorded.
 //
 // syncOneIntegration now closes both gaps for every enabled row, first-ever
-// attempt included: deps.recordSyncAttempt stamps
+// attempt included: deps.recordConfigSyncAttempt stamps
 // integration_config.last_attempt_at (not sync_status.last_run_at) *before*
 // provider.fetch is called and is awaited on its own, and
 // listEnabledIntegrationConfigs orders on that column instead. Since every

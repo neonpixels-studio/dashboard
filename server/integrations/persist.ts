@@ -213,11 +213,13 @@ export function persistProviderResult(
 // exclusion, every enabled row's `updated_at` would track its last sync
 // attempt (every ~15 minutes) rather than its last real configuration edit.
 //
-// @todo this repo has no real-Postgres test harness yet, so the trigger's
-// exclusion of last_attempt_at (unlike everything else in this file) is
-// verified only by reading the SQL, not by a test — add one (e.g. via
-// pglite/testcontainers) that updates last_attempt_at and asserts
-// updated_at is unchanged, once such a harness exists.
+// @todo this repo has no real-Postgres test harness yet, so migration
+// 0005's SQL (unlike everything else in this file) is verified only by
+// reading it, not by a test. Once one exists (e.g. via pglite/testcontainers),
+// add coverage for: (1) the trigger's exclusion of last_attempt_at — update
+// the column and assert updated_at is unchanged; (2) the backfill UPDATE ...
+// FROM sync_status join — seed a matching and a non-matching sync_status
+// row and assert last_attempt_at ends up set and NULL respectively.
 //
 // attempt.vendor is plain `string` (SyncAttemptWrite, like SyncStatusWrite,
 // is orchestrator.ts's own type — it doesn't import the DB schema), while
