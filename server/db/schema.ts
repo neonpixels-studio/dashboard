@@ -67,7 +67,7 @@ export const integrationConfig = pgTable(
     externalId: text("external_id"),
     secretRef: text("secret_ref"),
     encryptedSecret: text("encrypted_secret"),
-    // Stamped by server/integrations/persist.ts's recordSyncAttempt, before
+    // Stamped by server/integrations/persist.ts's recordConfigSyncAttempt, before
     // that row's provider.fetch is even called (see orchestrator.ts's
     // syncOneIntegration) — deliberately a column on integration_config,
     // not sync_status: every enabled row already has exactly one
@@ -231,6 +231,10 @@ export const syncStatus = pgTable(
     vendor: text("vendor").notNull(),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    // Attempt-independent watermark (success or failure alike) — see
+    // recordSyncAttempt in server/integrations/persist.ts for who writes it
+    // and why it's kept separate from lastRunAt above.
+    lastAttemptedAt: timestamp("last_attempted_at", { withTimezone: true }),
     ok: boolean("ok").notNull().default(false),
     // Rendered directly in the health chips — the poller that writes this
     // MUST NOT store a raw upstream error. Vendor SDK errors routinely echo

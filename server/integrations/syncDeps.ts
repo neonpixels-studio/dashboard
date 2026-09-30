@@ -9,7 +9,7 @@ import type { SyncOrchestratorDeps } from "./orchestrator";
 import {
   listEnabledIntegrationConfigs,
   persistProviderResult,
-  recordSyncAttempt,
+  recordConfigSyncAttempt,
   recordSyncStatus,
 } from "./persist";
 import { integrationRegistry } from "./index";
@@ -22,6 +22,6 @@ export function buildSyncOrchestratorDeps(db: DrizzleDb): SyncOrchestratorDeps {
     persistProviderResult: (row, result) =>
       persistProviderResult(db, row, result),
     recordSyncStatus: (status) => recordSyncStatus(db, status),
-    recordSyncAttempt: (attempt) => recordSyncAttempt(db, attempt),
+    recordSyncAttempt: (attempt) => recordConfigSyncAttempt(db, attempt),
   };
 }

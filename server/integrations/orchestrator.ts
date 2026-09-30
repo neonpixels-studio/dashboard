@@ -18,7 +18,7 @@ export interface SyncStatusWrite {
 }
 
 // What one (slug, vendor) sync attempt stamps to integration_config
-// *before* provider.fetch runs (see persist.ts's recordSyncAttempt and
+// *before* provider.fetch runs (see persist.ts's recordConfigSyncAttempt and
 // schema.ts's comment on integration_config.last_attempt_at for why this is
 // a separate column/table from SyncStatusWrite's sync_status, not just a
 // narrower version of it). Deliberately no ok/error: this is a marker that
@@ -189,7 +189,7 @@ async function recordAttemptBestEffort(
 // after the fact, so a hung fetch (whole invocation killed) or a
 // sync_status outcome write that keeps failing left it frozen. Writing the
 // attempt to integration_config.last_attempt_at (see persist.ts's
-// recordSyncAttempt and schema.ts's own comment) rather than sync_status
+// recordConfigSyncAttempt and schema.ts's own comment) rather than sync_status
 // means this closes the gap for every enabled row, including a vendor's
 // very first-ever attempt — there's no insert-vs-update branch here, since
 // every enabled row already has exactly one integration_config row. It's

@@ -1,6 +1,6 @@
 {
-  "id": "0992f277-24ad-4c69-9566-0996882a0b97",
-  "prevId": "5591e5fb-7ad0-4994-a574-e74714f1cff2",
+  "id": "b6759748-120a-456d-b750-880b0f1baac1",
+  "prevId": "0992f277-24ad-4c69-9566-0996882a0b97",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -49,6 +49,12 @@
         "encrypted_secret": {
           "name": "encrypted_secret",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_attempt_at": {
+          "name": "last_attempt_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -496,7 +502,9 @@
         "users_provider_id_unique": {
           "name": "users_provider_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["provider_id"]
+          "columns": [
+            "provider_id"
+          ]
         }
       },
       "policies": {},
@@ -521,7 +529,11 @@
     "public.syndication_status": {
       "name": "syndication_status",
       "schema": "public",
-      "values": ["synced", "pending", "failed"]
+      "values": [
+        "synced",
+        "pending",
+        "failed"
+      ]
     }
   },
   "schemas": {},

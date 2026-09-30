@@ -28,13 +28,6 @@ import type {
 // code path as the manual trigger — see server/api/sync.post.ts — so there
 // is only ever one implementation of "run a sync."
 //
-// Netlify resolves a scheduled function's cadence from the `config.schedule`
-// literal below at build/deploy time (no env var interpolation — the value
-// must be statically analyzable, so it can't read
-// process.env.NUXT_SYNC_SCHEDULE_CRON at runtime). This constant is the one
-// place to change it; a change here needs a redeploy to take effect.
-const SYNC_SCHEDULE_CRON = "*/15 * * * *";
-
 interface ScheduledFunctionConfig {
   schedule: string;
 }
@@ -228,4 +221,8 @@ export default async function scheduledSync(): Promise<Response> {
   return new Response("ok", { status: 200 });
 }
 
-export const config: ScheduledFunctionConfig = { schedule: SYNC_SCHEDULE_CRON };
+// Netlify reads `schedule` from this file's source at deploy time without
+// executing it, and its parser only accepts an inline literal. A variable or
+// constant here parses as no schedule at all, deploying this as a plain HTTP
+// function that never runs on its own. A change needs a redeploy.
+export const config: ScheduledFunctionConfig = { schedule: "*/15 * * * *" };

@@ -212,15 +212,13 @@ export function fetchSyndicationPosts(
 // self-feedback loop: a skip returns zero metric rows, so persist.ts writes
 // nothing and this clock only moves on a real, fully-succeeded attempt.
 //
-// Known, accepted tradeoff: a PERSISTENTLY FAILING Medium sync (bad/revoked
-// key, a mapping bug) never reaches buildSyndicationResult, so this clock
-// never advances either, and the guard stays "due" every orchestrator tick
-// until it's fixed — same exposure Stripe/GA4 already have with no guard at
-// all, and, like them, loudly visible via sync_status.ok/error on every
-// attempt rather than silent. Flagged as a follow-up (e.g. a dedicated
-// last_attempted_at the provider could update independent of outcome) if
-// this proves to matter in practice. See
-// server/integrations/syndication/medium/mediumSyncGuard.ts.
+// A PERSISTENTLY FAILING Medium sync (bad/revoked key, a mapping bug) never
+// reaches buildSyndicationResult, so this clock alone would never advance and
+// the guard would stay "due" every orchestrator tick until it's fixed —
+// unlike Stripe/GA4 (no guard, so no retry-storm exposure to begin with),
+// this provider's requests are capped at 150/month, so that would burn the
+// monthly budget within hours. See fetchLastAttemptedSyncAt below and
+// mediumSyncGuard.ts's isMediumSyncDue, which combines both watermarks.
 export async function fetchLatestMetricCapturedAt(
   db: DrizzleDb,
   slug: string,
@@ -240,6 +238,28 @@ export async function fetchLatestMetricCapturedAt(
     .orderBy(desc(metricSnapshot.capturedAt))
     .limit(1);
   return row?.capturedAt ?? null;
+}
+
+// The attempt-independent counterpart to fetchLatestMetricCapturedAt above:
+// reads sync_status.last_attempted_at for a (slug, vendor), which
+// server/integrations/persist.ts's recordSyncAttempt stamps right before a
+// provider's guard lets a real network call through — regardless of whether
+// that call goes on to succeed or fail. Only Medium's guard reads this today
+// (mediumSyncGuard.ts's isMediumSyncDue), but it lives here, not inlined in
+// that provider, for the same reason fetchLatestMetricCapturedAt does: a
+// thin, injectable, DB-touching read the provider's factory can override in
+// tests.
+export async function fetchLastAttemptedSyncAt(
+  db: DrizzleDb,
+  slug: string,
+  vendor: string,
+): Promise<Date | null> {
+  const [row] = await db
+    .select({ lastAttemptedAt: syncStatus.lastAttemptedAt })
+    .from(syncStatus)
+    .where(and(eq(syncStatus.slug, slug), eq(syncStatus.vendor, vendor)))
+    .limit(1);
+  return row?.lastAttemptedAt ?? null;
 }
 
 export function fetchSyncStatuses(

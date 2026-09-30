@@ -4,6 +4,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import {
   listEnabledIntegrationConfigs,
   persistProviderResult,
+  recordConfigSyncAttempt,
   recordSyncAttempt,
   recordSyncStatus,
 } from "../../../server/integrations/persist";
@@ -42,7 +43,17 @@ function createFakeDb() {
   const from = vi.fn().mockReturnValue({ where });
   const select = vi.fn().mockReturnValue({ from });
 
-  const onConflictDoUpdate = vi.fn().mockReturnValue(thenableQuery());
+  // Defaults to "claimed" (a non-empty .returning() result) — recordSyncStatus
+  // never calls .returning() at all (it just awaits the onConflictDoUpdate()
+  // result directly via `.then`, which thenableQuery() already provides), so
+  // this only matters to recordSyncAttempt's tests (the sync_status one),
+  // which override it via `returning.mockResolvedValue([])` for the "lost
+  // the race" case.
+  const returning = vi.fn().mockResolvedValue([{ slug: "danholloran" }]);
+  const onConflictDoUpdate = vi.fn().mockReturnValue({
+    ...thenableQuery(),
+    returning,
+  });
   const values = vi.fn().mockImplementation((rows: unknown[]) => ({
     ...thenableQuery(),
     onConflictDoUpdate,
@@ -53,11 +64,11 @@ function createFakeDb() {
   }));
   const insert = vi.fn().mockReturnValue({ values });
 
-  // recordSyncAttempt's chain: update -> set -> where -> returning, with
-  // returning's return value being what's actually awaited. Defaults to one
-  // matched row (`[{ id: 1 }]`) — the common case every test other than the
-  // dedicated zero-match test below exercises — since recordSyncAttempt
-  // throws when this resolves empty.
+  // recordConfigSyncAttempt's chain: update -> set -> where -> returning,
+  // with returning's return value being what's actually awaited. Defaults to
+  // one matched row (`[{ id: 1 }]`) — the common case every test other than
+  // the dedicated zero-match test below exercises — since
+  // recordConfigSyncAttempt throws when this resolves empty.
   const updateReturning = vi.fn().mockResolvedValue([{ id: 1 }]);
   const updateWhere = vi.fn().mockReturnValue({ returning: updateReturning });
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
@@ -76,6 +87,7 @@ function createFakeDb() {
     updateSet,
     updateWhere,
     updateReturning,
+    returning,
     batch,
   };
 }
@@ -525,12 +537,12 @@ describe("recordSyncStatus", () => {
   });
 });
 
-describe("recordSyncAttempt", () => {
+describe("recordConfigSyncAttempt", () => {
   it("updates integration_config, not sync_status — every enabled row already has exactly one integration_config row, so this always has somewhere to land, including a vendor's very first-ever attempt", async () => {
     const { db, update } = createFakeDb();
     const runAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
+    await recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
 
     expect(update).toHaveBeenCalledWith(integrationConfig);
   });
@@ -539,7 +551,7 @@ describe("recordSyncAttempt", () => {
     const { db, updateSet } = createFakeDb();
     const runAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
+    await recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
 
     expect(updateSet).toHaveBeenCalledWith({ lastAttemptAt: runAt });
   });
@@ -548,7 +560,7 @@ describe("recordSyncAttempt", () => {
     const { db, updateWhere } = createFakeDb();
     const runAt = new Date("2026-09-20T12:00:00Z");
 
-    await recordSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
+    await recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt });
 
     const [whereArg] = updateWhere.mock.calls[0] as [SQL];
     expect(renderSql(whereArg)).toBe(
@@ -566,12 +578,97 @@ describe("recordSyncAttempt", () => {
     // listEnabledIntegrationConfigs's read and this write) must not be a
     // silent no-op — that would reproduce the exact rotation gap this
     // column exists to close. orchestrator.ts's writeBestEffort is what
-    // catches and logs this in the real call path; recordSyncAttempt's own
-    // job is just to make the failure loud instead of swallowing it here.
+    // catches and logs this in the real call path; recordConfigSyncAttempt's
+    // own job is just to make the failure loud instead of swallowing it here.
     await expect(
-      recordSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt }),
+      recordConfigSyncAttempt(db, { slug: "basin", vendor: "stripe", runAt }),
     ).rejects.toThrow(
-      "recordSyncAttempt matched no integration_config row for basin:stripe",
+      "recordConfigSyncAttempt matched no integration_config row for basin:stripe",
     );
+  });
+});
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+describe("recordSyncAttempt", () => {
+  it("writes only slug/vendor/lastAttemptedAt on insert — no opinion on lastRunAt/ok/error/lastSuccessAt", async () => {
+    const { db, values } = createFakeDb();
+    const attemptedAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordSyncAttempt(
+      db,
+      "danholloran",
+      "medium",
+      attemptedAt,
+      ONE_DAY_MS,
+    );
+
+    expect(values).toHaveBeenCalledWith({
+      slug: "danholloran",
+      vendor: "medium",
+      lastAttemptedAt: attemptedAt,
+    });
+  });
+
+  it("on conflict, updates only lastAttemptedAt — leaving every other sync_status column exactly as recordSyncStatus last set it", async () => {
+    const { db, onConflictDoUpdate } = createFakeDb();
+    const attemptedAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordSyncAttempt(
+      db,
+      "danholloran",
+      "medium",
+      attemptedAt,
+      ONE_DAY_MS,
+    );
+
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    expect(conflictArgs.target).toEqual([syncStatus.slug, syncStatus.vendor]);
+    expect(conflictArgs.set).toEqual({ lastAttemptedAt: attemptedAt });
+  });
+
+  it("gates the conflict update on staleness — no attempt yet, or the last one at least minIntervalMs ago — closing the check-then-act race between two overlapping callers", async () => {
+    const { db, onConflictDoUpdate } = createFakeDb();
+    const attemptedAt = new Date("2026-09-20T12:00:00Z");
+    const minIntervalMs = ONE_DAY_MS;
+
+    await recordSyncAttempt(
+      db,
+      "danholloran",
+      "medium",
+      attemptedAt,
+      minIntervalMs,
+    );
+
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    expect(conflictArgs.setWhere).toBeInstanceOf(SQL);
+    // The OR'd condition must reference last_attempted_at (both IS NULL and
+    // the staleness comparison), and the staleness cutoff must be exactly
+    // attemptedAt - minIntervalMs, computed in JS rather than left to a
+    // vendor-agnostic function to know Medium's own interval.
+    const sql = renderSql(conflictArgs.setWhere);
+    expect(sql.toLowerCase()).toContain('"last_attempted_at" is null');
+    expect(sql).toContain('"last_attempted_at" <=');
+    expect(renderSqlParams(conflictArgs.setWhere)).toEqual([
+      new Date(attemptedAt.getTime() - minIntervalMs).toISOString(),
+    ]);
+  });
+
+  it("returns true (claimed) when .returning() reports a row — the insert path, or a conflict whose setWhere matched", async () => {
+    const { db, returning } = createFakeDb();
+    returning.mockResolvedValue([{ slug: "danholloran" }]);
+
+    await expect(
+      recordSyncAttempt(db, "danholloran", "medium", new Date(), ONE_DAY_MS),
+    ).resolves.toBe(true);
+  });
+
+  it("returns false (lost the race) when .returning() reports no row — a concurrent call's conflict update already claimed this window", async () => {
+    const { db, returning } = createFakeDb();
+    returning.mockResolvedValue([]);
+
+    await expect(
+      recordSyncAttempt(db, "danholloran", "medium", new Date(), ONE_DAY_MS),
+    ).resolves.toBe(false);
   });
 });
