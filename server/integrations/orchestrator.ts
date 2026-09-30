@@ -1,6 +1,8 @@
 import { redactSecrets } from "../utils/redactSecrets";
 import type { ProviderRegistry } from "./registry";
+import { NO_DEADLINE } from "./types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationConfigRow,
   ProviderResult,
@@ -104,15 +106,81 @@ const BATCH_SIZE = 5;
 // is ~10s (see netlify/functions/scheduled-sync.ts's FETCH_TIMEOUT_MS
 // comment); this sits below that function's own 9s client-side abort so
 // /api/sync stops starting new work with room to spare, rather than either
-// racing the platform's hard kill or the caller's own timeout. It does NOT
-// bound a single provider's own request timeout (each vendor client sets
-// its own, e.g. STRIPE_REQUEST_TIMEOUT_MS/GA4_REQUEST_TIMEOUT_MS at 20s) —
-// a row that hangs its full 20s can still push a run past this ceiling on
-// its own, batch count aside. Threading a shared deadline into
-// provider.fetch would close that gap; out of scope here (issue #51 is
-// specifically about fan-out growing with provider *count*, not any one
-// provider's own latency) — see this PR's follow-up suggestions.
+// racing the platform's hard kill or the caller's own timeout. On its own
+// this would NOT bound a single provider's own request timeout (each vendor
+// client sets its own, e.g. STRIPE_REQUEST_TIMEOUT_MS/GA4_REQUEST_TIMEOUT_MS
+// at 20s) — a row that hangs its full 20s could still push a run past this
+// ceiling on its own, batch count aside. createRunDeadline below closes that
+// gap: the same runBudgetMs also bounds every admitted row's own
+// provider.fetch call via a shared FetchDeadline (see issue #62), not just
+// which batches this loop starts.
 const DEFAULT_RUN_BUDGET_MS = 7_000;
+
+// Node's setTimeout silently coerces any delay above this (~24.8 days) down
+// to 1ms instead of throwing or clamping to its own max — the same
+// "instantly-expired deadline fails every row" failure createRunDeadline's
+// non-finite guard below exists to prevent, just reachable through a
+// same-order-of-magnitude finite number instead of NaN/Infinity. Unreachable
+// via DEFAULT_RUN_BUDGET_MS, but deps.runBudgetMs is an injectable override
+// (see SyncOrchestratorDeps's comment), so nothing stops a caller from
+// passing one this large.
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+// Builds the FetchDeadline every row admitted in this runSync call shares
+// (see types.ts's FetchDeadline for what each field is for and why). One
+// deadline per run, built once here and threaded into every
+// syncOneIntegration call regardless of which batch admits its row — a row
+// admitted late in the run gets exactly as little time left as a slow
+// earlier row already spent, rather than its own fresh full timeout budget.
+//
+// Deliberately built from the real wall clock (Date.now()/setTimeout), not
+// the injectable monotonicNow/now deps runSync itself takes — those exist
+// so the *batch admission* loop above is deterministically testable without
+// real timers, but this deadline's own timer must actually fire in real
+// time for a hung provider's fetch to actually abort, so it stays
+// independent of either mock.
+function createRunDeadline(budgetMs: number): FetchDeadline & {
+  dispose: () => void;
+} {
+  // A non-finite budget (NaN, Infinity — never expected from
+  // DEFAULT_RUN_BUDGET_MS or a sane deps.runBudgetMs override) means "no
+  // effective bound" here, not "expire almost immediately": Math.max(0, NaN)
+  // is itself NaN, and Node's setTimeout coerces a NaN/negative delay to
+  // ~1ms, which would fail every row in the run rather than just softly
+  // falling back to unbounded. A finite budget above MAX_TIMER_DELAY_MS gets
+  // the same treatment, for the same reason (see that constant's comment).
+  // NO_DEADLINE's own signal never aborts, so `dispose` here is a no-op
+  // (there's no timer to clear).
+  if (!Number.isFinite(budgetMs) || budgetMs > MAX_TIMER_DELAY_MS) {
+    return { ...NO_DEADLINE, dispose: () => {} };
+  }
+
+  const boundedBudgetMs = Math.max(0, budgetMs);
+  const deadlineAt = Date.now() + boundedBudgetMs;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () =>
+      controller.abort(
+        // A real AbortError DOMException (not a plain Error) — so every
+        // consumer that recognizes a timeout via `error.name === "AbortError"`
+        // (syndication/httpClient.ts's isAbortError, and any future client
+        // written the same way) still recognizes THIS abort as a timeout too,
+        // not a generic failure — sentryClient.ts additionally distinguishes
+        // it from its own per-request timeout via `deadline.signal.aborted`,
+        // which doesn't depend on the reason's shape at all.
+        new DOMException(
+          `Shared run budget of ${boundedBudgetMs}ms exhausted.`,
+          "AbortError",
+        ),
+      ),
+    boundedBudgetMs,
+  );
+  return {
+    signal: controller.signal,
+    remainingMs: () => Math.max(0, deadlineAt - Date.now()),
+    dispose: () => clearTimeout(timeoutId),
+  };
+}
 
 // `size` has exactly one call site below, passing the module constant
 // BATCH_SIZE (always >= 1) — no size < 1 guard, since that branch could
@@ -127,6 +195,76 @@ function chunk<Row>(rows: Row[], size: number): Row[][] {
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
+}
+
+// Bounds ANY provider.fetch call to the shared deadline — even one whose
+// underlying vendor client doesn't itself watch `deadline` at all (e.g.
+// clerkProvider: `deadline` is optional on IntegrationProvider precisely so
+// a provider with no timeout/AbortSignal seam to adapt yet, per its own
+// comment in types.ts, can still ignore it and keep working). Without this,
+// the orchestrator's whole "an individual provider's fetch can't exceed the
+// overall run budget" guarantee (issue #62) would only hold for providers
+// that opt in, not for every provider registered today or in the future.
+//
+// This can't cancel the underlying call — JS has no way to force that from
+// the outside once it's already in flight — it only stops THIS row from
+// holding up the rest of the run past the deadline.
+//
+// `createResultPromise` is a thunk, not a plain Promise, specifically so the
+// aborted-check below can run BEFORE the real call starts: a row admitted
+// into a batch right as the shared budget expires would otherwise still
+// fire its provider.fetch (a real, possibly rate-limited vendor request —
+// see MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC's monthly-cap comment for how
+// costly that can be) only to have the result immediately discarded.
+function raceAgainstDeadline<Result>(
+  identity: { slug: string; vendor: string },
+  createResultPromise: () => Promise<Result>,
+  deadline: FetchDeadline,
+): Promise<Result> {
+  if (deadline.signal.aborted) {
+    return Promise.reject(deadline.signal.reason);
+  }
+
+  const resultPromise = createResultPromise();
+  // The loser's eventual settlement is never left as an unhandled
+  // rejection — nothing further awaits it once the race below is decided —
+  // but silently discarding it would hide a real vendor error (e.g. an
+  // auth failure) that happens to arrive just after the deadline, behind
+  // what sync_status would otherwise record as merely "ran out of time."
+  // Only log when the deadline has ALREADY aborted by the time this
+  // settles: a resultPromise that wins the race by rejecting first hits
+  // this same handler while `deadline.signal.aborted` is still false, and
+  // is already logged once by syncOneIntegration's own catch — logging it
+  // here too would double-report the identical cause.
+  resultPromise.catch((cause) => {
+    if (deadline.signal.aborted) {
+      console.warn(
+        `Provider fetch for ${identity.slug}:${identity.vendor} settled after the shared run budget was already exhausted`,
+        cause,
+      );
+    }
+  });
+
+  // Removed once the race settles either way — without this, a provider
+  // that wins the race (finishes before the deadline fires) leaves its
+  // "abort" listener attached to deadline.signal forever. That's a
+  // non-issue for the real per-run AbortController (it's GC'd with the run),
+  // but a non-finite runBudgetMs makes createRunDeadline hand out the
+  // module-level NO_DEADLINE/NEVER_ABORTS signal instead, which lives for
+  // the life of a warm function instance — every sync run would otherwise
+  // pile one more permanently-dangling listener onto it.
+  let onAbort: (() => void) | undefined;
+  return Promise.race([
+    resultPromise,
+    new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(deadline.signal.reason);
+      deadline.signal.addEventListener("abort", onAbort, { once: true });
+    }),
+  ]).finally(() => {
+    if (onAbort) {
+      deadline.signal.removeEventListener("abort", onAbort);
+    }
+  });
 }
 
 // Runs a DB write best-effort (the pre-fetch attempt stamp on
@@ -213,6 +351,7 @@ async function syncOneIntegration(
   row: IntegrationConfigRow,
   deps: SyncOrchestratorDeps,
   runAt: Date,
+  deadline: FetchDeadline,
 ): Promise<SyncOutcome> {
   const identity = { slug: row.slug, vendor: row.vendor };
 
@@ -226,7 +365,12 @@ async function syncOneIntegration(
       throw new Error(`No provider registered for vendor "${row.vendor}".`);
     }
     resolvedConfig = deps.resolveConfig(row);
-    const result = await provider.fetch(resolvedConfig);
+    const config = resolvedConfig;
+    const result = await raceAgainstDeadline(
+      identity,
+      () => provider.fetch(config, deadline),
+      deadline,
+    );
     await deps.persistProviderResult(row, result);
   } catch (cause) {
     console.error(`Sync failed for ${row.slug}:${row.vendor}`, cause);
@@ -323,22 +467,41 @@ export async function runSync(
   const rows = await deps.listEnabledConfigRows();
   const runAt = (deps.now ?? (() => new Date()))();
   const runBudgetMs = deps.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS;
+  // Deliberately a fresh runBudgetMs measured from HERE, not
+  // `runBudgetMs - (monotonicNow() - startedAt)` (what's left after
+  // listEnabledConfigRows() above) — that would let a slow DB call (a Neon
+  // cold start, pool contention) hand the always-admitted first batch (see
+  // that same guarantee below) a deadline that's already expired before a
+  // single provider.fetch even runs, silently turning "guaranteed forward
+  // progress" into a batch of instant, budget-exhausted failures. A few
+  // hundred ms of drift between this deadline's window and the
+  // batch-admission loop's own elapsed-since-startedAt accounting is the
+  // trade-off, in the same direction as that loop's own existing bias
+  // (forward progress over strictly enforcing the ceiling) — not a new one.
+  // Also keeps this deadline building on Date.now() alone, independent of
+  // the mockable monotonicNow the batch-admission loop below uses (see
+  // createRunDeadline's own comment for why ITS timer needs a real clock).
+  const runDeadline = createRunDeadline(runBudgetMs);
 
   const outcomes: SyncOutcome[] = [];
   const batches = chunk(rows, BATCH_SIZE);
   let admittedRowCount = 0;
 
-  for (const batch of batches) {
-    const isFirstBatch = admittedRowCount === 0;
-    const budgetSpent = monotonicNow() - startedAt >= runBudgetMs;
-    if (!isFirstBatch && budgetSpent) {
-      break;
+  try {
+    for (const batch of batches) {
+      const isFirstBatch = admittedRowCount === 0;
+      const budgetSpent = monotonicNow() - startedAt >= runBudgetMs;
+      if (!isFirstBatch && budgetSpent) {
+        break;
+      }
+      const batchOutcomes = await Promise.all(
+        batch.map((row) => syncOneIntegration(row, deps, runAt, runDeadline)),
+      );
+      outcomes.push(...batchOutcomes);
+      admittedRowCount += batch.length;
     }
-    const batchOutcomes = await Promise.all(
-      batch.map((row) => syncOneIntegration(row, deps, runAt)),
-    );
-    outcomes.push(...batchOutcomes);
-    admittedRowCount += batch.length;
+  } finally {
+    runDeadline.dispose();
   }
 
   const skipped: SyncSkippedRow[] = rows

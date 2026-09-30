@@ -1,4 +1,6 @@
+import { NO_DEADLINE } from "../../types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
@@ -72,7 +74,10 @@ export async function fetchHashnodeSyndication(
 
 export const hashnodeProvider: IntegrationProvider = {
   vendor: HASHNODE_VENDOR,
-  async fetch(config: IntegrationConfig): Promise<ProviderResult> {
+  async fetch(
+    config: IntegrationConfig,
+    deadline: FetchDeadline = NO_DEADLINE,
+  ): Promise<ProviderResult> {
     if (!config.secret) {
       throw new Error(
         `Hashnode provider for "${config.slug}" has no personal access token configured.`,
@@ -89,6 +94,8 @@ export const hashnodeProvider: IntegrationProvider = {
     const fetchPostsPage = createHashnodePostsPageFetcher(
       publicationId,
       config.secret,
+      undefined,
+      deadline,
     );
     return fetchHashnodeSyndication(fetchPostsPage);
   },

@@ -3,7 +3,9 @@ import {
   METRIC_OPEN_ISSUES,
   PERIOD_CURRENT,
 } from "../../utils/dashboardMetrics";
+import { NO_DEADLINE } from "../types";
 import type {
+  FetchDeadline,
   IntegrationConfig,
   IntegrationProvider,
   ProviderResult,
@@ -105,7 +107,10 @@ export async function fetchSentryMetrics(
 
 export const sentryProvider: IntegrationProvider = {
   vendor: SENTRY_VENDOR,
-  async fetch(config: IntegrationConfig): Promise<ProviderResult> {
+  async fetch(
+    config: IntegrationConfig,
+    deadline: FetchDeadline = NO_DEADLINE,
+  ): Promise<ProviderResult> {
     if (!config.secret) {
       throw new Error(
         `Sentry provider for "${config.slug}" has no auth token configured.`,
@@ -122,9 +127,14 @@ export const sentryProvider: IntegrationProvider = {
       );
     }
 
+    // The 3rd positional arg (fetchImpl) is left undefined so
+    // createSentryIssueSearcher falls through to its own default (the real
+    // global fetch); only the 4th, `deadline`, is being overridden here.
     const searchSentryIssues = createSentryIssueSearcher(
       config.secret,
       orgSlug,
+      undefined,
+      deadline,
     );
     return fetchSentryMetrics(config, searchSentryIssues);
   },

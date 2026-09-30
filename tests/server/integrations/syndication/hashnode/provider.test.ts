@@ -4,6 +4,8 @@ import {
   hashnodeProvider,
   resolvePublicationId,
 } from "../../../../../server/integrations/syndication/hashnode/provider";
+import { createAbortAwareFetch } from "../../../../../server/integrations/testing/abortAwareFetch";
+import { createExhaustedDeadline } from "../../../../../server/integrations/testing/deadlineFixtures";
 import { createTestIntegrationConfig } from "../../../../../server/integrations/testing/testConfig";
 import { jsonResponse } from "../../../../../server/integrations/testing/httpFixtures";
 import { loadFixture } from "../../../../../server/integrations/testing/loadFixture";
@@ -94,6 +96,26 @@ describe("hashnodeProvider", () => {
     );
     expect(result.metrics[0]).toMatchObject({ metric: "posts", value: 1 });
     expect(result.syndicationPosts[0]).toMatchObject({ postRef: "a-post" });
+  });
+
+  it("threads a passed-in deadline through to the real Hashnode client (issue #62), rather than silently ignoring it", async () => {
+    // Proves the wiring, not just fetchJson's own behavior in isolation (see
+    // httpClient.test.ts): if hashnodeProvider.fetch ever dropped its
+    // `deadline` argument on the way to createHashnodePostsPageFetcher, this
+    // already-aborted deadline would be ignored and the stubbed fetch below
+    // would resolve normally instead of this rejecting.
+    const fetchImpl = createAbortAwareFetch(() => jsonResponse({}));
+    vi.stubGlobal("fetch", fetchImpl);
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "hashnode",
+      externalId: "pub_123",
+      secret: "token_abc",
+    });
+
+    await expect(
+      hashnodeProvider.fetch(config, createExhaustedDeadline()),
+    ).rejects.toThrow(/shared run budget was exhausted/);
   });
 });
 
