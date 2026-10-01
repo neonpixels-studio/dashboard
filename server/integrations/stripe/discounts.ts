@@ -3,15 +3,19 @@ import type { StripeDiscount } from "./types";
 const CENTS_PER_DOLLAR = 100;
 const PERCENT_DIVISOR = 100;
 const BILLING_CURRENCY = "usd";
+const ONE_TIME_DISCOUNT_DURATION = "once";
 
 /**
- * A discount is in effect from `start` until `end` (exclusive); a null
+ * A recurring discount is in effect from `start` until `end` (exclusive); a null
  * `end` never expires. Times are unix seconds, like Stripe's.
  */
 function isDiscountInEffect(
   discount: StripeDiscount,
   nowSeconds: number,
 ): boolean {
+  if (discount.duration === ONE_TIME_DISCOUNT_DURATION) {
+    return false;
+  }
   if (discount.start > nowSeconds) {
     return false;
   }

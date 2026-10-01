@@ -206,6 +206,7 @@ describe("toStripeSubscription", () => {
           coupon: {
             id: "co_1",
             percent_off: 25,
+            duration: "repeating",
             amount_off: null,
             currency: null,
           },
@@ -224,6 +225,7 @@ describe("toStripeSubscription", () => {
           percentOff: 25,
           amountOff: null,
           currency: null,
+          duration: "repeating",
           start: 1000,
           end: 2000,
         },
@@ -243,6 +245,7 @@ describe("toStripeSubscription", () => {
           percentOff: 25,
           amountOff: null,
           currency: null,
+          duration: "repeating",
           start: 1000,
           end: null,
         },

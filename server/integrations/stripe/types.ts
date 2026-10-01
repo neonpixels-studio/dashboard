@@ -32,14 +32,16 @@ export interface StripePrice {
 
 // One discount currently attached to a subscription or subscription item,
 // already resolved from Stripe's discount + coupon objects. `end` is a unix
-// timestamp in seconds (null = never expires, e.g. a `forever` coupon);
-// Stripe derives it from the coupon's duration/duration_in_months, so
-// expiry is decided from this one field rather than re-deriving duration.
+// timestamp in seconds. Stripe derives it from the coupon's
+// duration_in_months for `repeating` coupons; it is null for both `forever`
+// and `once`, so `duration` is carried too (a `once` coupon is a one-time
+// cut, not recurring, and never reduces MRR).
 export interface StripeDiscount {
   percentOff: number | null;
   // Smallest currency unit, applied once per invoice (not per month).
   amountOff: number | null;
   currency: string | null;
+  duration: string;
   start: number;
   end: number | null;
 }

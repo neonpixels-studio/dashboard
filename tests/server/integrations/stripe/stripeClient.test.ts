@@ -114,6 +114,7 @@ describe("createStripeSubscriptionLister", () => {
       percent_off: 20,
       amount_off: null,
       currency: null,
+      duration: "forever",
     })) as never;
     const listActiveSubscriptions = createStripeSubscriptionLister(
       "sk_test_unused",
@@ -126,6 +127,7 @@ describe("createStripeSubscriptionLister", () => {
       percentOff: 20,
       amountOff: null,
       currency: null,
+      duration: "forever",
       start: 1,
       end: null,
     };
@@ -179,6 +181,7 @@ describe("createStripeSubscriptionLister", () => {
           percent_off: 10,
           amount_off: null,
           currency: null,
+          duration: "forever",
         }) as never;
       const listActiveSubscriptions = createStripeSubscriptionLister(
         "sk_test_unused",

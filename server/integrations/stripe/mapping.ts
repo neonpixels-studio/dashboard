@@ -93,6 +93,7 @@ function toDiscount(discount: string | Stripe.Discount): StripeDiscount {
     percentOff: coupon.percent_off,
     amountOff: coupon.amount_off,
     currency: coupon.currency,
+    duration: coupon.duration,
     start: discount.start,
     end: discount.end,
   };

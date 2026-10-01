@@ -83,7 +83,10 @@ describe("stripeProvider", () => {
     const result = await stripeProvider.fetch(config);
 
     expect(mockSubscriptionsList).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 100 }),
+      expect.objectContaining({
+        limit: 100,
+        expand: ["data.discounts", "data.items.data.discounts"],
+      }),
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
     const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");

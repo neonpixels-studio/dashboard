@@ -436,6 +436,7 @@ describe("computeMrrForProducts status and discount policy", () => {
       percentOff: null,
       amountOff: null,
       currency: null,
+      duration: "forever",
       start: NOW_SECONDS - 100,
       end: null,
       ...overrides,
@@ -604,5 +605,30 @@ describe("computeMrrForProducts status and discount policy", () => {
     expect(
       computeMrrForProducts([subscription], new Set(["prod_other"]), NOW),
     ).toEqual({ mrr: 0, activeSubscribers: 0 });
+  });
+
+  it("never lets a once coupon reduce MRR (a one-time cut is not recurring)", () => {
+    const subscription = buildSubscription({
+      discounts: [buildDiscountFor({ percentOff: 50, duration: "once" })],
+    });
+
+    expect(compute([subscription]).mrr).toBe(10);
+  });
+
+  it("shares a subscription-level amount_off by net (post item-discount) value", () => {
+    const matching = buildItem({
+      discounts: [buildDiscountFor({ percentOff: 50 })],
+    });
+    const other = buildItem({
+      id: "si_other",
+      price: { ...buildItem().price, id: "price_other", product: "prod_other" },
+    });
+    const subscription = buildSubscription({
+      items: { data: [matching, other] },
+      discounts: [buildDiscountFor({ amountOff: 900, currency: "usd" })],
+    });
+
+    // matching net $5, other net $10, $9 off: 5 - 9 * (5 / 15) = 2.
+    expect(compute([subscription]).mrr).toBe(2);
   });
 });
