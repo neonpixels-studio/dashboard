@@ -286,42 +286,41 @@ export function latestMetricsBySlug(
   return [...groups.values()].map(toCurrentMetric);
 }
 
+function vendorKeyOf(row: MetricSnapshotRow): string {
+  return metricVendorGroupKey(row.slug, row.metric, row.period, row.vendor);
+}
+
 // A vendor whose latest poll predates the series window has no rows in
 // `seriesRows` for its (metric, period), yet latestMetricsBySlug still counts
 // it in the tile. Seeds one carry-forward row per such vendor from
 // `latestRows` (fetchLatestMetricSnapshots, unbounded), so the combined
-// sparkline includes every vendor the tile does. The seed is re-dated to the
-// earliest in-window row of its group (only rows older than that row are
-// seeded): its true timestamp is outside the
-// window and would stretch the sparkline's day span back to it, while the
-// stale value is only needed as the carried-forward baseline. A (metric,
-// period) with no in-window rows at all is left alone (no new series appears
-// for a metric whose every vendor is stale).
+// sparkline includes every vendor the tile does.
+//
+// The seed is re-dated to the earliest in-window row of its group, because
+// its true timestamp is outside the window and would stretch the sparkline's
+// day span back to it; the stale value is only needed as the carried-forward
+// baseline. Only latest rows older than that earliest row are seeded. A
+// (metric, period) with no in-window rows at all is left alone (no new
+// series appears for a metric whose every vendor is stale).
 function staleVendorSeedRows(
   seriesRows: MetricSnapshotRow[],
   latestRows: MetricSnapshotRow[],
 ): MetricSnapshotRow[] {
-  const seriesGroups = groupVendorBucketsByMetric(seriesRows);
-  const knownVendorKeys = new Set(
-    seriesRows.map((row) =>
-      metricVendorGroupKey(row.slug, row.metric, row.period, row.vendor),
-    ),
+  const earliestByGroup = new Map(
+    [...groupVendorBucketsByMetric(seriesRows)].map(([key, buckets]) => [
+      key,
+      minByCapturedAt(buckets.flat()).capturedAt,
+    ]),
   );
+  const knownVendorKeys = new Set(seriesRows.map(vendorKeyOf));
 
   return latestRows.flatMap((row) => {
-    const vendorKey = metricVendorGroupKey(
-      row.slug,
-      row.metric,
-      row.period,
-      row.vendor,
-    );
-    const group = seriesGroups.get(
+    const earliestInWindow = earliestByGroup.get(
       metricGroupKey(row.slug, row.metric, row.period),
     );
-    if (!group || knownVendorKeys.has(vendorKey)) {
+    if (!earliestInWindow || knownVendorKeys.has(vendorKeyOf(row))) {
       return [];
     }
-    const earliestInWindow = minByCapturedAt(group.flat()).capturedAt;
     // The two queries run concurrently, so a row committed between them can
     // show up in `latestRows` only; it is in-window, not stale, so skip it
     // (the next request's series query will include it).

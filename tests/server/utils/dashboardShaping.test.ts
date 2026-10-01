@@ -422,6 +422,23 @@ describe("metricSeriesBySlug with unbounded latest rows", () => {
     expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
   });
 
+  it("does not back-date a latest row exactly at the earliest in-window timestamp", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, capturedAt: new Date("2026-09-01T00:00:00Z") },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("seeds every stale vendor of the same metric and period into the baseline", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      staleDevtoRow,
+      { ...staleDevtoRow, vendor: "medium", value: 5 },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([18, 20]);
+  });
+
   it("does not seed a stale vendor into a different period's series", () => {
     const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
       { ...staleDevtoRow, period: "7d" },
