@@ -286,26 +286,67 @@ export function latestMetricsBySlug(
   return [...groups.values()].map(toCurrentMetric);
 }
 
+// A vendor whose latest poll predates the series window has no rows in
+// `seriesRows` for its (metric, period), yet latestMetricsBySlug still counts
+// it in the tile. Seeds one carry-forward row per such vendor from
+// `latestRows` (fetchLatestMetricSnapshots, unbounded), so the combined
+// sparkline includes every vendor the tile does. The seed is re-dated to the
+// earliest in-window row of its group: its true timestamp is outside the
+// window and would stretch the sparkline's day span back to it, while the
+// stale value is only needed as the carried-forward baseline. A (metric,
+// period) with no in-window rows at all is left alone (no new series appears
+// for a metric whose every vendor is stale).
+function staleVendorSeedRows(
+  seriesRows: MetricSnapshotRow[],
+  latestRows: MetricSnapshotRow[],
+): MetricSnapshotRow[] {
+  const seriesGroups = groupVendorBucketsByMetric(seriesRows);
+  const knownVendorKeys = new Set(
+    seriesRows.map((row) =>
+      metricVendorGroupKey(row.slug, row.metric, row.period, row.vendor),
+    ),
+  );
+
+  return latestRows.flatMap((row) => {
+    const vendorKey = metricVendorGroupKey(
+      row.slug,
+      row.metric,
+      row.period,
+      row.vendor,
+    );
+    const group = seriesGroups.get(
+      metricGroupKey(row.slug, row.metric, row.period),
+    );
+    if (!group || knownVendorKeys.has(vendorKey)) {
+      return [];
+    }
+    return [
+      {
+        ...row,
+        capturedAt: minByCapturedAt(group.flat()).capturedAt,
+      },
+    ];
+  });
+}
+
 // One time series per (metric, period) for one app — the sparkline source
-// data. Takes rows from fetchMetricSnapshotSeries (bounded history).
-//
-// Known limitation, not yet worth the added complexity to fix: unlike
-// latestMetricsBySlug (fed by the unbounded fetchLatestMetricSnapshots),
-// this only sees rows inside the series window (SERIES_WINDOW_DAYS). A
-// multi-vendor metric where one vendor's last poll falls outside that
-// window drops out of the combined sum here even though it still counts in
-// the current-value tile — the two can disagree until that vendor polls
-// again. Fixing it would mean threading the unbounded latest-per-vendor
-// rows in here too (to seed a stale vendor's carry-forward even with zero
-// rows inside the window), which touches both API handlers that call this;
-// out of scope for the `posts`-collision fix this exists for.
+// data. Takes rows from fetchMetricSnapshotSeries (bounded history, the
+// SERIES_WINDOW_DAYS window). Optionally takes `latestRows` from
+// fetchLatestMetricSnapshots (unbounded latest-per-vendor) so a multi-vendor
+// metric keeps a vendor whose last poll fell outside the window, matching
+// the vendors latestMetricsBySlug counts in the tile (see
+// staleVendorSeedRows). Omitting it keeps the window-only behavior.
 export function metricSeriesBySlug(
   rows: MetricSnapshotRow[],
   slug: string,
+  latestRows: MetricSnapshotRow[] = [],
 ): MetricSeries[] {
-  const groups = groupVendorBucketsByMetric(
-    rows.filter((row) => row.slug === slug),
+  const seriesRows = rows.filter((row) => row.slug === slug);
+  const seedRows = staleVendorSeedRows(
+    seriesRows,
+    latestRows.filter((row) => row.slug === slug),
   );
+  const groups = groupVendorBucketsByMetric([...seriesRows, ...seedRows]);
   return [...groups.values()].map(toMetricSeries);
 }
 

@@ -360,6 +360,69 @@ describe("metricSeriesBySlug", () => {
   });
 });
 
+describe("metricSeriesBySlug with unbounded latest rows", () => {
+  const staleDevtoRow = metricRow({
+    vendor: "devto",
+    metric: "posts",
+    period: "current",
+    value: 3,
+    // Well outside the 60-day series window.
+    capturedAt: new Date("2026-05-01T00:00:00Z"),
+  });
+  const hashnodeSeriesRows = [
+    metricRow({
+      vendor: "hashnode",
+      metric: "posts",
+      period: "current",
+      value: 10,
+      capturedAt: new Date("2026-09-01T00:00:00Z"),
+    }),
+    metricRow({
+      vendor: "hashnode",
+      metric: "posts",
+      period: "current",
+      value: 12,
+      capturedAt: new Date("2026-09-02T00:00:00Z"),
+    }),
+  ];
+
+  it("includes a vendor whose last poll is outside the window, matching the tile, without stretching the day span", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      staleDevtoRow,
+      hashnodeSeriesRows[1] as MetricSnapshotRow,
+    ]);
+
+    expect(series).toEqual([
+      {
+        metric: "posts",
+        period: "current",
+        points: [
+          { capturedAt: "2026-09-01T00:00:00.000Z", value: 13 },
+          { capturedAt: "2026-09-02T00:00:00.000Z", value: 15 },
+        ],
+      },
+    ]);
+  });
+
+  it("drops the stale vendor when latest rows are not supplied (window-only behavior)", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin");
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("does not create a series for a metric with no in-window rows", () => {
+    expect(metricSeriesBySlug([], "basin", [staleDevtoRow])).toEqual([]);
+  });
+
+  it("ignores latest rows belonging to another app", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, slug: "markpost" },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+});
+
 describe("metricRollupWithSplit", () => {
   it("returns all-null with an empty byApp when no app has any data", () => {
     expect(
