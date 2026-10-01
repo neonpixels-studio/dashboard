@@ -12,6 +12,7 @@ import AppIcon from "../../app/components/AppIcon.vue";
 import SparkLine from "../../app/components/SparkLine.vue";
 import StatList from "../../app/components/StatList.vue";
 import PropertySessionsChart from "../../app/components/PropertySessionsChart.vue";
+import SessionsByPropertyPanel from "../../app/components/SessionsByPropertyPanel.vue";
 import AxisRow from "../../app/components/AxisRow.vue";
 import PropertyCard from "../../app/components/PropertyCard.vue";
 import PropertyCardMetrics from "../../app/components/PropertyCardMetrics.vue";
@@ -24,6 +25,7 @@ import type {
   AppsResponse,
   OverviewResponse,
 } from "../../shared/types/dashboard";
+import type { OverviewSessionsResponse } from "../../shared/types/overviewSessions";
 
 // index.vue imports useOverview/useApps directly (not via the global
 // useFetch auto-import), so both are mocked at the module boundary the same
@@ -32,6 +34,11 @@ import type {
 const mockUseOverview = vi.fn();
 vi.mock("../../app/composables/useOverview", () => ({
   useOverview: () => mockUseOverview(),
+}));
+
+const mockUseOverviewSessions = vi.fn();
+vi.mock("../../app/composables/useOverviewSessions", () => ({
+  useOverviewSessions: () => mockUseOverviewSessions(),
 }));
 
 const mockUseApps = vi.fn();
@@ -50,6 +57,7 @@ const GLOBAL_COMPONENTS = {
   SparkLine,
   StatList,
   PropertySessionsChart,
+  SessionsByPropertyPanel,
   AxisRow,
   PropertyCard,
   PropertyCardMetrics,
@@ -147,6 +155,42 @@ function mockOverview(overrides: {
   });
 }
 
+function sessionsFixture(): OverviewSessionsResponse {
+  const daily = (values: number[]) =>
+    values.map((value, index) => ({
+      capturedAt: `2026-09-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+      value,
+    }));
+  return [
+    {
+      slug: "basin",
+      daily: daily([100, 140, 120, 220]),
+      total30d: 8600,
+      delta: { value: 1500, pct: 22 },
+    },
+    {
+      slug: "markpost",
+      daily: daily([40, 50, 70, 90]),
+      total30d: 6200,
+      delta: { value: 1700, pct: 38 },
+    },
+  ];
+}
+
+function mockSessions(overrides: {
+  data?: OverviewSessionsResponse | null;
+  pending?: boolean;
+  error?: Error | null;
+  refresh?: () => void;
+}) {
+  mockUseOverviewSessions.mockReturnValue({
+    data: ref(overrides.data ?? null),
+    pending: ref(overrides.pending ?? false),
+    error: ref(overrides.error ?? null),
+    refresh: overrides.refresh ?? vi.fn(),
+  });
+}
+
 function mockApps(overrides: {
   data?: AppsResponse | null;
   pending?: boolean;
@@ -189,6 +233,7 @@ beforeEach(() => {
   // property grid's fetch to its idle state so mounting the page doesn't
   // require every one of those tests to also stub useApps.
   mockApps({});
+  mockSessions({});
 });
 
 afterEach(() => {
@@ -419,6 +464,61 @@ describe("index.vue rollup tiles", () => {
     // text depends on wall-clock time via the mount-timing test above)
     // renders in a sibling SectionLabel outside this element entirely.
     expect(mountPage().find(".rollup-grid").html()).toMatchSnapshot();
+  });
+});
+
+describe("index.vue sessions panel", () => {
+  it("draws one real line per property and lists 30-day totals, not the old hardcoded paths", () => {
+    mockSessions({ data: sessionsFixture() });
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(
+      wrapper.findComponent(PropertySessionsChart).findAll("path"),
+    ).toHaveLength(2);
+    const totals = wrapper.find(".totals").text();
+    expect(totals).toContain("basin.fm");
+    expect(totals).toContain("8.6K");
+    expect(totals).toContain("6.2K");
+  });
+
+  it("shows an empty state, not a chart or fabricated totals, when no sessions have synced", () => {
+    mockSessions({ data: [] });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findComponent(PropertySessionsChart).exists()).toBe(false);
+    expect(wrapper.findAll(".sessions-empty")).toHaveLength(2);
+  });
+
+  it("shows a skeleton while loading and an error state with retry on failure", async () => {
+    mockSessions({ pending: true });
+    expect(mountPage().find(".sessions-chart .skeleton-block").exists()).toBe(
+      true,
+    );
+
+    const refresh = vi.fn();
+    mockSessions({ error: new Error("boom"), refresh });
+    const wrapper = mountPage();
+    const errorState = wrapper
+      .find(".sessions-chart")
+      .findComponent(DataErrorState);
+    expect(errorState.exists()).toBe(true);
+    await errorState.find("button").trigger("click");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("matches its sessions-panel snapshot with real-shaped data", () => {
+    mockSessions({ data: sessionsFixture() });
+
+    expect(mountPage().find(".sessions-panel").html()).toMatchSnapshot();
+  });
+
+  it("matches its sessions-panel snapshot with no data", () => {
+    mockSessions({ data: [] });
+
+    expect(mountPage().find(".sessions-panel").html()).toMatchSnapshot();
   });
 });
 

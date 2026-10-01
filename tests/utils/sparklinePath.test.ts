@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAxisLabels,
   buildSparklinePath,
+  domainOf,
   sparklineEndY,
 } from "../../app/utils/sparklinePath";
 import type { MetricPoint } from "../../shared/types/dashboard";
@@ -117,5 +118,27 @@ describe("buildAxisLabels", () => {
       pointAt("2026-09-19T00:00:00.000Z"),
     ]);
     expect(labels).toEqual(["19 SEP"]);
+  });
+});
+
+describe("shared value domain", () => {
+  it("domainOf spans every series' values, and is null with no points", () => {
+    expect(domainOf([[point(2), point(8)], [point(5)]])).toEqual({
+      min: 2,
+      max: 8,
+    });
+    expect(domainOf([[], []])).toBeNull();
+  });
+
+  it("draws a series against the shared domain instead of its own range", () => {
+    const small = [point(10), point(20)];
+    const domain = { min: 0, max: 100 };
+
+    const ownScale = buildSparklinePath(small, 100, 100);
+    const sharedScale = buildSparklinePath(small, 100, 100, domain);
+
+    expect(ownScale).toBe("M0.00 96.00 L100.00 4.00");
+    expect(sharedScale).toBe("M0.00 86.80 L100.00 77.60");
+    expect(sparklineEndY(small, 100, domain)).toBeCloseTo(77.6);
   });
 });

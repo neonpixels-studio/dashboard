@@ -9,6 +9,8 @@ import {
   metricSeriesBySlug,
   rollupDelta,
   rollupSeriesAcrossApps,
+  SESSIONS_CHART_DAYS,
+  sessionsForApp,
   syncSourcesForApp,
   syndicationMatrixForApp,
   trafficChannelSplitAcrossApps,
@@ -972,5 +974,71 @@ describe("syndicationMatrixForApp", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("sessionsForApp", () => {
+  function dailyRow(day: number, value: number): MetricSnapshotRow {
+    return metricRow({
+      id: day,
+      vendor: "ga4",
+      metric: "sessions",
+      period: "daily",
+      value,
+      capturedAt: new Date(Date.UTC(2026, 6, day)),
+    });
+  }
+
+  it("ignores other apps, metrics, and periods", () => {
+    const result = sessionsForApp(
+      [],
+      [
+        dailyRow(1, 5),
+        metricRow({
+          id: 90,
+          slug: "markpost",
+          metric: "sessions",
+          period: "daily",
+        }),
+        metricRow({ id: 91, metric: "mrr", period: "current" }),
+      ],
+      "basin",
+    );
+
+    expect(result.daily).toEqual([
+      { capturedAt: "2026-07-01T00:00:00.000Z", value: 5 },
+    ]);
+    expect(result.total30d).toBeNull();
+    expect(result.delta).toBeNull();
+  });
+
+  it("keeps only the most recent SESSIONS_CHART_DAYS daily points", () => {
+    const rows = Array.from({ length: SESSIONS_CHART_DAYS + 5 }, (_, index) =>
+      dailyRow(index + 1, index),
+    );
+
+    const { daily } = sessionsForApp([], rows, "basin");
+
+    expect(daily).toHaveLength(SESSIONS_CHART_DAYS);
+    expect(daily[0]?.value).toBe(5);
+    expect(daily.at(-1)?.value).toBe(SESSIONS_CHART_DAYS + 4);
+  });
+
+  it("takes the 30d total from the latest rows, not the bounded series", () => {
+    const result = sessionsForApp(
+      [
+        metricRow({
+          id: 50,
+          vendor: "ga4",
+          metric: "sessions",
+          period: "30d",
+          value: 999,
+        }),
+      ],
+      [],
+      "basin",
+    );
+
+    expect(result.total30d).toBe(999);
   });
 });

@@ -11,8 +11,21 @@ import { formatAxisDate } from "./rollupFormat";
 // near-flat series doesn't clip against the stroke width.
 const VERTICAL_PADDING = 4;
 
-function rangeOf(values: number[]): { min: number; max: number } {
+export interface ValueDomain {
+  min: number;
+  max: number;
+}
+
+function rangeOf(values: number[]): ValueDomain {
   return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+// The min/max across several series' values — lets a multi-property chart
+// draw every line against one shared y-scale (via the optional `domain`
+// argument below) instead of each line stretching to fill the full height.
+export function domainOf(pointLists: MetricPoint[][]): ValueDomain | null {
+  const values = pointLists.flat().map((point) => point.value);
+  return values.length ? rangeOf(values) : null;
 }
 
 // The one place a value becomes a y-coordinate — shared by buildSparklinePath
@@ -45,6 +58,7 @@ export function buildSparklinePath(
   points: MetricPoint[],
   viewBoxWidth: number,
   viewBoxHeight: number,
+  domain?: ValueDomain,
 ): string {
   if (!points.length) {
     return "";
@@ -56,7 +70,7 @@ export function buildSparklinePath(
   }
 
   const values = points.map((point) => point.value);
-  const { min, max } = rangeOf(values);
+  const { min, max } = domain ?? rangeOf(values);
   const stepX = viewBoxWidth / (points.length - 1);
 
   // A perfectly flat series (every value equal) has no range to normalize
@@ -88,6 +102,7 @@ export function buildSparklinePath(
 export function sparklineEndY(
   points: MetricPoint[],
   viewBoxHeight: number,
+  domain?: ValueDomain,
 ): number {
   const midY = viewBoxHeight / 2;
   if (points.length < 2) {
@@ -95,7 +110,7 @@ export function sparklineEndY(
   }
 
   const values = points.map((point) => point.value);
-  const { min, max } = rangeOf(values);
+  const { min, max } = domain ?? rangeOf(values);
   if (max === min) {
     return midY;
   }

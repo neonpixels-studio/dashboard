@@ -24,6 +24,7 @@ import type {
   SyndicationMatrixRow,
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
+import type { PropertySessions } from "../../shared/types/overviewSessions";
 import { METRIC_SESSIONS, PERIOD_30D, PERIOD_DAILY } from "./dashboardMetrics";
 import {
   integrationEnvironmentKey,
@@ -808,4 +809,43 @@ export function syndicationMatrixForApp(
       syncedAt: toIsoOrNull(row.syncedAt),
     })),
   }));
+}
+
+// Cap on how many daily points a property's chart series carries — the
+// overview chart is labelled "30 days", but the series window the rows come
+// from (SERIES_WINDOW_DAYS) is wider. GA4 backfills one `daily` row per day,
+// so "the last N points" is the last N days.
+export const SESSIONS_CHART_DAYS = 30;
+
+// One property's slice of the overview sessions chart: its daily series plus
+// the 30-day total/delta shown beside it. The total comes from the unbounded
+// latest-per-metric rows (so it matches the top rollup tile and never drops
+// a stale-but-real value), the series and delta from the bounded history.
+export function sessionsForApp(
+  latestRows: MetricSnapshotRow[],
+  seriesRows: MetricSnapshotRow[],
+  slug: string,
+): PropertySessions {
+  const series = metricSeriesBySlug(seriesRows, slug);
+  const dailyPoints =
+    series.find(
+      (entry) =>
+        entry.metric === METRIC_SESSIONS && entry.period === PERIOD_DAILY,
+    )?.points ?? [];
+  const rollingPoints =
+    series.find(
+      (entry) =>
+        entry.metric === METRIC_SESSIONS && entry.period === PERIOD_30D,
+    )?.points ?? [];
+  const total30d = latestMetricsBySlug(latestRows, slug).find(
+    (metric) =>
+      metric.metric === METRIC_SESSIONS && metric.period === PERIOD_30D,
+  );
+
+  return {
+    slug,
+    daily: dailyPoints.slice(-SESSIONS_CHART_DAYS),
+    total30d: total30d?.value ?? null,
+    delta: rollupDelta(rollingPoints),
+  };
 }
