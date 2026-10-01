@@ -22,8 +22,11 @@
 
     <div class="totals">
       <span class="metric-label totals-label">30-DAY TOTAL</span>
-      <StatList v-if="totals.length" :items="totals" />
-      <p v-else class="sessions-empty">No session data synced yet.</p>
+      <SkeletonBlock v-if="pending" height="120px" />
+      <StatList v-else-if="totals.length" :items="totals" />
+      <p v-else-if="!hasError" class="sessions-empty">
+        No session data synced yet.
+      </p>
     </div>
   </div>
 </template>

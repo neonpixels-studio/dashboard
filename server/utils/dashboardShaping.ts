@@ -817,6 +817,11 @@ export function syndicationMatrixForApp(
 // so "the last N points" is the last N days.
 export const SESSIONS_CHART_DAYS = 30;
 
+function isSessionsFor(period: string) {
+  return (entry: { metric: string; period: string }) =>
+    entry.metric === METRIC_SESSIONS && entry.period === period;
+}
+
 // One property's slice of the overview sessions chart: its daily series plus
 // the 30-day total/delta shown beside it. The total comes from the unbounded
 // latest-per-metric rows (so it matches the top rollup tile and never drops
@@ -827,19 +832,10 @@ export function sessionsForApp(
   slug: string,
 ): PropertySessions {
   const series = metricSeriesBySlug(seriesRows, slug);
-  const dailyPoints =
-    series.find(
-      (entry) =>
-        entry.metric === METRIC_SESSIONS && entry.period === PERIOD_DAILY,
-    )?.points ?? [];
-  const rollingPoints =
-    series.find(
-      (entry) =>
-        entry.metric === METRIC_SESSIONS && entry.period === PERIOD_30D,
-    )?.points ?? [];
+  const dailyPoints = series.find(isSessionsFor(PERIOD_DAILY))?.points ?? [];
+  const rollingPoints = series.find(isSessionsFor(PERIOD_30D))?.points ?? [];
   const total30d = latestMetricsBySlug(latestRows, slug).find(
-    (metric) =>
-      metric.metric === METRIC_SESSIONS && metric.period === PERIOD_30D,
+    isSessionsFor(PERIOD_30D),
   );
 
   return {

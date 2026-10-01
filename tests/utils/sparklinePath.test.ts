@@ -135,10 +135,18 @@ describe("shared value domain", () => {
     const domain = { min: 0, max: 100 };
 
     const ownScale = buildSparklinePath(small, 100, 100);
-    const sharedScale = buildSparklinePath(small, 100, 100, domain);
+    const sharedScale = buildSparklinePath(small, 100, 100, { domain });
 
     expect(ownScale).toBe("M0.00 96.00 L100.00 4.00");
     expect(sharedScale).toBe("M0.00 86.80 L100.00 77.60");
     expect(sparklineEndY(small, 100, domain)).toBeCloseTo(77.6);
+  });
+
+  it("right-aligns a shorter series against totalSlots so it ends at the right edge", () => {
+    const short = [point(1), point(2)];
+
+    expect(buildSparklinePath(short, 100, 100, { totalSlots: 5 })).toBe(
+      "M75.00 96.00 L100.00 4.00",
+    );
   });
 });

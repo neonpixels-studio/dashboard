@@ -54,11 +54,21 @@ function lastOf(values: number[]): number {
   return values.reduce((_previous, value) => value);
 }
 
+export interface PathOptions {
+  // Shared y-scale across several series (see domainOf).
+  domain?: ValueDomain;
+  // How many x positions the full chart width spans. A series with fewer
+  // points than this is right-aligned (it ends at the right edge), so a
+  // property that started syncing later lines up with the longest series'
+  // dates instead of stretching across the whole chart.
+  totalSlots?: number;
+}
+
 export function buildSparklinePath(
   points: MetricPoint[],
   viewBoxWidth: number,
   viewBoxHeight: number,
-  domain?: ValueDomain,
+  { domain, totalSlots }: PathOptions = {},
 ): string {
   if (!points.length) {
     return "";
@@ -71,7 +81,9 @@ export function buildSparklinePath(
 
   const values = points.map((point) => point.value);
   const { min, max } = domain ?? rangeOf(values);
-  const stepX = viewBoxWidth / (points.length - 1);
+  const slots = Math.max(totalSlots ?? 0, points.length);
+  const stepX = viewBoxWidth / (slots - 1);
+  const startX = (slots - points.length) * stepX;
 
   // A perfectly flat series (every value equal) has no range to normalize
   // against — drawing it as a centered flat line (like the single-point
@@ -80,14 +92,14 @@ export function buildSparklinePath(
     return values
       .map(
         (_value, index) =>
-          `${index === 0 ? "M" : "L"}${(index * stepX).toFixed(2)} ${midY.toFixed(2)}`,
+          `${index === 0 ? "M" : "L"}${(startX + index * stepX).toFixed(2)} ${midY.toFixed(2)}`,
       )
       .join(" ");
   }
 
   return values
     .map((value, index) => {
-      const x = index * stepX;
+      const x = startX + index * stepX;
       const y = valueToY(value, min, max, viewBoxHeight);
       return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
     })

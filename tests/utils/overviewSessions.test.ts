@@ -47,6 +47,16 @@ describe("buildSessionsChartSeries", () => {
     expect(markpost?.endY).toBeGreaterThan(basin?.endY ?? 0);
   });
 
+  it("right-aligns a property with a shorter history to the longest one's dates", () => {
+    const series = buildSessionsChartSeries([
+      { slug: "basin", daily: daily([1, 2, 3, 4]), total30d: 1, delta: null },
+      { slug: "markpost", daily: daily([1, 2]), total30d: 1, delta: null },
+    ]);
+
+    expect(series[0]?.path).toMatch(/^M0\.00 /);
+    expect(series[1]?.path).toMatch(/^M600\.00 /);
+  });
+
   it("returns no series when nothing has enough history", () => {
     expect(buildSessionsChartSeries([])).toEqual([]);
     expect(

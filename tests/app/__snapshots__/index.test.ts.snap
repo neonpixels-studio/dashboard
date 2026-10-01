@@ -72,7 +72,7 @@ exports[`index.vue sessions panel > matches its sessions-panel snapshot with no 
     <p data-v-93610f64="" class="sessions-empty"> No session data synced yet. </p>
   </div>
   <div data-v-93610f64="" class="totals"><span data-v-93610f64="" class="metric-label totals-label">30-DAY TOTAL</span>
-    <p data-v-93610f64="" class="sessions-empty">No session data synced yet.</p>
+    <p data-v-93610f64="" class="sessions-empty"> No session data synced yet. </p>
   </div>
 </div>"
 `;

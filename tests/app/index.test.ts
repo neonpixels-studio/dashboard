@@ -505,6 +505,7 @@ describe("index.vue sessions panel", () => {
       .find(".sessions-chart")
       .findComponent(DataErrorState);
     expect(errorState.exists()).toBe(true);
+    expect(wrapper.find(".sessions-empty").exists()).toBe(false);
     await errorState.find("button").trigger("click");
     expect(refresh).toHaveBeenCalled();
   });

@@ -45,6 +45,9 @@ export function buildSessionsChartSeries(properties: PropertySessions[]) {
   if (!domain) {
     return [];
   }
+  const totalSlots = Math.max(
+    ...drawable.map((property) => property.daily.length),
+  );
   return drawable.map((property) => ({
     slug: property.slug,
     color: accentFor(property.slug),
@@ -52,7 +55,7 @@ export function buildSessionsChartSeries(properties: PropertySessions[]) {
       property.daily,
       SESSIONS_CHART_VIEWBOX_WIDTH,
       SESSIONS_CHART_VIEWBOX_HEIGHT,
-      domain,
+      { domain, totalSlots },
     ),
     endY: sparklineEndY(property.daily, SESSIONS_CHART_VIEWBOX_HEIGHT, domain),
   }));
