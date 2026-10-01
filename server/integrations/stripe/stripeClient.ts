@@ -14,16 +14,77 @@ const STRIPE_MAX_NETWORK_RETRIES = 2;
 // is 10) — set explicitly so pagination doesn't depend on that default.
 const SUBSCRIPTIONS_PAGE_SIZE = 100;
 
-const SUBSCRIPTION_EXPANDS = [
-  "data.discounts.source.coupon",
-  "data.items.data.discounts.source.coupon",
-];
+// Stripe caps an expand path at four properties, so item-level coupons
+// ("data.items.data.discounts.source.coupon" is six) can't be expanded in
+// the list call. Only the discounts themselves are; their coupons are
+// resolved separately (see resolveCoupons below).
+const SUBSCRIPTION_EXPANDS = ["data.discounts", "data.items.data.discounts"];
 
 // Only the subset of the real Stripe client this package calls — narrowing
 // the parameter type (rather than the full `Stripe` class) is what makes
 // `createStripeSubscriptionLister` accept a lightweight test double instead
 // of a real client built from a real secret key.
-type StripeSubscriptionsClient = Pick<Stripe, "subscriptions">;
+type StripeSubscriptionsClient = Pick<Stripe, "subscriptions" | "coupons">;
+
+type CouponLookup = (couponId: string) => Promise<Stripe.Coupon>;
+
+// Replaces each discount's bare coupon id with the full coupon. `lookup`
+// caches by id (a handful of coupons back many discounts), so a sync makes
+// one retrieve per distinct coupon, not one per discount.
+async function resolveDiscountCoupon(
+  discount: string | Stripe.Discount,
+  lookup: CouponLookup,
+): Promise<string | Stripe.Discount> {
+  if (
+    typeof discount === "string" ||
+    typeof discount.source.coupon !== "string"
+  ) {
+    return discount;
+  }
+  const coupon = await lookup(discount.source.coupon);
+  return { ...discount, source: { ...discount.source, coupon } };
+}
+
+async function resolveSubscriptionCoupons(
+  subscription: Stripe.Subscription,
+  lookup: CouponLookup,
+): Promise<Stripe.Subscription> {
+  const resolveAll = (discounts: Array<string | Stripe.Discount>) =>
+    Promise.all(
+      discounts.map((discount) => resolveDiscountCoupon(discount, lookup)),
+    );
+  const items = await Promise.all(
+    subscription.items.data.map(async (item) => ({
+      ...item,
+      discounts: await resolveAll(item.discounts),
+    })),
+  );
+  return {
+    ...subscription,
+    items: { ...subscription.items, data: items },
+    discounts: await resolveAll(subscription.discounts),
+  };
+}
+
+function createCachedCouponLookup(
+  stripeClient: StripeSubscriptionsClient,
+  timeoutMs: () => number,
+): CouponLookup {
+  const cache = new Map<string, Promise<Stripe.Coupon>>();
+  return (couponId) => {
+    const cached = cache.get(couponId);
+    if (cached) {
+      return cached;
+    }
+    const pending = stripeClient.coupons.retrieve(
+      couponId,
+      {},
+      { timeout: timeoutMs() },
+    );
+    cache.set(couponId, pending);
+    return pending;
+  };
+}
 
 // The Stripe SDK's per-request RequestOptions have no AbortSignal seam
 // (unlike the raw-fetch clients in sentryClient.ts/syndication/
@@ -84,6 +145,9 @@ export function createStripeSubscriptionLister(
   // directly (every existing unit test) needs no deadline at all.
   deadline: FetchDeadline = NO_DEADLINE,
 ): ListActiveSubscriptions {
+  const couponLookup = createCachedCouponLookup(stripeClient, () =>
+    capStripeTimeoutPerAttempt(deadline.remainingMs()),
+  );
   return async (startingAfter) => {
     const perAttemptTimeoutMs = capStripeTimeoutPerAttempt(
       deadline.remainingMs(),
@@ -98,8 +162,9 @@ export function createStripeSubscriptionLister(
     // subscription (active, past_due, trialing, unpaid, ...). Which of those
     // count is decided in mrr.ts (MRR_COUNTED_STATUSES), so the policy lives
     // in one place; `status: "all"` is avoided since it would also page
-    // through the account's entire canceled history. Discounts and their
-    // coupons are expanded so mrr.ts can apply the ones currently in effect.
+    // through the account's entire canceled history. Discounts are expanded
+    // (and their coupons resolved below) so mrr.ts can apply the ones
+    // currently in effect.
     const page = await stripeClient.subscriptions.list(
       {
         expand: SUBSCRIPTION_EXPANDS,
@@ -109,8 +174,14 @@ export function createStripeSubscriptionLister(
       { timeout: perAttemptTimeoutMs },
     );
 
+    const resolved = await Promise.all(
+      page.data.map((subscription) =>
+        resolveSubscriptionCoupons(subscription, couponLookup),
+      ),
+    );
+
     return {
-      data: page.data.map(toStripeSubscription),
+      data: resolved.map(toStripeSubscription),
       hasMore: page.has_more,
     };
   };

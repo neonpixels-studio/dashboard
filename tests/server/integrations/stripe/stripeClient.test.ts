@@ -37,8 +37,12 @@ function buildStripeSubscription(
 
 function buildStubStripeClient(
   list: Stripe.Subscriptions["list"],
-): Pick<Stripe, "subscriptions"> {
-  return { subscriptions: { list } as Stripe["subscriptions"] };
+  retrieveCoupon: Stripe.CouponsResource["retrieve"] = vi.fn() as never,
+): Pick<Stripe, "subscriptions" | "coupons"> {
+  return {
+    subscriptions: { list } as Stripe["subscriptions"],
+    coupons: { retrieve: retrieveCoupon } as Stripe["coupons"],
+  };
 }
 
 describe("createStripeSubscriptionLister", () => {
@@ -58,10 +62,7 @@ describe("createStripeSubscriptionLister", () => {
       expect.objectContaining({
         starting_after: "sub_cursor",
         limit: 100,
-        expand: [
-          "data.discounts.source.coupon",
-          "data.items.data.discounts.source.coupon",
-        ],
+        expand: ["data.discounts", "data.items.data.discounts"],
       }),
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
@@ -77,6 +78,60 @@ describe("createStripeSubscriptionLister", () => {
     await listActiveSubscriptions();
 
     expect(list.mock.calls[0]?.[0]).not.toHaveProperty("status");
+  });
+
+  it("never requests an expand path deeper than Stripe's four-property limit", async () => {
+    const list = vi.fn(async () => ({ data: [], has_more: false }));
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list),
+    );
+
+    await listActiveSubscriptions();
+
+    const [params] = list.mock.calls[0] as unknown as [{ expand: string[] }];
+    for (const path of params.expand) {
+      expect(path.split(".").length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("resolves bare coupon ids on subscription and item discounts, retrieving each distinct coupon once", async () => {
+    const discount = {
+      id: "di_1",
+      start: 1,
+      end: null,
+      source: { type: "coupon", coupon: "co_1" },
+    };
+    const subscription = buildStripeSubscription("sub_1", {
+      discounts: [discount as unknown as Stripe.Discount],
+    });
+    (subscription.items.data[0] as { discounts: unknown[] }).discounts = [
+      discount,
+    ];
+    const list = vi.fn(async () => ({ data: [subscription], has_more: false }));
+    const retrieveCoupon = vi.fn(async () => ({
+      id: "co_1",
+      percent_off: 20,
+      amount_off: null,
+      currency: null,
+    })) as never;
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list, retrieveCoupon),
+    );
+
+    const page = await listActiveSubscriptions();
+
+    const expected = {
+      percentOff: 20,
+      amountOff: null,
+      currency: null,
+      start: 1,
+      end: null,
+    };
+    expect(page.data[0]?.discounts).toEqual([expected]);
+    expect(page.data[0]?.items.data[0]?.discounts).toEqual([expected]);
+    expect(retrieveCoupon).toHaveBeenCalledTimes(1);
   });
 
   it("calls without a cursor on the first page", async () => {

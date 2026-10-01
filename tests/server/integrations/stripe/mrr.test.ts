@@ -338,7 +338,6 @@ describe("fetchAllActiveSubscriptions", () => {
           status: "active",
           items: { data: [] },
           discounts: [],
-          discounts: [],
         },
       ],
       hasMore: false,
@@ -557,5 +556,53 @@ describe("computeMrrForProducts status and discount policy", () => {
     });
 
     expect(() => compute([subscription])).toThrow(/eur/);
+  });
+
+  it("treats a discount ending exactly now as expired", () => {
+    const subscription = buildSubscription({
+      discounts: [buildDiscountFor({ percentOff: 50, end: NOW_SECONDS })],
+    });
+
+    expect(compute([subscription]).mrr).toBe(10);
+  });
+
+  it("applies an item-level amount_off using that item's own billing cycle", () => {
+    const yearlyItem = buildItem({
+      price: {
+        id: "price_yearly",
+        unitAmount: 12000,
+        currency: "usd",
+        product: "prod_test",
+        recurring: { interval: "year", intervalCount: 1 },
+      },
+      discounts: [buildDiscountFor({ amountOff: 1200, currency: "usd" })],
+    });
+
+    // $10/mo list; $12 off the yearly invoice = $1/mo.
+    expect(
+      compute([buildSubscription({ items: { data: [yearlyItem] } })]).mrr,
+    ).toBe(9);
+  });
+
+  it("applies item-level discounts before subscription-level ones", () => {
+    const item = buildItem({
+      discounts: [buildDiscountFor({ percentOff: 50 })],
+    });
+    const subscription = buildSubscription({
+      items: { data: [item] },
+      discounts: [buildDiscountFor({ percentOff: 50 })],
+    });
+
+    expect(compute([subscription]).mrr).toBe(2.5);
+  });
+
+  it("ignores discounts entirely for a subscription not matching the product ids", () => {
+    const subscription = buildSubscription({
+      discounts: [buildDiscountFor({ amountOff: 100, currency: "eur" })],
+    });
+
+    expect(
+      computeMrrForProducts([subscription], new Set(["prod_other"]), NOW),
+    ).toEqual({ mrr: 0, activeSubscribers: 0 });
   });
 });
