@@ -439,6 +439,30 @@ describe("metricSeriesBySlug with unbounded latest rows", () => {
     expect(series[0]?.points.map((point) => point.value)).toEqual([18, 20]);
   });
 
+  it("re-dates the seed to the earliest in-window row across every vendor, not just one bucket", () => {
+    const rows = [
+      ...hashnodeSeriesRows.map((row, index) => ({
+        ...row,
+        capturedAt: new Date(`2026-09-0${index + 2}T00:00:00Z`),
+      })),
+      metricRow({
+        vendor: "medium",
+        metric: "posts",
+        period: "current",
+        value: 5,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      }),
+    ];
+
+    const series = metricSeriesBySlug(rows, "basin", [staleDevtoRow]);
+
+    expect(series[0]?.points).toEqual([
+      { capturedAt: "2026-09-01T00:00:00.000Z", value: 8 },
+      { capturedAt: "2026-09-02T00:00:00.000Z", value: 18 },
+      { capturedAt: "2026-09-03T00:00:00.000Z", value: 20 },
+    ]);
+  });
+
   it("does not seed a stale vendor into a different period's series", () => {
     const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
       { ...staleDevtoRow, period: "7d" },
