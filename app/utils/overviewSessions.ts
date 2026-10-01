@@ -2,6 +2,7 @@
 // the multi-line chart series, its axis labels, and the 30-day totals list.
 // Property identity (name/accent) is joined in from app config here, not
 // the server.
+import type { MetricPoint } from "#shared/types/dashboard";
 import type { PropertySessions } from "#shared/types/overviewSessions";
 import { findAppBySlug, sortByAppOrder } from "~/config/apps";
 import type { StatListItem } from "~/components/StatList.vue";
@@ -37,6 +38,20 @@ function drawableProperties(properties: PropertySessions[]) {
   );
 }
 
+function dayKeyOf(point: MetricPoint): string {
+  return point.capturedAt.slice(0, 10);
+}
+
+// Every day any drawable property has a point for, oldest first - the
+// shared x-axis the lines are placed on by date (not by point count), so a
+// stale or gappy property doesn't drift onto the wrong days.
+function sharedDayKeys(properties: PropertySessions[]): string[] {
+  const dayKeys = new Set(
+    properties.flatMap((property) => property.daily.map(dayKeyOf)),
+  );
+  return [...dayKeys].sort();
+}
+
 // All lines share one y-scale so a small property reads as small next to a
 // large one, instead of every line stretching to the full chart height.
 export function buildSessionsChartSeries(properties: PropertySessions[]) {
@@ -45,9 +60,11 @@ export function buildSessionsChartSeries(properties: PropertySessions[]) {
   if (!domain) {
     return [];
   }
-  const totalSlots = Math.max(
-    ...drawable.map((property) => property.daily.length),
-  );
+  const dayKeys = sharedDayKeys(drawable);
+  const slotFor = (point: MetricPoint) => dayKeys.indexOf(dayKeyOf(point));
+  const options = { domain, totalSlots: dayKeys.length, slotFor };
+  const stepX = SESSIONS_CHART_VIEWBOX_WIDTH / (dayKeys.length - 1);
+
   return drawable.map((property) => ({
     slug: property.slug,
     color: accentFor(property.slug),
@@ -55,29 +72,36 @@ export function buildSessionsChartSeries(properties: PropertySessions[]) {
       property.daily,
       SESSIONS_CHART_VIEWBOX_WIDTH,
       SESSIONS_CHART_VIEWBOX_HEIGHT,
-      { domain, totalSlots },
+      options,
     ),
-    endY: sparklineEndY(property.daily, SESSIONS_CHART_VIEWBOX_HEIGHT, domain),
+    endX: slotFor(property.daily.at(-1) as MetricPoint) * stepX,
+    endY: roundCoordinate(
+      sparklineEndY(property.daily, SESSIONS_CHART_VIEWBOX_HEIGHT, domain),
+    ),
   }));
 }
 
-// Dates come from the property with the longest history, so the axis spans
-// the whole chart even when one property started syncing later.
+function roundCoordinate(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+// Labels span the shared day range, so they describe the same x-axis the
+// lines are placed on.
 export function buildSessionsAxisLabels(
   properties: PropertySessions[],
 ): string[] {
-  const drawable = drawableProperties(properties);
-  const longest = drawable.reduce<PropertySessions | null>(
-    (best, property) =>
-      !best || property.daily.length > best.daily.length ? property : best,
-    null,
+  const dayKeys = sharedDayKeys(drawableProperties(properties));
+  return buildAxisLabels(
+    dayKeys.map((dayKey) => ({
+      capturedAt: `${dayKey}T00:00:00.000Z`,
+      value: 0,
+    })),
   );
-  return longest ? buildAxisLabels(longest.daily) : [];
 }
 
 export function buildSessionsAriaLabel(properties: PropertySessions[]): string {
   const count = drawableProperties(properties).length;
-  return `Daily sessions for ${count} ${count === 1 ? "property" : "properties"} over the last 30 days.`;
+  return `Daily sessions for ${count} ${count === 1 ? "property" : "properties"}.`;
 }
 
 // Largest 30-day total first; a property with no 30d total yet is left out

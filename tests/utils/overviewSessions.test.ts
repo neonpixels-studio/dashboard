@@ -47,14 +47,29 @@ describe("buildSessionsChartSeries", () => {
     expect(markpost?.endY).toBeGreaterThan(basin?.endY ?? 0);
   });
 
-  it("right-aligns a property with a shorter history to the longest one's dates", () => {
+  it("places each line by date, so a property that stopped syncing ends early", () => {
     const series = buildSessionsChartSeries([
       { slug: "basin", daily: daily([1, 2, 3, 4]), total30d: 1, delta: null },
       { slug: "markpost", daily: daily([1, 2]), total30d: 1, delta: null },
     ]);
 
-    expect(series[0]?.path).toMatch(/^M0\.00 /);
-    expect(series[1]?.path).toMatch(/^M600\.00 /);
+    expect(series[0]?.path).toMatch(/^M0\.00 .* L900\.00 /);
+    expect(series[1]?.path).toMatch(/^M0\.00 .* L300\.00 [\d.]+$/);
+    expect(series[0]?.endX).toBe(900);
+    expect(series[1]?.endX).toBe(300);
+  });
+
+  it("keeps a gappy property's points on their own days", () => {
+    const gappy = [daily([5, 6, 7, 8])[0], daily([5, 6, 7, 8])[3]].filter(
+      (point) => point !== undefined,
+    );
+    const series = buildSessionsChartSeries([
+      { slug: "basin", daily: daily([1, 2, 3, 4]), total30d: 1, delta: null },
+      { slug: "markpost", daily: gappy, total30d: 1, delta: null },
+    ]);
+
+    expect(series[1]?.path).toMatch(/^M0\.00 .* L900\.00 /);
+    expect(series[1]?.path).not.toContain("L300.00");
   });
 
   it("returns no series when nothing has enough history", () => {
@@ -82,10 +97,10 @@ describe("buildSessionsAxisLabels", () => {
 describe("buildSessionsAriaLabel", () => {
   it("counts only the properties actually drawn", () => {
     expect(buildSessionsAriaLabel(PROPERTIES)).toBe(
-      "Daily sessions for 2 properties over the last 30 days.",
+      "Daily sessions for 2 properties.",
     );
     expect(buildSessionsAriaLabel([PROPERTIES[0] as PropertySessions])).toBe(
-      "Daily sessions for 1 property over the last 30 days.",
+      "Daily sessions for 1 property.",
     );
   });
 });

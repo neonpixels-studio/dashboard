@@ -142,11 +142,14 @@ describe("shared value domain", () => {
     expect(sparklineEndY(small, 100, domain)).toBeCloseTo(77.6);
   });
 
-  it("right-aligns a shorter series against totalSlots so it ends at the right edge", () => {
-    const short = [point(1), point(2)];
+  it("places points by slotFor within totalSlots instead of spreading them evenly", () => {
+    const pair = [point(1), point(2)];
 
-    expect(buildSparklinePath(short, 100, 100, { totalSlots: 5 })).toBe(
-      "M75.00 96.00 L100.00 4.00",
-    );
+    expect(
+      buildSparklinePath(pair, 100, 100, {
+        totalSlots: 5,
+        slotFor: (_point, index) => index + 3,
+      }),
+    ).toBe("M75.00 96.00 L100.00 4.00");
   });
 });

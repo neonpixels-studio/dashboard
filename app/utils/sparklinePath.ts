@@ -57,18 +57,19 @@ function lastOf(values: number[]): number {
 export interface PathOptions {
   // Shared y-scale across several series (see domainOf).
   domain?: ValueDomain;
-  // How many x positions the full chart width spans. A series with fewer
-  // points than this is right-aligned (it ends at the right edge), so a
-  // property that started syncing later lines up with the longest series'
-  // dates instead of stretching across the whole chart.
+  // Places a series on a shared x-axis of `totalSlots` positions instead of
+  // spreading its own points across the full width: `slotFor` maps each
+  // point to its slot (e.g. by date), so a property with a gap or that
+  // stopped syncing lines up with the others' dates.
   totalSlots?: number;
+  slotFor?: (point: MetricPoint, index: number) => number;
 }
 
 export function buildSparklinePath(
   points: MetricPoint[],
   viewBoxWidth: number,
   viewBoxHeight: number,
-  { domain, totalSlots }: PathOptions = {},
+  { domain, totalSlots, slotFor }: PathOptions = {},
 ): string {
   if (!points.length) {
     return "";
@@ -83,24 +84,25 @@ export function buildSparklinePath(
   const { min, max } = domain ?? rangeOf(values);
   const slots = Math.max(totalSlots ?? 0, points.length);
   const stepX = viewBoxWidth / (slots - 1);
-  const startX = (slots - points.length) * stepX;
+  const xFor = (point: MetricPoint, index: number) =>
+    (slotFor?.(point, index) ?? index) * stepX;
 
   // A perfectly flat series (every value equal) has no range to normalize
   // against — drawing it as a centered flat line (like the single-point
   // case above) rather than letting valueToY divide by zero.
   if (max === min) {
-    return values
+    return points
       .map(
-        (_value, index) =>
-          `${index === 0 ? "M" : "L"}${(startX + index * stepX).toFixed(2)} ${midY.toFixed(2)}`,
+        (point, index) =>
+          `${index === 0 ? "M" : "L"}${xFor(point, index).toFixed(2)} ${midY.toFixed(2)}`,
       )
       .join(" ");
   }
 
-  return values
-    .map((value, index) => {
-      const x = startX + index * stepX;
-      const y = valueToY(value, min, max, viewBoxHeight);
+  return points
+    .map((point, index) => {
+      const x = xFor(point, index);
+      const y = valueToY(point.value, min, max, viewBoxHeight);
       return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
