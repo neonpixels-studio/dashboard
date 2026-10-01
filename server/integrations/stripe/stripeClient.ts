@@ -14,6 +14,11 @@ const STRIPE_MAX_NETWORK_RETRIES = 2;
 // is 10) — set explicitly so pagination doesn't depend on that default.
 const SUBSCRIPTIONS_PAGE_SIZE = 100;
 
+const SUBSCRIPTION_EXPANDS = [
+  "data.discounts.source.coupon",
+  "data.items.data.discounts.source.coupon",
+];
+
 // Only the subset of the real Stripe client this package calls — narrowing
 // the parameter type (rather than the full `Stripe` class) is what makes
 // `createStripeSubscriptionLister` accept a lightweight test double instead
@@ -89,17 +94,15 @@ export function createStripeSubscriptionLister(
       );
     }
 
-    // `status: "active"` only — `trialing` and `past_due` subscriptions are
-    // excluded, and MRR is computed from each price's list amount with no
-    // discount/coupon applied (`subscription.discounts` isn't fetched or
-    // read). Both are deliberate scope boundaries for this first pass, not
-    // oversights: whether a past-due (in dunning, often recovered) or
-    // trialing subscription should count, and whether MRR should reflect
-    // discounted vs. list price, are product decisions, not something to
-    // guess at here — tracked as follow-ups.
+    // No `status` filter: Stripe's default returns every non-canceled
+    // subscription (active, past_due, trialing, unpaid, ...). Which of those
+    // count is decided in mrr.ts (MRR_COUNTED_STATUSES), so the policy lives
+    // in one place; `status: "all"` is avoided since it would also page
+    // through the account's entire canceled history. Discounts and their
+    // coupons are expanded so mrr.ts can apply the ones currently in effect.
     const page = await stripeClient.subscriptions.list(
       {
-        status: "active",
+        expand: SUBSCRIPTION_EXPANDS,
         limit: SUBSCRIPTIONS_PAGE_SIZE,
         starting_after: startingAfter,
       },

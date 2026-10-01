@@ -7,6 +7,7 @@ import {
 } from "../../../../server/integrations/stripe/mrr";
 import { loadFixture } from "../../../../server/integrations/testing/loadFixture";
 import type {
+  StripeDiscount,
   StripeSubscription,
   StripeSubscriptionItem,
   StripeSubscriptionPage,
@@ -18,6 +19,7 @@ function buildItem(
   return {
     id: "si_test",
     quantity: 1,
+    discounts: [],
     price: {
       id: "price_test",
       unitAmount: 1000,
@@ -204,6 +206,7 @@ describe("normalizeItemToMonthlyDollars", () => {
       id: "sub_good",
       status: "active",
       items: { data: [buildItem()] },
+      discounts: [],
     };
     const badSubscription: StripeSubscription = {
       id: "sub_bad_interval",
@@ -334,6 +337,8 @@ describe("fetchAllActiveSubscriptions", () => {
           id: "sub_only",
           status: "active",
           items: { data: [] },
+          discounts: [],
+          discounts: [],
         },
       ],
       hasMore: false,
@@ -360,7 +365,9 @@ describe("fetchAllActiveSubscriptions", () => {
 
   it("fails loud instead of silently truncating the list if a MID-pagination page is empty but claims hasMore", async () => {
     const firstPage: StripeSubscriptionPage = {
-      data: [{ id: "sub_a", status: "active", items: { data: [] } }],
+      data: [
+        { id: "sub_a", status: "active", items: { data: [] }, discounts: [] },
+      ],
       hasMore: true,
     };
     const emptyFollowupPage: StripeSubscriptionPage = {
@@ -383,7 +390,14 @@ describe("fetchAllActiveSubscriptions", () => {
 
   it("fails loud instead of looping forever if a non-empty page's cursor never advances", async () => {
     const stuckPage: StripeSubscriptionPage = {
-      data: [{ id: "sub_stuck", status: "active", items: { data: [] } }],
+      data: [
+        {
+          id: "sub_stuck",
+          status: "active",
+          items: { data: [] },
+          discounts: [],
+        },
+      ],
       hasMore: true,
     };
     // Every call (regardless of the cursor it's given) returns the exact
@@ -396,5 +410,152 @@ describe("fetchAllActiveSubscriptions", () => {
     ).rejects.toThrow(/did not advance/);
     // Fails on the second call, once the stall is detectable, not the first.
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("computeMrrForProducts status and discount policy", () => {
+  const NOW = new Date("2026-06-15T00:00:00Z");
+  const NOW_SECONDS = Math.floor(NOW.getTime() / 1000);
+  const productIds = new Set(["prod_test"]);
+
+  function buildSubscription(
+    overrides: Partial<StripeSubscription> = {},
+  ): StripeSubscription {
+    return {
+      id: "sub_test",
+      status: "active",
+      items: { data: [buildItem()] },
+      discounts: [],
+      ...overrides,
+    };
+  }
+
+  function buildDiscountFor(
+    overrides: Partial<StripeDiscount> = {},
+  ): StripeDiscount {
+    return {
+      percentOff: null,
+      amountOff: null,
+      currency: null,
+      start: NOW_SECONDS - 100,
+      end: null,
+      ...overrides,
+    };
+  }
+
+  function compute(subscriptions: StripeSubscription[]) {
+    return computeMrrForProducts(subscriptions, productIds, NOW);
+  }
+
+  it("counts active subscriptions", () => {
+    expect(compute([buildSubscription()])).toEqual({
+      mrr: 10,
+      activeSubscribers: 1,
+    });
+  });
+
+  it("counts past_due subscriptions (still paying, in dunning)", () => {
+    expect(compute([buildSubscription({ status: "past_due" })])).toEqual({
+      mrr: 10,
+      activeSubscribers: 1,
+    });
+  });
+
+  it.each(["trialing", "canceled", "unpaid", "incomplete", "paused"])(
+    "does not count %s subscriptions",
+    (status) => {
+      expect(compute([buildSubscription({ status })])).toEqual({
+        mrr: 0,
+        activeSubscribers: 0,
+      });
+    },
+  );
+
+  it("applies a subscription-level percent discount", () => {
+    const subscription = buildSubscription({
+      discounts: [buildDiscountFor({ percentOff: 25 })],
+    });
+
+    expect(compute([subscription]).mrr).toBe(7.5);
+  });
+
+  it("applies a subscription-level amount_off discount spread over the billing cycle", () => {
+    const yearlyItem = buildItem({
+      price: {
+        id: "price_yearly",
+        unitAmount: 12000,
+        currency: "usd",
+        product: "prod_test",
+        recurring: { interval: "year", intervalCount: 1 },
+      },
+    });
+    const subscription = buildSubscription({
+      items: { data: [yearlyItem] },
+      discounts: [buildDiscountFor({ amountOff: 2400, currency: "usd" })],
+    });
+
+    // $120/yr = $10/mo; $24 off the yearly invoice = $2/mo.
+    expect(compute([subscription]).mrr).toBe(8);
+  });
+
+  it("applies an item-level percent discount only to that item", () => {
+    const discountedItem = buildItem({
+      discounts: [buildDiscountFor({ percentOff: 50 })],
+    });
+    const plainItem = buildItem({ id: "si_plain" });
+    const subscription = buildSubscription({
+      items: { data: [discountedItem, plainItem] },
+    });
+
+    expect(compute([subscription]).mrr).toBe(15);
+  });
+
+  it("stops applying a discount once it has expired", () => {
+    const subscription = buildSubscription({
+      discounts: [buildDiscountFor({ percentOff: 50, end: NOW_SECONDS - 1 })],
+    });
+
+    expect(compute([subscription]).mrr).toBe(10);
+  });
+
+  it("does not apply a discount that has not started yet", () => {
+    const subscription = buildSubscription({
+      discounts: [
+        buildDiscountFor({ percentOff: 50, start: NOW_SECONDS + 1000 }),
+      ],
+    });
+
+    expect(compute([subscription]).mrr).toBe(10);
+  });
+
+  it("never lets an amount_off discount push MRR below zero", () => {
+    const subscription = buildSubscription({
+      discounts: [buildDiscountFor({ amountOff: 99999, currency: "usd" })],
+    });
+
+    expect(compute([subscription]).mrr).toBe(0);
+  });
+
+  it("attributes a subscription-level amount_off to matching items by value share", () => {
+    const matching = buildItem();
+    const other = buildItem({
+      id: "si_other",
+      price: { ...buildItem().price, id: "price_other", product: "prod_other" },
+    });
+    const subscription = buildSubscription({
+      items: { data: [matching, other] },
+      discounts: [buildDiscountFor({ amountOff: 1000, currency: "usd" })],
+    });
+
+    // $10 off a $20/mo subscription; the matching half bears $5.
+    expect(compute([subscription]).mrr).toBe(5);
+  });
+
+  it("fails loud on an amount_off discount in a non-USD currency", () => {
+    const subscription = buildSubscription({
+      discounts: [buildDiscountFor({ amountOff: 100, currency: "eur" })],
+    });
+
+    expect(() => compute([subscription])).toThrow(/eur/);
   });
 });

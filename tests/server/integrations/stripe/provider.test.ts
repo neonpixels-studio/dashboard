@@ -56,6 +56,7 @@ describe("stripeProvider", () => {
               {
                 id: "si_e2e",
                 quantity: 1,
+                discounts: [],
                 price: {
                   id: "price_e2e",
                   unit_amount: 1500,
@@ -67,6 +68,7 @@ describe("stripeProvider", () => {
             ],
             has_more: false,
           },
+          discounts: [],
         },
       ],
       has_more: false,

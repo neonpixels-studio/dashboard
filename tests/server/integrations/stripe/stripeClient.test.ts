@@ -18,6 +18,7 @@ function buildStripeSubscription(
         {
           id: `si_${id}`,
           quantity: 1,
+          discounts: [],
           price: {
             id: `price_${id}`,
             unit_amount: 900,
@@ -29,6 +30,7 @@ function buildStripeSubscription(
       ],
       has_more: false,
     },
+    discounts: [],
     ...overrides,
   } as Stripe.Subscription;
 }
@@ -40,7 +42,7 @@ function buildStubStripeClient(
 }
 
 describe("createStripeSubscriptionLister", () => {
-  it("requests active subscriptions and passes the cursor through as starting_after", async () => {
+  it("requests non-canceled subscriptions with discounts expanded and passes the cursor through as starting_after", async () => {
     const list = vi.fn(async () => ({
       data: [buildStripeSubscription("sub_1")],
       has_more: false,
@@ -54,11 +56,27 @@ describe("createStripeSubscriptionLister", () => {
 
     expect(list).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "active",
         starting_after: "sub_cursor",
+        limit: 100,
+        expand: [
+          "data.discounts.source.coupon",
+          "data.items.data.discounts.source.coupon",
+        ],
       }),
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
+  });
+
+  it("does not filter by status so trialing and past_due subscriptions reach mrr.ts", async () => {
+    const list = vi.fn(async () => ({ data: [], has_more: false }));
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list),
+    );
+
+    await listActiveSubscriptions();
+
+    expect(list.mock.calls[0]?.[0]).not.toHaveProperty("status");
   });
 
   it("calls without a cursor on the first page", async () => {
@@ -98,6 +116,7 @@ describe("createStripeSubscriptionLister", () => {
             {
               id: "si_sub_1",
               quantity: 1,
+              discounts: [],
               price: {
                 id: "price_sub_1",
                 unitAmount: 900,
@@ -108,6 +127,7 @@ describe("createStripeSubscriptionLister", () => {
             },
           ],
         },
+        discounts: [],
       },
     ]);
   });

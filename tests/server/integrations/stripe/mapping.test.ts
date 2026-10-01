@@ -13,6 +13,7 @@ function buildStripeSubscription(
         {
           id: "si_123",
           quantity: 2,
+          discounts: [],
           price: {
             id: "price_123",
             unit_amount: 900,
@@ -24,6 +25,7 @@ function buildStripeSubscription(
       ],
       has_more: false,
     },
+    discounts: [],
     ...overrides,
   } as Stripe.Subscription;
 }
@@ -40,6 +42,7 @@ describe("toStripeSubscription", () => {
           {
             id: "si_123",
             quantity: 2,
+            discounts: [],
             price: {
               id: "price_123",
               unitAmount: 900,
@@ -50,6 +53,7 @@ describe("toStripeSubscription", () => {
           },
         ],
       },
+      discounts: [],
     });
   });
 
@@ -60,6 +64,7 @@ describe("toStripeSubscription", () => {
           {
             id: "si_one_time",
             quantity: 1,
+            discounts: [],
             price: {
               id: "price_one_time",
               unit_amount: 500,
@@ -84,6 +89,7 @@ describe("toStripeSubscription", () => {
           {
             id: "si_metered",
             quantity: undefined,
+            discounts: [],
             price: {
               id: "price_metered",
               unit_amount: 100,
@@ -108,6 +114,7 @@ describe("toStripeSubscription", () => {
           {
             id: "si_expanded",
             quantity: 1,
+            discounts: [],
             price: {
               id: "price_expanded",
               unit_amount: 100,
@@ -138,6 +145,7 @@ describe("toStripeSubscription", () => {
           {
             id: "si_unknown_interval",
             quantity: 1,
+            discounts: [],
             price: {
               id: "price_unknown_interval",
               unit_amount: 100,
@@ -166,6 +174,7 @@ describe("toStripeSubscription", () => {
           {
             id: "si_visible",
             quantity: 1,
+            discounts: [],
             price: {
               id: "price_visible",
               unit_amount: 100,
@@ -182,5 +191,80 @@ describe("toStripeSubscription", () => {
     expect(() => toStripeSubscription(subscription)).toThrow(
       /has more items than fit on one page/,
     );
+  });
+
+  describe("discounts", () => {
+    function buildDiscount(
+      overrides: Record<string, unknown> = {},
+    ): Stripe.Discount {
+      return {
+        id: "di_1",
+        start: 1000,
+        end: 2000,
+        source: {
+          type: "coupon",
+          coupon: {
+            id: "co_1",
+            percent_off: 25,
+            amount_off: null,
+            currency: null,
+          },
+        },
+        ...overrides,
+      } as unknown as Stripe.Discount;
+    }
+
+    it("maps subscription-level discounts and their coupon terms", () => {
+      const subscription = buildStripeSubscription({
+        discounts: [buildDiscount()],
+      });
+
+      expect(toStripeSubscription(subscription).discounts).toEqual([
+        {
+          percentOff: 25,
+          amountOff: null,
+          currency: null,
+          start: 1000,
+          end: 2000,
+        },
+      ]);
+    });
+
+    it("maps item-level discounts", () => {
+      const subscription = buildStripeSubscription();
+      (subscription.items.data[0] as { discounts: unknown[] }).discounts = [
+        buildDiscount({ end: null }),
+      ];
+
+      expect(
+        toStripeSubscription(subscription).items.data[0]?.discounts,
+      ).toEqual([
+        {
+          percentOff: 25,
+          amountOff: null,
+          currency: null,
+          start: 1000,
+          end: null,
+        },
+      ]);
+    });
+
+    it("fails loud on an unexpanded discount id", () => {
+      const subscription = buildStripeSubscription({ discounts: ["di_1"] });
+
+      expect(() => toStripeSubscription(subscription)).toThrow(/not expanded/);
+    });
+
+    it("fails loud on an unexpanded coupon", () => {
+      const subscription = buildStripeSubscription({
+        discounts: [
+          buildDiscount({ source: { type: "coupon", coupon: "co_1" } }),
+        ],
+      });
+
+      expect(() => toStripeSubscription(subscription)).toThrow(
+        /expanded coupon/,
+      );
+    });
   });
 });

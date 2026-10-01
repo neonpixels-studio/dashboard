@@ -1,3 +1,8 @@
+import {
+  applyDiscounts,
+  hasAmountOffDiscount,
+  type DiscountContext,
+} from "./discounts";
 import type {
   ListActiveSubscriptions,
   StripeRecurring,
@@ -19,6 +24,19 @@ const MONTHS_PER_YEAR = 12;
 const WEEKS_PER_MONTH = 52 / MONTHS_PER_YEAR;
 const DAYS_PER_MONTH = 30;
 const MINIMUM_INTERVAL_COUNT = 1;
+const MILLISECONDS_PER_SECOND = 1000;
+
+// PRODUCT DECISIONS (issue #73) - flip these to change what MRR means.
+// Subscription statuses that count toward MRR and the subscriber count.
+// `past_due` is a paying customer in dunning; `trialing` has paid nothing
+// yet. Everything else (unpaid, incomplete, paused, canceled, ...) is out.
+const MRR_COUNTED_STATUSES: ReadonlySet<string> = new Set([
+  "active",
+  "past_due",
+]);
+// When true, MRR reflects discounts/coupons currently in effect; when
+// false it is computed from list prices.
+const MRR_APPLIES_DISCOUNTS = true;
 
 /**
  * `integration_config.external_id` for a Stripe row is a comma-separated
@@ -103,11 +121,76 @@ function roundToCents(value: number): number {
   return Math.round(value * CENTS_PER_DOLLAR) / CENTS_PER_DOLLAR;
 }
 
-function sumMonthlyDollars(items: StripeSubscriptionItem[]): number {
+// Item-level discounts apply to that item's own invoice line, so they use
+// the item's own billing cycle.
+function normalizeItemNetMonthlyDollars(
+  item: StripeSubscriptionItem,
+  nowSeconds: number,
+): number {
+  const grossDollars = normalizeItemToMonthlyDollars(item);
+  if (!MRR_APPLIES_DISCOUNTS || grossDollars === 0 || !item.price.recurring) {
+    return grossDollars;
+  }
+  return applyDiscounts(grossDollars, item.discounts, {
+    nowSeconds,
+    monthlyDivisor: monthlyIntervalDivisor(item.price.recurring),
+  });
+}
+
+function sumNetMonthlyDollars(
+  items: StripeSubscriptionItem[],
+  nowSeconds: number,
+): number {
   return items.reduce(
-    (sum, item) => sum + normalizeItemToMonthlyDollars(item),
+    (sum, item) => sum + normalizeItemNetMonthlyDollars(item, nowSeconds),
     0,
   );
+}
+
+// Stripe requires every item on a subscription to share one billing
+// interval, so the first recurring item's cycle is the subscription's.
+function subscriptionDiscountContext(
+  subscription: StripeSubscription,
+  matchingNetDollars: number,
+  nowSeconds: number,
+): DiscountContext | null {
+  const recurring = subscription.items.data.find((item) => item.price.recurring)
+    ?.price.recurring;
+  if (!recurring) {
+    return null;
+  }
+  // A subscription-level amount_off is split across ALL items by value;
+  // computing the others' totals is only needed (and only risks tripping
+  // on another app's odd price) when such a discount exists.
+  const needsShare = hasAmountOffDiscount(subscription.discounts, nowSeconds);
+  const allNetDollars = needsShare
+    ? sumNetMonthlyDollars(subscription.items.data, nowSeconds)
+    : matchingNetDollars;
+  return {
+    nowSeconds,
+    monthlyDivisor: monthlyIntervalDivisor(recurring),
+    share: allNetDollars > 0 ? matchingNetDollars / allNetDollars : 0,
+  };
+}
+
+function subscriptionMonthlyDollars(
+  subscription: StripeSubscription,
+  matchingItems: StripeSubscriptionItem[],
+  nowSeconds: number,
+): number {
+  const matchingNetDollars = sumNetMonthlyDollars(matchingItems, nowSeconds);
+  if (!MRR_APPLIES_DISCOUNTS || matchingNetDollars === 0) {
+    return matchingNetDollars;
+  }
+  const context = subscriptionDiscountContext(
+    subscription,
+    matchingNetDollars,
+    nowSeconds,
+  );
+  if (!context) {
+    return matchingNetDollars;
+  }
+  return applyDiscounts(matchingNetDollars, subscription.discounts, context);
 }
 
 export interface StripeMrrResult {
@@ -117,7 +200,8 @@ export interface StripeMrrResult {
 
 /**
  * Sums MRR at the subscription-ITEM level and counts active subscribers,
- * scoped to `productIds`. A subscription with items across several matching
+ * scoped to `productIds`. Only statuses in MRR_COUNTED_STATUSES count, and
+ * discounts in effect at `now` reduce MRR (see MRR_APPLIES_DISCOUNTS). A subscription with items across several matching
  * products (a mixed-tier upgrade/downgrade) is summed across only its
  * matching items and counted as exactly one subscriber; a subscription with
  * no matching items is excluded entirely, so an unrelated add-on item never
@@ -134,23 +218,28 @@ export interface StripeMrrResult {
 export function computeMrrForProducts(
   subscriptions: StripeSubscription[],
   productIds: Set<string>,
+  now: Date = new Date(),
 ): StripeMrrResult {
-  const matchingItemsPerSubscription = subscriptions
-    .map((subscription) =>
-      subscription.items.data.filter((item) =>
+  const nowSeconds = Math.floor(now.getTime() / MILLISECONDS_PER_SECOND);
+  const matching = subscriptions
+    .filter((subscription) => MRR_COUNTED_STATUSES.has(subscription.status))
+    .map((subscription) => ({
+      subscription,
+      items: subscription.items.data.filter((item) =>
         productIds.has(item.price.product),
       ),
-    )
-    .filter((matchingItems) => matchingItems.length > 0);
+    }))
+    .filter(({ items }) => items.length > 0);
 
-  const mrr = matchingItemsPerSubscription.reduce(
-    (sum, matchingItems) => sum + sumMonthlyDollars(matchingItems),
+  const mrr = matching.reduce(
+    (sum, { subscription, items }) =>
+      sum + subscriptionMonthlyDollars(subscription, items, nowSeconds),
     0,
   );
 
   return {
     mrr: roundToCents(mrr),
-    activeSubscribers: matchingItemsPerSubscription.length,
+    activeSubscribers: matching.length,
   };
 }
 

@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import type {
+  StripeDiscount,
   StripePrice,
   StripeRecurring,
   StripeSubscription,
@@ -71,6 +72,32 @@ function toPrice(price: Stripe.Price): StripePrice {
   };
 }
 
+// Discounts (and the coupon on `source`) come back as bare ids unless
+// stripeClient.ts expands them. Fail loud rather than silently treating an
+// unexpanded discount as "no discount" and overstating MRR.
+function toDiscount(discount: string | Stripe.Discount): StripeDiscount {
+  if (typeof discount === "string") {
+    throw new Error(
+      `Stripe discount "${discount}" was not expanded; ` +
+        "server/integrations/stripe/stripeClient.ts must expand discounts.",
+    );
+  }
+  const coupon = discount.source.coupon;
+  if (!coupon || typeof coupon === "string") {
+    throw new Error(
+      `Stripe discount "${discount.id}" has no expanded coupon; ` +
+        "server/integrations/stripe/stripeClient.ts must expand discounts.source.coupon.",
+    );
+  }
+  return {
+    percentOff: coupon.percent_off,
+    amountOff: coupon.amount_off,
+    currency: coupon.currency,
+    start: discount.start,
+    end: discount.end,
+  };
+}
+
 function toSubscriptionItem(
   item: Stripe.SubscriptionItem,
 ): StripeSubscriptionItem {
@@ -78,6 +105,7 @@ function toSubscriptionItem(
     id: item.id,
     quantity: item.quantity ?? null,
     price: toPrice(item.price),
+    discounts: item.discounts.map(toDiscount),
   };
 }
 
@@ -95,5 +123,6 @@ export function toStripeSubscription(
     id: subscription.id,
     status: subscription.status,
     items: { data: subscription.items.data.map(toSubscriptionItem) },
+    discounts: subscription.discounts.map(toDiscount),
   };
 }
