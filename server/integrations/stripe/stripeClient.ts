@@ -76,11 +76,18 @@ function createCachedCouponLookup(
     if (cached) {
       return cached;
     }
-    const pending = stripeClient.coupons.retrieve(
-      couponId,
-      {},
-      { timeout: timeoutMs() },
-    );
+    const pending = stripeClient.coupons
+      .retrieve(couponId, {}, { timeout: timeoutMs() })
+      .catch((error: unknown) => {
+        // Don't let one transient failure poison this coupon id for the
+        // lister's lifetime; a deleted coupon fails loud with its id.
+        cache.delete(couponId);
+        throw new Error(
+          `Could not retrieve Stripe coupon "${couponId}" attached to a subscription discount: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
     cache.set(couponId, pending);
     return pending;
   };
@@ -122,6 +129,20 @@ function capStripeTimeoutPerAttempt(remainingMs: number): number {
   );
 }
 
+// A non-positive timeout would mean "no timeout" to the Node HTTP layer, so
+// an exhausted shared budget must stop the call instead.
+function perAttemptTimeoutOrThrow(deadline: FetchDeadline): number {
+  const perAttemptTimeoutMs = capStripeTimeoutPerAttempt(
+    deadline.remainingMs(),
+  );
+  if (perAttemptTimeoutMs <= 0) {
+    throw new Error(
+      "Stripe request skipped: the sync's shared run budget was already exhausted.",
+    );
+  }
+  return perAttemptTimeoutMs;
+}
+
 /**
  * Builds the real, network-touching `ListActiveSubscriptions`. `stripeClient`
  * defaults to a real Stripe SDK instance but is injectable — this is the one
@@ -146,17 +167,10 @@ export function createStripeSubscriptionLister(
   deadline: FetchDeadline = NO_DEADLINE,
 ): ListActiveSubscriptions {
   const couponLookup = createCachedCouponLookup(stripeClient, () =>
-    capStripeTimeoutPerAttempt(deadline.remainingMs()),
+    perAttemptTimeoutOrThrow(deadline),
   );
   return async (startingAfter) => {
-    const perAttemptTimeoutMs = capStripeTimeoutPerAttempt(
-      deadline.remainingMs(),
-    );
-    if (perAttemptTimeoutMs <= 0) {
-      throw new Error(
-        "Stripe subscription list skipped: the sync's shared run budget was already exhausted.",
-      );
-    }
+    const perAttemptTimeoutMs = perAttemptTimeoutOrThrow(deadline);
 
     // No `status` filter: Stripe's default returns every non-canceled
     // subscription (active, past_due, trialing, unpaid, ...). Which of those

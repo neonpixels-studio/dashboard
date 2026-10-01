@@ -134,6 +134,86 @@ describe("createStripeSubscriptionLister", () => {
     expect(retrieveCoupon).toHaveBeenCalledTimes(1);
   });
 
+  describe("when a coupon lookup fails", () => {
+    function buildSubscriptionWithCouponId(): Stripe.Subscription {
+      return buildStripeSubscription("sub_1", {
+        discounts: [
+          {
+            id: "di_1",
+            start: 1,
+            end: null,
+            source: { type: "coupon", coupon: "co_gone" },
+          } as unknown as Stripe.Discount,
+        ],
+      });
+    }
+
+    it("fails loud naming the coupon", async () => {
+      const list = vi.fn(async () => ({
+        data: [buildSubscriptionWithCouponId()],
+        has_more: false,
+      }));
+      const retrieveCoupon = vi.fn(async () => {
+        throw new Error("No such coupon");
+      }) as never;
+      const listActiveSubscriptions = createStripeSubscriptionLister(
+        "sk_test_unused",
+        buildStubStripeClient(list, retrieveCoupon),
+      );
+
+      await expect(listActiveSubscriptions()).rejects.toThrow(
+        /coupon "co_gone".*No such coupon/,
+      );
+    });
+
+    it("does not cache the failure, so a later call retries the lookup", async () => {
+      const list = vi.fn(async () => ({
+        data: [buildSubscriptionWithCouponId()],
+        has_more: false,
+      }));
+      const retrieveCoupon = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("timeout"))
+        .mockResolvedValue({
+          id: "co_gone",
+          percent_off: 10,
+          amount_off: null,
+          currency: null,
+        }) as never;
+      const listActiveSubscriptions = createStripeSubscriptionLister(
+        "sk_test_unused",
+        buildStubStripeClient(list, retrieveCoupon),
+      );
+
+      await expect(listActiveSubscriptions()).rejects.toThrow(/timeout/);
+      const page = await listActiveSubscriptions();
+
+      expect(page.data[0]?.discounts[0]?.percentOff).toBe(10);
+    });
+
+    it("does not retrieve coupons once the shared run budget is exhausted", async () => {
+      const list = vi.fn(async () => ({
+        data: [buildSubscriptionWithCouponId()],
+        has_more: false,
+      }));
+      const retrieveCoupon = vi.fn() as never;
+      const deadline = createDeadline(10_000);
+      const listActiveSubscriptions = createStripeSubscriptionLister(
+        "sk_test_unused",
+        buildStubStripeClient(list, retrieveCoupon),
+        deadline,
+      );
+      vi.spyOn(deadline, "remainingMs")
+        .mockReturnValueOnce(10_000)
+        .mockReturnValue(0);
+
+      await expect(listActiveSubscriptions()).rejects.toThrow(
+        /shared run budget was already exhausted/,
+      );
+      expect(retrieveCoupon).not.toHaveBeenCalled();
+    });
+  });
+
   it("calls without a cursor on the first page", async () => {
     const list = vi.fn(async () => ({ data: [], has_more: false }));
     const listActiveSubscriptions = createStripeSubscriptionLister(
