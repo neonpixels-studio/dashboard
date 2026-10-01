@@ -127,7 +127,7 @@ export function buildSessionsTotals(
 ): StatListItem[] {
   return properties
     .filter((property) => property.total30d !== null)
-    .sort((a, b) => (b.total30d ?? 0) - (a.total30d ?? 0))
+    .sort((first, second) => (second.total30d ?? 0) - (first.total30d ?? 0))
     .map((property) => ({
       label: findAppBySlug(property.slug)?.name ?? property.slug,
       value: formatOrDash(property.total30d, formatCompactCount),
