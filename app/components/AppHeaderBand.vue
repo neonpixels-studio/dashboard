@@ -68,11 +68,10 @@ import type { AppStatus } from "#shared/types/dashboard";
 import type { DashboardApp } from "~/config/apps";
 import { healthToneChipStyle } from "~/utils/statusColor";
 
-// `status` is a separate optional prop rather than folded into a view model
-// because the detail-page read API (`GET /api/apps/[slug]`, used by #20)
-// doesn't return one — only `GET /api/apps` (`AppCard`, used by #19) does.
-// Until a wiring issue supplies it, this renders a loading placeholder
-// rather than pretending to know the property's health.
+// `status` is a separate optional prop (from `AppDetailResponse.status`).
+// It's null until the detail fetch resolves (or if it errors), and the band
+// renders a loading placeholder rather than pretending to know the
+// property's health.
 withDefaults(
   defineProps<{
     app: DashboardApp;

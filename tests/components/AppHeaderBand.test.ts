@@ -27,6 +27,19 @@ describe("AppHeaderBand", () => {
     expect(wrapper.findComponent(SkeletonBlock).exists()).toBe(false);
   });
 
+  it.each([
+    [{ label: "3 ISSUES", tone: "danger" }],
+    [{ label: "NOT SYNCED", tone: "muted" }],
+  ] as [AppStatus][])(
+    "renders the %j status instead of the skeleton",
+    (status) => {
+      const wrapper = mountBand(status);
+      expect(wrapper.find(".status-chip").text()).toBe(status.label);
+      expect(wrapper.attributes("aria-busy")).toBe("false");
+      expect(wrapper.findComponent(SkeletonBlock).exists()).toBe(false);
+    },
+  );
+
   it("still renders identity fields (name, tagline, open link) unchanged", () => {
     const wrapper = mountBand(null);
     expect(wrapper.text()).toContain(app.tagline);

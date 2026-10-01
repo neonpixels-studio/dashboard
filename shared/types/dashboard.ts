@@ -153,6 +153,7 @@ export type AppsResponse = AppCard[];
 // GET /api/apps/[slug]
 export interface AppDetailResponse {
   slug: string;
+  status: AppStatus;
   metrics: CurrentMetric[];
   series: MetricSeries[];
   trafficBreakdown: TrafficChannelSplit[];
