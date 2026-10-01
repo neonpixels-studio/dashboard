@@ -414,6 +414,23 @@ describe("metricSeriesBySlug with unbounded latest rows", () => {
     expect(metricSeriesBySlug([], "basin", [staleDevtoRow])).toEqual([]);
   });
 
+  it("does not back-date a vendor whose latest row is in-window but missing from the series rows", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, capturedAt: new Date("2026-09-02T00:00:00Z") },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("does not seed a stale vendor into a different period's series", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, period: "7d" },
+    ]);
+
+    expect(series).toHaveLength(1);
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
   it("ignores latest rows belonging to another app", () => {
     const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
       { ...staleDevtoRow, slug: "markpost" },

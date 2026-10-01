@@ -291,7 +291,8 @@ export function latestMetricsBySlug(
 // it in the tile. Seeds one carry-forward row per such vendor from
 // `latestRows` (fetchLatestMetricSnapshots, unbounded), so the combined
 // sparkline includes every vendor the tile does. The seed is re-dated to the
-// earliest in-window row of its group: its true timestamp is outside the
+// earliest in-window row of its group (only rows older than that row are
+// seeded): its true timestamp is outside the
 // window and would stretch the sparkline's day span back to it, while the
 // stale value is only needed as the carried-forward baseline. A (metric,
 // period) with no in-window rows at all is left alone (no new series appears
@@ -320,12 +321,14 @@ function staleVendorSeedRows(
     if (!group || knownVendorKeys.has(vendorKey)) {
       return [];
     }
-    return [
-      {
-        ...row,
-        capturedAt: minByCapturedAt(group.flat()).capturedAt,
-      },
-    ];
+    const earliestInWindow = minByCapturedAt(group.flat()).capturedAt;
+    // The two queries run concurrently, so a row committed between them can
+    // show up in `latestRows` only; it is in-window, not stale, so skip it
+    // (the next request's series query will include it).
+    if (row.capturedAt >= earliestInWindow) {
+      return [];
+    }
+    return [{ ...row, capturedAt: earliestInWindow }];
   });
 }
 
