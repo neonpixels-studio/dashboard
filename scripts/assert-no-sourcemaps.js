@@ -19,7 +19,7 @@ const EXIT_FAILURE = 1;
 const SOURCE_MAP_EXTENSION = ".map";
 const BUILD_SECTION_PATTERN = /^\[\s*build\s*\]\s*(#.*)?$/;
 const ANY_SECTION_PATTERN = /^\[.+\]\s*(#.*)?$/;
-const PUBLISH_PATTERN = /^publish\s*=\s*"([^"]+)"/;
+const PUBLISH_PATTERN = /^publish\s*=\s*(["'])([^"']+)\1/;
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_NETLIFY_TOML = join(REPO_ROOT, "netlify.toml");
 
@@ -35,7 +35,7 @@ export function parsePublishDir(tomlContents) {
     }
     const match = insideBuildSection ? line.match(PUBLISH_PATTERN) : null;
     if (match) {
-      return match[1];
+      return match[2];
     }
   }
   throw new Error(

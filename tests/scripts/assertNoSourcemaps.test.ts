@@ -76,6 +76,10 @@ describe("parsePublishDir", () => {
     ).toThrow(/No `publish`/);
   });
 
+  it("accepts single-quoted TOML strings", () => {
+    expect(parsePublishDir("[build]\npublish = 'dist'")).toBe("dist");
+  });
+
   it("matches the real netlify.toml", () => {
     const realToml = readFileSync(
       resolve(__dirname, "../../netlify.toml"),
