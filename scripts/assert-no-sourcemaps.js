@@ -14,10 +14,11 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const EXIT_SUCCESS = 0;
 const EXIT_FAILURE = 1;
 const SOURCE_MAP_EXTENSION = ".map";
-const BUILD_SECTION_PATTERN = /^\[build\]\s*$/;
-const ANY_SECTION_PATTERN = /^\[.+\]\s*$/;
+const BUILD_SECTION_PATTERN = /^\[\s*build\s*\]\s*(#.*)?$/;
+const ANY_SECTION_PATTERN = /^\[.+\]\s*(#.*)?$/;
 const PUBLISH_PATTERN = /^publish\s*=\s*"([^"]+)"/;
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_NETLIFY_TOML = join(REPO_ROOT, "netlify.toml");
@@ -78,7 +79,7 @@ export function runGuard(netlifyTomlPath = DEFAULT_NETLIFY_TOML) {
     return EXIT_FAILURE;
   }
   console.log(`No source maps under ${publishDirectory}.`);
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 // Resolve both sides through realpathSync so a symlinked argv[1] (macOS
@@ -88,14 +89,18 @@ function isDirectInvocation() {
   if (!entrypoint) {
     return false;
   }
-  return realpathSync(entrypoint) === fileURLToPath(import.meta.url);
+  return (
+    realpathSync(entrypoint) === realpathSync(fileURLToPath(import.meta.url))
+  );
 }
 
 if (isDirectInvocation()) {
   try {
     process.exit(runGuard(process.argv[2]));
   } catch (error) {
-    console.error(`assert-no-sourcemaps failed: ${error.message}`);
+    console.error(
+      `assert-no-sourcemaps failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exit(EXIT_FAILURE);
   }
 }

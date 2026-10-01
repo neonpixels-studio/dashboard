@@ -53,6 +53,29 @@ describe("parsePublishDir", () => {
     );
   });
 
+  it("returns the [build] publish when a context table precedes it", () => {
+    expect(
+      parsePublishDir('[context.x]\npublish = "a"\n[build]\npublish = "b"'),
+    ).toBe("b");
+  });
+
+  it("does not read publish from a nested [build.*] table", () => {
+    expect(() =>
+      parsePublishDir('[build]\n[build.environment]\npublish = "a"'),
+    ).toThrow(/No `publish`/);
+  });
+
+  it("stops at [[array]] tables and tolerates trailing header comments", () => {
+    expect(
+      parsePublishDir(
+        '[build] # main\npublish = "b"\n[[plugins]]\npublish = "c"',
+      ),
+    ).toBe("b");
+    expect(() =>
+      parsePublishDir('[build]\n[context.production] # x\npublish = "c"'),
+    ).toThrow(/No `publish`/);
+  });
+
   it("matches the real netlify.toml", () => {
     const realToml = readFileSync(
       resolve(__dirname, "../../netlify.toml"),
@@ -130,5 +153,6 @@ describe("CLI entrypoint", () => {
       join(projectDirectory, "netlify.toml"),
     ]);
     expect(result.status).toBe(1);
+    expect(result.stderr.toString()).toMatch(/does not exist/);
   });
 });
