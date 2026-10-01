@@ -26,6 +26,8 @@ export const SESSIONS_CHART_VIEWBOX_HEIGHT = 200;
 // (metricTile.ts:dailySessionsPoints).
 const MIN_CHART_POINTS = 2;
 
+const CHART_WINDOW_DAYS = 30;
+
 const FALLBACK_COLOR = "var(--ink-3)";
 
 function accentFor(slug: string): string {
@@ -42,30 +44,44 @@ function dayKeyOf(point: MetricPoint): string {
   return point.capturedAt.slice(0, 10);
 }
 
-// Every day any drawable property has a point for, oldest first - the
-// shared x-axis the lines are placed on by date (not by point count), so a
-// stale or gappy property doesn't drift onto the wrong days.
+// The most recent days any property has data for, oldest first - the shared
+// x-axis the lines are placed on by date (not by point count), so a gappy
+// property doesn't drift onto the wrong days. Capped to the chart's window
+// so one property that stopped syncing long ago can't stretch the axis and
+// squeeze every healthy line.
 function sharedDayKeys(properties: PropertySessions[]): string[] {
   const dayKeys = new Set(
     properties.flatMap((property) => property.daily.map(dayKeyOf)),
   );
-  return [...dayKeys].sort();
+  return [...dayKeys].sort().slice(-CHART_WINDOW_DAYS);
+}
+
+// Properties with their points restricted to the shared window, dropping any
+// left with too little to draw a trend.
+function windowedProperties(properties: PropertySessions[]) {
+  const dayKeys = new Set(sharedDayKeys(drawableProperties(properties)));
+  return drawableProperties(
+    properties.map((property) => ({
+      ...property,
+      daily: property.daily.filter((point) => dayKeys.has(dayKeyOf(point))),
+    })),
+  );
 }
 
 // All lines share one y-scale so a small property reads as small next to a
 // large one, instead of every line stretching to the full chart height.
 export function buildSessionsChartSeries(properties: PropertySessions[]) {
-  const drawable = drawableProperties(properties);
-  const domain = domainOf(drawable.map((property) => property.daily));
-  if (!domain) {
+  const windowed = windowedProperties(properties);
+  const domain = domainOf(windowed.map((property) => property.daily));
+  const dayKeys = sharedDayKeys(windowed);
+  if (!domain || dayKeys.length < MIN_CHART_POINTS) {
     return [];
   }
-  const dayKeys = sharedDayKeys(drawable);
   const slotFor = (point: MetricPoint) => dayKeys.indexOf(dayKeyOf(point));
   const options = { domain, totalSlots: dayKeys.length, slotFor };
   const stepX = SESSIONS_CHART_VIEWBOX_WIDTH / (dayKeys.length - 1);
 
-  return drawable.map((property) => ({
+  return windowed.map((property) => ({
     slug: property.slug,
     color: accentFor(property.slug),
     path: buildSparklinePath(
@@ -90,7 +106,7 @@ function roundCoordinate(value: number): number {
 export function buildSessionsAxisLabels(
   properties: PropertySessions[],
 ): string[] {
-  const dayKeys = sharedDayKeys(drawableProperties(properties));
+  const dayKeys = sharedDayKeys(windowedProperties(properties));
   return buildAxisLabels(
     dayKeys.map((dayKey) => ({
       capturedAt: `${dayKey}T00:00:00.000Z`,
@@ -100,7 +116,7 @@ export function buildSessionsAxisLabels(
 }
 
 export function buildSessionsAriaLabel(properties: PropertySessions[]): string {
-  const count = drawableProperties(properties).length;
+  const count = windowedProperties(properties).length;
   return `Daily sessions for ${count} ${count === 1 ? "property" : "properties"}.`;
 }
 

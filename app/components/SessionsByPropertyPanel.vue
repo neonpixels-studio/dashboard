@@ -23,10 +23,9 @@
     <div class="totals">
       <span class="metric-label totals-label">30-DAY TOTAL</span>
       <SkeletonBlock v-if="pending" height="120px" />
+      <p v-else-if="hasError" class="sessions-empty">Unavailable.</p>
       <StatList v-else-if="totals.length" :items="totals" />
-      <p v-else class="sessions-empty">
-        {{ hasError ? "Unavailable." : "No session data synced yet." }}
-      </p>
+      <p v-else class="sessions-empty">No session data synced yet.</p>
     </div>
   </div>
 </template>

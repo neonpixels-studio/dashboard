@@ -72,6 +72,37 @@ describe("buildSessionsChartSeries", () => {
     expect(series[1]?.path).not.toContain("L300.00");
   });
 
+  it("doesn't let a long-stale property stretch the axis past the 30-day window", () => {
+    const stale = daily([1, 2]).map((point) => ({
+      ...point,
+      capturedAt: point.capturedAt.replace("2026-09", "2026-06"),
+    }));
+    const recent = Array.from({ length: 30 }, (_, index) => ({
+      capturedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
+      value: index,
+    }));
+    const series = buildSessionsChartSeries([
+      { slug: "basin", daily: recent, total30d: 1, delta: null },
+      { slug: "markpost", daily: stale, total30d: 1, delta: null },
+    ]);
+
+    expect(series.map((line) => line.slug)).toEqual(["basin"]);
+    expect(series[0]?.path).toMatch(/^M0\.00 .* L900\.00 /);
+  });
+
+  it("draws nothing for a single shared day rather than dividing by zero", () => {
+    const sameDay = [
+      { capturedAt: "2026-09-01T01:00:00.000Z", value: 1 },
+      { capturedAt: "2026-09-01T09:00:00.000Z", value: 2 },
+    ];
+
+    expect(
+      buildSessionsChartSeries([
+        { slug: "basin", daily: sameDay, total30d: 1, delta: null },
+      ]),
+    ).toEqual([]);
+  });
+
   it("returns no series when nothing has enough history", () => {
     expect(buildSessionsChartSeries([])).toEqual([]);
     expect(
@@ -81,12 +112,26 @@ describe("buildSessionsChartSeries", () => {
 });
 
 describe("buildSessionsAxisLabels", () => {
-  it("labels the axis from the longest series", () => {
+  it("labels the axis from every drawable property's days", () => {
     expect(buildSessionsAxisLabels(PROPERTIES)).toEqual([
       "01 SEP",
       "02 SEP",
       "04 SEP",
     ]);
+  });
+
+  it("spans the union of days when properties cover different dates", () => {
+    const later = daily([1, 2]).map((point, index) => ({
+      ...point,
+      capturedAt: `2026-09-${String(index + 10).padStart(2, "0")}T00:00:00.000Z`,
+    }));
+
+    expect(
+      buildSessionsAxisLabels([
+        { slug: "basin", daily: daily([1, 2]), total30d: 1, delta: null },
+        { slug: "markpost", daily: later, total30d: 1, delta: null },
+      ]),
+    ).toEqual(["01 SEP", "02 SEP", "11 SEP"]);
   });
 
   it("is empty with no drawable series", () => {

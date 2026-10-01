@@ -511,6 +511,15 @@ describe("index.vue sessions panel", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("shows the error state in both columns, never stale totals, when a refresh fails with data still held", () => {
+    mockSessions({ data: sessionsFixture(), error: new Error("boom") });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.find(".totals").text()).toContain("Unavailable.");
+    expect(wrapper.find(".totals .stat-list").exists()).toBe(false);
+  });
+
   it("matches its sessions-panel snapshot with real-shaped data", () => {
     mockSessions({ data: sessionsFixture() });
 
