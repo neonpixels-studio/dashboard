@@ -83,7 +83,7 @@ describe("stripeProvider", () => {
     const result = await stripeProvider.fetch(config);
 
     expect(mockSubscriptionsList).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "active" }),
+      expect.objectContaining({ limit: 100 }),
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
     const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");
