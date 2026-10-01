@@ -69,7 +69,7 @@ import type { DashboardApp } from "~/config/apps";
 import { healthToneChipStyle } from "~/utils/statusColor";
 
 // `status` is a separate optional prop (from `AppDetailResponse.status`).
-// It's null until the detail fetch resolves (or if it errors), and the band
+// It is null until the detail fetch resolves, and the band
 // renders a loading placeholder rather than pretending to know the
 // property's health.
 withDefaults(
