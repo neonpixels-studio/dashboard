@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { ref } from "vue";
 import AppDetailPage from "../../app/pages/apps/[slug].vue";
@@ -11,10 +11,10 @@ vi.mock("../../app/composables/useApp", () => ({
   useApp: () => mockUseApp(),
 }));
 
-function mountPage(detail: AppDetailResponse | null) {
+function mountPage(detail: AppDetailResponse | null, pending = false) {
   mockUseApp.mockReturnValue({
     data: ref(detail),
-    pending: ref(false),
+    pending: ref(pending),
     error: ref(null),
     refresh: vi.fn(),
   });
@@ -32,6 +32,10 @@ describe("apps/[slug] page", () => {
     vi.stubGlobal("createError", (input: object) => input);
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("passes the detail response's status to the header band", () => {
     const status = { label: "2 ISSUES", tone: "danger" } as const;
     const wrapper = mountPage(appDetailFixture({ status }));
@@ -42,7 +46,7 @@ describe("apps/[slug] page", () => {
   });
 
   it("passes a null status to the header band before the detail loads", () => {
-    const wrapper = mountPage(null);
+    const wrapper = mountPage(null, true);
 
     expect(wrapper.findComponent(AppHeaderBand).props("status")).toBeNull();
   });
