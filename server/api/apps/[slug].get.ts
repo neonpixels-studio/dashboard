@@ -13,6 +13,7 @@ import {
 } from "../../utils/dashboardQueries";
 import {
   alertsForApp,
+  computeAppStatus,
   latestMetricsBySlug,
   latestSyncedAt,
   metricSeriesBySlug,
@@ -57,6 +58,7 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
 
   return {
     slug,
+    status: computeAppStatus(syncRows, configRows, slug),
     metrics: latestMetricsBySlug(latestMetricRows, slug),
     series: metricSeriesBySlug(seriesMetricRows, slug),
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),

@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "~": resolve(__dirname, "app"),
       "#shared": resolve(__dirname, "shared"),
+      "#components": resolve(__dirname, "tests/support/nuxtComponentsStub.ts"),
     },
   },
   test: {

@@ -7,6 +7,7 @@ const { useApp } = await import("../../app/composables/useApp");
 
 const DETAIL_RESPONSE: AppDetailResponse = {
   slug: "basin",
+  status: { label: "LIVE", tone: "ok" },
   metrics: [],
   series: [],
   trafficBreakdown: [],

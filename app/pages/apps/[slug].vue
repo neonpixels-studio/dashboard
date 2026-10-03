@@ -1,7 +1,11 @@
 <template>
   <div class="page-shell">
     <ControlTopBar :crumb="app.name" />
-    <AppHeaderBand :app="app" :secondary-links="secondaryLinks" />
+    <AppHeaderBand
+      :app="app"
+      :status="detail?.status ?? null"
+      :secondary-links="secondaryLinks"
+    />
     <component
       :is="templateComponent"
       :app="appViewModel"
