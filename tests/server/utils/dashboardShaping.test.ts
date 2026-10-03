@@ -362,6 +362,127 @@ describe("metricSeriesBySlug", () => {
   });
 });
 
+describe("metricSeriesBySlug with unbounded latest rows", () => {
+  const staleDevtoRow = metricRow({
+    vendor: "devto",
+    metric: "posts",
+    period: "current",
+    value: 3,
+    // Well outside the 60-day series window.
+    capturedAt: new Date("2026-05-01T00:00:00Z"),
+  });
+  const hashnodeSeriesRows = [
+    metricRow({
+      vendor: "hashnode",
+      metric: "posts",
+      period: "current",
+      value: 10,
+      capturedAt: new Date("2026-09-01T00:00:00Z"),
+    }),
+    metricRow({
+      vendor: "hashnode",
+      metric: "posts",
+      period: "current",
+      value: 12,
+      capturedAt: new Date("2026-09-02T00:00:00Z"),
+    }),
+  ];
+
+  it("includes a vendor whose last poll is outside the window, matching the tile, without stretching the day span", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      staleDevtoRow,
+      hashnodeSeriesRows[1] as MetricSnapshotRow,
+    ]);
+
+    expect(series).toEqual([
+      {
+        metric: "posts",
+        period: "current",
+        points: [
+          { capturedAt: "2026-09-01T00:00:00.000Z", value: 13 },
+          { capturedAt: "2026-09-02T00:00:00.000Z", value: 15 },
+        ],
+      },
+    ]);
+  });
+
+  it("drops the stale vendor when latest rows are not supplied (window-only behavior)", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin");
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("does not create a series for a metric with no in-window rows", () => {
+    expect(metricSeriesBySlug([], "basin", [staleDevtoRow])).toEqual([]);
+  });
+
+  it("does not back-date a vendor whose latest row is in-window but missing from the series rows", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, capturedAt: new Date("2026-09-02T00:00:00Z") },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("does not back-date a latest row exactly at the earliest in-window timestamp", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, capturedAt: new Date("2026-09-01T00:00:00Z") },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("seeds every stale vendor of the same metric and period into the baseline", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      staleDevtoRow,
+      { ...staleDevtoRow, vendor: "medium", value: 5 },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([18, 20]);
+  });
+
+  it("re-dates the seed to the earliest in-window row across every vendor, not just one bucket", () => {
+    const rows = [
+      ...hashnodeSeriesRows.map((row, index) => ({
+        ...row,
+        capturedAt: new Date(`2026-09-0${index + 2}T00:00:00Z`),
+      })),
+      metricRow({
+        vendor: "medium",
+        metric: "posts",
+        period: "current",
+        value: 5,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      }),
+    ];
+
+    const series = metricSeriesBySlug(rows, "basin", [staleDevtoRow]);
+
+    expect(series[0]?.points).toEqual([
+      { capturedAt: "2026-09-01T00:00:00.000Z", value: 8 },
+      { capturedAt: "2026-09-02T00:00:00.000Z", value: 18 },
+      { capturedAt: "2026-09-03T00:00:00.000Z", value: 20 },
+    ]);
+  });
+
+  it("does not seed a stale vendor into a different period's series", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, period: "7d" },
+    ]);
+
+    expect(series).toHaveLength(1);
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("ignores latest rows belonging to another app", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, slug: "markpost" },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+});
+
 describe("metricRollupWithSplit", () => {
   it("returns all-null with an empty byApp when no app has any data", () => {
     expect(

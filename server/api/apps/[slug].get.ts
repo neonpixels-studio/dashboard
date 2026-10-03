@@ -60,7 +60,7 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     slug,
     status: computeAppStatus(syncRows, configRows, slug),
     metrics: latestMetricsBySlug(latestMetricRows, slug),
-    series: metricSeriesBySlug(seriesMetricRows, slug),
+    series: metricSeriesBySlug(seriesMetricRows, slug, latestMetricRows),
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),
     syndication: syndicationMatrixForApp(posts),
     alerts: alertsForApp(syncRows, configRows, slug),
