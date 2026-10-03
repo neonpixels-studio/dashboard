@@ -14,11 +14,84 @@ const STRIPE_MAX_NETWORK_RETRIES = 2;
 // is 10) — set explicitly so pagination doesn't depend on that default.
 const SUBSCRIPTIONS_PAGE_SIZE = 100;
 
+// Stripe caps an expand path at four properties, so item-level coupons
+// ("data.items.data.discounts.source.coupon" is six) can't be expanded in
+// the list call. Only the discounts themselves are; their coupons are
+// resolved separately (see resolveCoupons below).
+const SUBSCRIPTION_EXPANDS = ["data.discounts", "data.items.data.discounts"];
+
 // Only the subset of the real Stripe client this package calls — narrowing
 // the parameter type (rather than the full `Stripe` class) is what makes
 // `createStripeSubscriptionLister` accept a lightweight test double instead
 // of a real client built from a real secret key.
-type StripeSubscriptionsClient = Pick<Stripe, "subscriptions">;
+type StripeSubscriptionsClient = Pick<Stripe, "subscriptions" | "coupons">;
+
+type CouponLookup = (couponId: string) => Promise<Stripe.Coupon>;
+
+// Replaces each discount's bare coupon id with the full coupon. `lookup`
+// caches by id (a handful of coupons back many discounts), so a sync makes
+// one retrieve per distinct coupon, not one per discount.
+async function resolveDiscountCoupon(
+  discount: string | Stripe.Discount,
+  lookup: CouponLookup,
+): Promise<string | Stripe.Discount> {
+  if (
+    typeof discount === "string" ||
+    typeof discount.source.coupon !== "string"
+  ) {
+    return discount;
+  }
+  const coupon = await lookup(discount.source.coupon);
+  return { ...discount, source: { ...discount.source, coupon } };
+}
+
+async function resolveSubscriptionCoupons(
+  subscription: Stripe.Subscription,
+  lookup: CouponLookup,
+): Promise<Stripe.Subscription> {
+  const resolveAll = (discounts: Array<string | Stripe.Discount>) =>
+    Promise.all(
+      discounts.map((discount) => resolveDiscountCoupon(discount, lookup)),
+    );
+  const items = await Promise.all(
+    subscription.items.data.map(async (item) => ({
+      ...item,
+      discounts: await resolveAll(item.discounts),
+    })),
+  );
+  return {
+    ...subscription,
+    items: { ...subscription.items, data: items },
+    discounts: await resolveAll(subscription.discounts),
+  };
+}
+
+function createCachedCouponLookup(
+  stripeClient: StripeSubscriptionsClient,
+  timeoutMs: () => number,
+): CouponLookup {
+  const cache = new Map<string, Promise<Stripe.Coupon>>();
+  return (couponId) => {
+    const cached = cache.get(couponId);
+    if (cached) {
+      return cached;
+    }
+    const pending = stripeClient.coupons
+      .retrieve(couponId, {}, { timeout: timeoutMs() })
+      .catch((error: unknown) => {
+        // Don't let one transient failure poison this coupon id for the
+        // lister's lifetime; a deleted coupon fails loud with its id.
+        cache.delete(couponId);
+        throw new Error(
+          `Could not retrieve Stripe coupon "${couponId}" attached to a subscription discount: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+    cache.set(couponId, pending);
+    return pending;
+  };
+}
 
 // The Stripe SDK's per-request RequestOptions have no AbortSignal seam
 // (unlike the raw-fetch clients in sentryClient.ts/syndication/
@@ -56,6 +129,20 @@ function capStripeTimeoutPerAttempt(remainingMs: number): number {
   );
 }
 
+// A non-positive timeout would mean "no timeout" to the Node HTTP layer, so
+// an exhausted shared budget must stop the call instead.
+function perAttemptTimeoutOrThrow(deadline: FetchDeadline): number {
+  const perAttemptTimeoutMs = capStripeTimeoutPerAttempt(
+    deadline.remainingMs(),
+  );
+  if (perAttemptTimeoutMs <= 0) {
+    throw new Error(
+      "Stripe request skipped: the sync's shared run budget was already exhausted.",
+    );
+  }
+  return perAttemptTimeoutMs;
+}
+
 /**
  * Builds the real, network-touching `ListActiveSubscriptions`. `stripeClient`
  * defaults to a real Stripe SDK instance but is injectable — this is the one
@@ -79,35 +166,36 @@ export function createStripeSubscriptionLister(
   // directly (every existing unit test) needs no deadline at all.
   deadline: FetchDeadline = NO_DEADLINE,
 ): ListActiveSubscriptions {
+  const couponLookup = createCachedCouponLookup(stripeClient, () =>
+    perAttemptTimeoutOrThrow(deadline),
+  );
   return async (startingAfter) => {
-    const perAttemptTimeoutMs = capStripeTimeoutPerAttempt(
-      deadline.remainingMs(),
-    );
-    if (perAttemptTimeoutMs <= 0) {
-      throw new Error(
-        "Stripe subscription list skipped: the sync's shared run budget was already exhausted.",
-      );
-    }
+    const perAttemptTimeoutMs = perAttemptTimeoutOrThrow(deadline);
 
-    // `status: "active"` only — `trialing` and `past_due` subscriptions are
-    // excluded, and MRR is computed from each price's list amount with no
-    // discount/coupon applied (`subscription.discounts` isn't fetched or
-    // read). Both are deliberate scope boundaries for this first pass, not
-    // oversights: whether a past-due (in dunning, often recovered) or
-    // trialing subscription should count, and whether MRR should reflect
-    // discounted vs. list price, are product decisions, not something to
-    // guess at here — tracked as follow-ups.
+    // No `status` filter: Stripe's default returns every non-canceled
+    // subscription (active, past_due, trialing, unpaid, ...). Which of those
+    // count is decided in mrr.ts (MRR_COUNTED_STATUSES), so the policy lives
+    // in one place; `status: "all"` is avoided since it would also page
+    // through the account's entire canceled history. Discounts are expanded
+    // (and their coupons resolved below) so mrr.ts can apply the ones
+    // currently in effect.
     const page = await stripeClient.subscriptions.list(
       {
-        status: "active",
+        expand: SUBSCRIPTION_EXPANDS,
         limit: SUBSCRIPTIONS_PAGE_SIZE,
         starting_after: startingAfter,
       },
       { timeout: perAttemptTimeoutMs },
     );
 
+    const resolved = await Promise.all(
+      page.data.map((subscription) =>
+        resolveSubscriptionCoupons(subscription, couponLookup),
+      ),
+    );
+
     return {
-      data: page.data.map(toStripeSubscription),
+      data: resolved.map(toStripeSubscription),
       hasMore: page.has_more,
     };
   };

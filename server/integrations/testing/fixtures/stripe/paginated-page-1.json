@@ -13,11 +13,16 @@
               "unitAmount": 1000,
               "currency": "usd",
               "product": "prod_basin_core",
-              "recurring": { "interval": "month", "intervalCount": 1 }
-            }
+              "recurring": {
+                "interval": "month",
+                "intervalCount": 1
+              }
+            },
+            "discounts": []
           }
         ]
-      }
+      },
+      "discounts": []
     }
   ],
   "hasMore": true
