@@ -1,4 +1,5 @@
 import type { OverviewResponse } from "#shared/types/dashboard";
+import { usePollingRefresh } from "./usePollingRefresh";
 
 // Wraps `GET /api/overview` for the "/" rollup tiles (wired in issue #18).
 // The read API already returns exactly the shape the tiles need, so this
@@ -9,5 +10,6 @@ export function useOverview() {
     "/api/overview",
     { key: "overview" },
   );
+  usePollingRefresh(refresh);
   return { data, pending, error, refresh };
 }

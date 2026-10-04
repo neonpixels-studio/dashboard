@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { ref } from "vue";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { effectScope, ref } from "vue";
+import { DATA_REFRESH_INTERVAL_MS } from "../../app/composables/usePollingRefresh";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
 vi.stubGlobal("useFetch", vi.fn());
@@ -115,5 +116,66 @@ describe("useApp", () => {
     expect(detail.pending.value).toBe(false);
     expect(detail.error.value).toBeNull();
     expect(detail.refresh).toBe(refresh);
+  });
+});
+
+describe("useApp polling", () => {
+  let scope: ReturnType<typeof effectScope>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    scope = effectScope();
+  });
+
+  afterEach(() => {
+    scope.stop();
+    vi.useRealTimers();
+  });
+
+  it("re-runs refresh on the shared interval", async () => {
+    const refresh = vi.fn();
+    vi.stubGlobal("useFetch", () => ({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(null),
+      refresh,
+    }));
+    scope.run(() => useApp("basin"));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refresh while the slug is empty", async () => {
+    const refresh = vi.fn();
+    vi.stubGlobal("useFetch", () => ({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(null),
+      refresh,
+    }));
+    scope.run(() => useApp(""));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("starts refreshing once a reactive slug becomes non-empty", async () => {
+    const refresh = vi.fn();
+    vi.stubGlobal("useFetch", () => ({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(null),
+      refresh,
+    }));
+    const slug = ref("");
+    scope.run(() => useApp(slug));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).not.toHaveBeenCalled();
+
+    slug.value = "basin";
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });
