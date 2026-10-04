@@ -6,7 +6,9 @@ import { reportError, reportErrorCondition } from "../utils/errorReporting";
 // enough that a dead credential doesn't go unnoticed for days. A time bound
 // rather than a consecutive-failure count because sync_status keeps no
 // failure counter, and a row skipped for hours (stale last success) must
-// alert too. Known gaps: an enabled row with no sync_status run recorded at
+// alert too. Slow-cadence providers (Medium, once per 24h) don't trip it: a
+// guard-skipped tick still records ok=true, which advances last_success_at.
+// Known gaps: an enabled row with no sync_status run recorded at
 // all is not judged, and a never-succeeded row alerts as soon as it has run.
 const MS_PER_HOUR = 60 * 60 * 1_000;
 export const STALE_VENDOR_THRESHOLD_MS = 6 * MS_PER_HOUR;
@@ -68,7 +70,18 @@ export interface StaleVendorAlertDeps {
   now?: () => Date;
 }
 
-// Runs after every sync. Monitoring only: a failure here is reported and
+async function loadSyncHealthRows(
+  deps: StaleVendorAlertDeps,
+): Promise<SyncHealthRow[] | null> {
+  try {
+    return await deps.listSyncHealthRows();
+  } catch (error) {
+    reportError("sync: stale vendor check failed", error);
+    return null;
+  }
+}
+
+// Runs after every sync. Monitoring only: a query failure is reported and
 // swallowed so it can never fail the sync response that already succeeded.
 // One event per stale vendor per sync (~every 15 minutes while stale, so it
 // counts against Sentry quota until fixed); the message is static (see errorReporting.ts) and
@@ -76,19 +89,17 @@ export interface StaleVendorAlertDeps {
 export async function alertOnStaleVendors(
   deps: StaleVendorAlertDeps,
 ): Promise<StaleVendor[]> {
-  try {
-    const rows = await deps.listSyncHealthRows();
-    const now = (deps.now ?? (() => new Date()))();
-    const staleVendors = findStaleVendors(rows, now);
-    for (const staleVendor of staleVendors) {
-      reportErrorCondition(STALE_VENDOR_MESSAGE, { ...staleVendor }, [
-        staleVendor.slug,
-        staleVendor.vendor,
-      ]);
-    }
-    return staleVendors;
-  } catch (error) {
-    reportError("sync: stale vendor check failed", error);
+  const rows = await loadSyncHealthRows(deps);
+  if (!rows) {
     return [];
   }
+  const now = (deps.now ?? (() => new Date()))();
+  const staleVendors = findStaleVendors(rows, now);
+  for (const staleVendor of staleVendors) {
+    reportErrorCondition(STALE_VENDOR_MESSAGE, { ...staleVendor }, [
+      staleVendor.slug,
+      staleVendor.vendor,
+    ]);
+  }
+  return staleVendors;
 }

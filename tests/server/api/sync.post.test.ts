@@ -29,11 +29,17 @@ vi.mock("../../../server/integrations/staleVendorAlert", () => ({
   alertOnStaleVendors: mockAlertOnStaleVendors,
 }));
 
+const mockReportError = vi.fn();
+vi.mock("../../../server/utils/errorReporting", () => ({
+  reportError: mockReportError,
+}));
+
 const { default: syncHandler } = await import("../../../server/api/sync.post");
 
 describe("POST /api/sync", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockAlertOnStaleVendors.mockResolvedValue([]);
   });
 
   it("checks the trigger secret before doing anything else", async () => {
@@ -79,5 +85,18 @@ describe("POST /api/sync", () => {
     const deps = mockAlertOnStaleVendors.mock.calls[0]![0];
     await deps.listSyncHealthRows();
     expect(mockListSyncHealthRows).toHaveBeenCalledWith(FAKE_DB);
+  });
+
+  it("still returns the summary when the stale vendor check rejects", async () => {
+    const summary = { outcomes: [], skipped: [] };
+    mockRunSync.mockResolvedValue(summary);
+    const failure = new Error("boom");
+    mockAlertOnStaleVendors.mockRejectedValue(failure);
+
+    await expect(syncHandler({} as H3Event)).resolves.toBe(summary);
+    expect(mockReportError).toHaveBeenCalledWith(
+      "sync: stale vendor alert failed",
+      failure,
+    );
   });
 });

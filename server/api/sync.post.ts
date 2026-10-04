@@ -4,6 +4,7 @@ import { runSync } from "../integrations/orchestrator";
 import { listSyncHealthRows } from "../integrations/persist";
 import { alertOnStaleVendors } from "../integrations/staleVendorAlert";
 import { buildSyncOrchestratorDeps } from "../integrations/syncDeps";
+import { reportError } from "../utils/errorReporting";
 import { requireSyncTriggerSecret } from "../utils/syncTrigger";
 
 // The manual/backfill trigger the issue asks for, and also the only thing
@@ -20,9 +21,11 @@ export default defineEventHandler(async (event): Promise<SyncSummary> => {
   const summary = await runSync(buildSyncOrchestratorDeps(db));
   // Catches a single vendor failing or going unsynced for hours, which the
   // scheduled function's all-vendors-failed check cannot see (it has no DB
-  // access). Never throws.
+  // access). alertOnStaleVendors handles its own
+  // query failures; the catch covers anything else so a monitoring bug can't
+  // 500 a sync that already succeeded.
   await alertOnStaleVendors({
     listSyncHealthRows: () => listSyncHealthRows(db),
-  });
+  }).catch((error) => reportError("sync: stale vendor alert failed", error));
   return summary;
 });
