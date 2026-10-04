@@ -76,4 +76,25 @@ describe("usePollingRefresh", () => {
     expect(refresh).toHaveBeenCalledTimes(2);
     scope.stop();
   });
+
+  it("keeps polling after a refresh rejects", async () => {
+    const refresh = vi.fn().mockRejectedValue(new Error("boom"));
+    const scope = effectScope();
+    scope.run(() => usePollingRefresh(refresh));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS * 2);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    scope.stop();
+  });
+
+  it("does not poll when the tab starts hidden", async () => {
+    setHidden(true);
+    const refresh = vi.fn();
+    const scope = effectScope();
+    scope.run(() => usePollingRefresh(refresh));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS * 2);
+    expect(refresh).not.toHaveBeenCalled();
+    scope.stop();
+  });
 });

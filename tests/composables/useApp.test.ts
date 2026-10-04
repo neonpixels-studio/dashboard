@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { effectScope, ref } from "vue";
 import { DATA_REFRESH_INTERVAL_MS } from "../../app/composables/usePollingRefresh";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
@@ -120,8 +120,19 @@ describe("useApp", () => {
 });
 
 describe("useApp polling", () => {
-  it("re-runs refresh on the shared interval", async () => {
+  let scope: ReturnType<typeof effectScope>;
+
+  beforeEach(() => {
     vi.useFakeTimers();
+    scope = effectScope();
+  });
+
+  afterEach(() => {
+    scope.stop();
+    vi.useRealTimers();
+  });
+
+  it("re-runs refresh on the shared interval", async () => {
     const refresh = vi.fn();
     vi.stubGlobal("useFetch", () => ({
       data: ref(null),
@@ -129,12 +140,23 @@ describe("useApp polling", () => {
       error: ref(null),
       refresh,
     }));
-    const scope = effectScope();
     scope.run(() => useApp("basin"));
 
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
     expect(refresh).toHaveBeenCalledTimes(1);
-    scope.stop();
-    vi.useRealTimers();
+  });
+
+  it("does not refresh while the slug is empty", async () => {
+    const refresh = vi.fn();
+    vi.stubGlobal("useFetch", () => ({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(null),
+      refresh,
+    }));
+    scope.run(() => useApp(""));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

@@ -25,6 +25,8 @@ export function usePollingRefresh(
     inFlight = true;
     try {
       await refresh();
+    } catch {
+      // The caller's `error` ref already exposes the failure; the next tick retries.
     } finally {
       inFlight = false;
     }

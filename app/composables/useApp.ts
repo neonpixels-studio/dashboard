@@ -22,6 +22,6 @@ export function useApp(slug: MaybeRefOrGetter<string>) {
       enabled: () => toValue(slug).length > 0,
     },
   );
-  usePollingRefresh(refresh);
+  usePollingRefresh(() => (toValue(slug).length > 0 ? refresh() : undefined));
   return { data, pending, error, refresh };
 }
