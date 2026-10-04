@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { NO_DEADLINE, type FetchDeadline } from "../types";
 import { toStripeSubscription } from "./mapping";
+import { MRR_COUNTED_STATUSES } from "./mrr";
 import type { ListActiveSubscriptions } from "./types";
 
 // A hung Stripe request would otherwise block a sync indefinitely (no
@@ -174,11 +175,11 @@ export function createStripeSubscriptionLister(
 
     // No `status` filter: Stripe's default returns every non-canceled
     // subscription (active, past_due, trialing, unpaid, ...). Which of those
-    // count is decided in mrr.ts (MRR_COUNTED_STATUSES), so the policy lives
-    // in one place; `status: "all"` is avoided since it would also page
-    // through the account's entire canceled history. Discounts are expanded
-    // (and their coupons resolved below) so mrr.ts can apply the ones
-    // currently in effect.
+    // count is decided by MRR_COUNTED_STATUSES (mrr.ts), applied below
+    // before coupon resolution and re-checked in mrr.ts; `status: "all"` is
+    // avoided since it would also page through the account's entire
+    // canceled history. Discounts are expanded (and their coupons resolved
+    // below) so mrr.ts can apply the ones currently in effect.
     const page = await stripeClient.subscriptions.list(
       {
         expand: SUBSCRIPTION_EXPANDS,
@@ -188,8 +189,14 @@ export function createStripeSubscriptionLister(
       { timeout: perAttemptTimeoutMs },
     );
 
+    // Uncounted statuses (trialing, unpaid, ...) never reach mrr.ts's tally,
+    // so skip them here: resolving their coupons is wasted calls and a
+    // deleted coupon on one would otherwise fail the whole sync.
+    const countedSubscriptions = page.data.filter((subscription) =>
+      MRR_COUNTED_STATUSES.has(subscription.status),
+    );
     const resolved = await Promise.all(
-      page.data.map((subscription) =>
+      countedSubscriptions.map((subscription) =>
         resolveSubscriptionCoupons(subscription, couponLookup),
       ),
     );
@@ -197,6 +204,7 @@ export function createStripeSubscriptionLister(
     return {
       data: resolved.map(toStripeSubscription),
       hasMore: page.has_more,
+      nextCursor: page.data.at(-1)?.id,
     };
   };
 }

@@ -330,6 +330,41 @@ describe("fetchAllActiveSubscriptions", () => {
     expect(listActiveSubscriptions).toHaveBeenNthCalledWith(2, "sub_page1");
   });
 
+  it("keeps paging past an empty filtered page by following nextCursor", async () => {
+    const filteredEmptyPage: StripeSubscriptionPage = {
+      data: [],
+      hasMore: true,
+      nextCursor: "sub_trial_last",
+    };
+    const finalPage: StripeSubscriptionPage = {
+      data: [
+        {
+          id: "sub_active",
+          status: "active",
+          items: { data: [] },
+          discounts: [],
+        },
+      ],
+      hasMore: false,
+    };
+    const listActiveSubscriptions = fakeListFromPages({
+      first: filteredEmptyPage,
+      sub_trial_last: finalPage,
+    });
+
+    const subscriptions = await fetchAllActiveSubscriptions(
+      listActiveSubscriptions,
+    );
+
+    expect(subscriptions.map((subscription) => subscription.id)).toEqual([
+      "sub_active",
+    ]);
+    expect(listActiveSubscriptions).toHaveBeenNthCalledWith(
+      2,
+      "sub_trial_last",
+    );
+  });
+
   it("stops after a single page when hasMore is false", async () => {
     const singlePage: StripeSubscriptionPage = {
       data: [
@@ -384,6 +419,23 @@ describe("fetchAllActiveSubscriptions", () => {
     await expect(
       fetchAllActiveSubscriptions(listActiveSubscriptions),
     ).rejects.toThrow(/empty page while still claiming has_more/);
+    expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails loud if an empty filtered page keeps returning the same nextCursor", async () => {
+    const stuckFilteredPage: StripeSubscriptionPage = {
+      data: [],
+      hasMore: true,
+      nextCursor: "sub_x",
+    };
+    const listActiveSubscriptions = fakeListFromPages({
+      first: stuckFilteredPage,
+      sub_x: stuckFilteredPage,
+    });
+
+    await expect(
+      fetchAllActiveSubscriptions(listActiveSubscriptions),
+    ).rejects.toThrow(/did not advance/);
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
   });
 

@@ -63,6 +63,10 @@ export interface StripeSubscription {
 export interface StripeSubscriptionPage {
   data: StripeSubscription[];
   hasMore: boolean;
+  // Id of the last row Stripe returned, which can differ from the last row in
+  // `data` when the lister drops uncounted statuses. Falls back to the last
+  // `data` id when omitted (fixture-backed fakes).
+  nextCursor?: string;
 }
 
 // The seam every pure function in this package is tested against instead of
@@ -70,7 +74,8 @@ export interface StripeSubscriptionPage {
 // builds the real implementation; provider unit tests substitute a
 // fixture-backed fake with the same signature and never touch the network.
 // `startingAfter` is the last-seen subscription id, mirroring Stripe's own
-// cursor-pagination parameter.
+// cursor-pagination parameter. Pages carry only MRR-counted statuses (see
+// MRR_COUNTED_STATUSES in mrr.ts), which is its sole consumer today.
 export type ListActiveSubscriptions = (
   startingAfter?: string,
 ) => Promise<StripeSubscriptionPage>;

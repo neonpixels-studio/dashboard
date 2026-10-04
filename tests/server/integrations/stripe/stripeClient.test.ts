@@ -68,7 +68,7 @@ describe("createStripeSubscriptionLister", () => {
     );
   });
 
-  it("does not filter by status so trialing and past_due subscriptions reach mrr.ts", async () => {
+  it("does not send a status filter to Stripe, so the status policy stays in mrr.ts", async () => {
     const list = vi.fn(async () => ({ data: [], has_more: false }));
     const listActiveSubscriptions = createStripeSubscriptionLister(
       "sk_test_unused",
@@ -134,6 +134,105 @@ describe("createStripeSubscriptionLister", () => {
     expect(page.data[0]?.discounts).toEqual([expected]);
     expect(page.data[0]?.items.data[0]?.discounts).toEqual([expected]);
     expect(retrieveCoupon).toHaveBeenCalledTimes(1);
+  });
+
+  describe("uncounted subscription statuses", () => {
+    function buildSubscriptionWithCoupon(
+      id: string,
+      status: Stripe.Subscription.Status,
+    ): Stripe.Subscription {
+      const discount = {
+        id: `di_${id}`,
+        start: 1,
+        end: null,
+        source: { type: "coupon", coupon: `co_${id}` },
+      };
+      return buildStripeSubscription(id, {
+        status,
+        discounts: [discount as unknown as Stripe.Discount],
+      });
+    }
+
+    it.each(["trialing", "unpaid", "incomplete", "paused"] as const)(
+      "does not retrieve coupons for, or fail on a deleted coupon of, a %s subscription",
+      async (status) => {
+        const list = vi.fn(async () => ({
+          data: [buildSubscriptionWithCoupon("sub_1", status)],
+          has_more: false,
+        }));
+        const retrieveCoupon = vi.fn(async () => {
+          throw new Error("No such coupon");
+        }) as never;
+        const listActiveSubscriptions = createStripeSubscriptionLister(
+          "sk_test_unused",
+          buildStubStripeClient(list, retrieveCoupon),
+        );
+
+        const page = await listActiveSubscriptions();
+
+        expect(page.data).toEqual([]);
+        expect(retrieveCoupon).not.toHaveBeenCalled();
+      },
+    );
+
+    it("reports the last raw row as the cursor even when it was filtered out", async () => {
+      const list = vi.fn(async () => ({
+        data: [
+          buildSubscriptionWithCoupon("sub_active", "active"),
+          buildSubscriptionWithCoupon("sub_trial", "trialing"),
+        ],
+        has_more: true,
+      }));
+      const retrieveCoupon = vi.fn(async () => ({
+        id: "co",
+        percent_off: 10,
+        amount_off: null,
+        currency: null,
+        duration: "forever",
+      })) as never;
+      const listActiveSubscriptions = createStripeSubscriptionLister(
+        "sk_test_unused",
+        buildStubStripeClient(list, retrieveCoupon),
+      );
+
+      const page = await listActiveSubscriptions();
+
+      expect(page.nextCursor).toBe("sub_trial");
+    });
+
+    it("still resolves coupons for counted subscriptions on the same page", async () => {
+      const list = vi.fn(async () => ({
+        data: [
+          buildSubscriptionWithCoupon("sub_trial", "trialing"),
+          buildSubscriptionWithCoupon("sub_active", "active"),
+          buildSubscriptionWithCoupon("sub_past_due", "past_due"),
+        ],
+        has_more: true,
+      }));
+      const retrieveCoupon = vi.fn(async (couponId: string) => ({
+        id: couponId,
+        percent_off: 10,
+        amount_off: null,
+        currency: null,
+        duration: "forever",
+      })) as never;
+      const listActiveSubscriptions = createStripeSubscriptionLister(
+        "sk_test_unused",
+        buildStubStripeClient(list, retrieveCoupon),
+      );
+
+      const page = await listActiveSubscriptions();
+
+      expect(page.data.map((subscription) => subscription.id)).toEqual([
+        "sub_active",
+        "sub_past_due",
+      ]);
+      expect(page.hasMore).toBe(true);
+      const retrievedCouponIds = (
+        retrieveCoupon as unknown as { mock: { calls: string[][] } }
+      ).mock.calls.map((call) => call[0]);
+      expect(retrievedCouponIds).toEqual(["co_sub_active", "co_sub_past_due"]);
+    });
   });
 
   describe("when a coupon lookup fails", () => {
