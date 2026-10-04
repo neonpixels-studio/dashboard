@@ -196,6 +196,12 @@ function subscriptionMonthlyDollars(
   matchingItems: StripeSubscriptionItem[],
   nowSeconds: number,
 ): number {
+  const matchingNetDollars = sumMonthlyDollars(
+    matchingItems.map((item) => toTrackedItem(item, true, nowSeconds)),
+  );
+  if (!MRR_APPLIES_DISCOUNTS || matchingNetDollars === 0) {
+    return matchingNetDollars;
+  }
   const tracked = trackedItemsForSubscription(
     subscription,
     matchingItems,

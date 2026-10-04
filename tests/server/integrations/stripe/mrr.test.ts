@@ -807,5 +807,55 @@ describe("computeMrrForProducts status and discount policy", () => {
 
       expect(compute([subscription]).mrr).toBe(6);
     });
+
+    it("returns zero without pricing other items when the matching item is free", () => {
+      const freeItem = buildItem({
+        price: { ...buildItem().price, unitAmount: 0 },
+      });
+      const brokenOtherItem = buildItem({
+        id: "si_broken",
+        price: {
+          ...buildItem().price,
+          id: "price_broken",
+          product: "prod_other",
+          currency: "eur",
+        },
+      });
+      const subscription = buildSubscription({
+        items: { data: [freeItem, brokenOtherItem] },
+        discounts: [buildDiscountFor({ amountOff: 300, currency: "usd" })],
+      });
+
+      expect(compute([subscription]).mrr).toBe(0);
+    });
+
+    it("ignores an item-level amount_off restricted to another product", () => {
+      const item = buildItem({
+        discounts: [
+          buildDiscountFor({
+            amountOff: 400,
+            currency: "usd",
+            appliesToProducts: ["prod_other"],
+          }),
+        ],
+      });
+
+      expect(
+        compute([buildSubscription({ items: { data: [item] } })]).mrr,
+      ).toBe(10);
+    });
+
+    it("splits a subscription amount_off using values after item-level discounts", () => {
+      const halved = buildItem({
+        discounts: [buildDiscountFor({ percentOff: 50 })],
+      });
+      const subscription = buildSubscription({
+        items: { data: [halved, buildOtherItem()] },
+        discounts: [buildDiscountFor({ amountOff: 300, currency: "usd" })],
+      });
+
+      // Nets are $5 and $10; $3 splits 1:2, so prod_test pays 5 - 1 = 4.
+      expect(compute([subscription]).mrr).toBe(4);
+    });
   });
 });

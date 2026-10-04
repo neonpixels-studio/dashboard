@@ -142,6 +142,40 @@ describe("createStripeSubscriptionLister", () => {
     );
   });
 
+  it("re-fetches an inline coupon by id so applies_to is expanded", async () => {
+    const discount = {
+      id: "di_1",
+      start: 1,
+      end: null,
+      source: { type: "coupon", coupon: { id: "co_inline" } },
+    };
+    const subscription = buildStripeSubscription("sub_1", {
+      discounts: [discount as unknown as Stripe.Discount],
+    });
+    const list = vi.fn(async () => ({ data: [subscription], has_more: false }));
+    const retrieveCoupon = vi.fn(async () => ({
+      id: "co_inline",
+      percent_off: 20,
+      amount_off: null,
+      currency: null,
+      duration: "forever",
+      applies_to: { products: ["prod_a"] },
+    })) as never;
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list, retrieveCoupon),
+    );
+
+    const page = await listActiveSubscriptions();
+
+    expect(retrieveCoupon).toHaveBeenCalledWith(
+      "co_inline",
+      { expand: ["applies_to"] },
+      expect.anything(),
+    );
+    expect(page.data[0]?.discounts[0]?.appliesToProducts).toEqual(["prod_a"]);
+  });
+
   describe("when a coupon lookup fails", () => {
     function buildSubscriptionWithCouponId(): Stripe.Subscription {
       return buildStripeSubscription("sub_1", {

@@ -39,13 +39,17 @@ async function resolveDiscountCoupon(
   discount: string | Stripe.Discount,
   lookup: CouponLookup,
 ): Promise<string | Stripe.Discount> {
-  if (
-    typeof discount === "string" ||
-    typeof discount.source.coupon !== "string"
-  ) {
+  if (typeof discount === "string") {
     return discount;
   }
-  const coupon = await lookup(discount.source.coupon);
+  const couponId =
+    typeof discount.source.coupon === "string"
+      ? discount.source.coupon
+      : discount.source.coupon?.id;
+  if (!couponId) {
+    return discount;
+  }
+  const coupon = await lookup(couponId);
   return { ...discount, source: { ...discount.source, coupon } };
 }
 
