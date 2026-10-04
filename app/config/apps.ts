@@ -115,16 +115,34 @@ export const APPS: DashboardApp[] = [
   },
 ];
 
+// Apps that report into a rollup without being a studio property: no card,
+// detail page, or login pill. Today that's just this console itself, whose
+// own Sentry project feeds the OPEN ISSUES tile alongside the properties'.
+export interface InternalApp {
+  name: string;
+  slug: string;
+  accent: string;
+}
+
+export const INTERNAL_APPS: InternalApp[] = [
+  { name: "dashboard", slug: "dashboard", accent: "#9A9AA8" },
+];
+
 export function findAppBySlug(slug: string): DashboardApp | undefined {
   return APPS.find((app) => app.slug === slug);
+}
+
+// Name + swatch lookup for a rollup's per-app rows, which can include
+// INTERNAL_APPS as well as properties.
+export function findRollupSourceBySlug(slug: string): InternalApp | undefined {
+  return findAppBySlug(slug) ?? INTERNAL_APPS.find((app) => app.slug === slug);
 }
 
 // Sorts a list of per-app rollup rows (e.g. OverviewMetric.byApp) into the
 // same order APPS declares them in, rather than whatever order the DB
 // returned — the rollup tiles' StatList rows should read top-to-bottom the
-// same way the property grid below them does. An app slug with no matching
-// config (shouldn't happen; every row is sourced from APPS' own slugs on the
-// server) sorts last rather than throwing.
+// same way the property grid below them does. A slug outside APPS (an
+// INTERNAL_APPS entry) sorts after every property rather than throwing.
 export function sortByAppOrder<Item extends { slug: string }>(
   items: Item[],
 ): Item[] {

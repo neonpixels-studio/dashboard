@@ -103,9 +103,9 @@ export default defineNuxtConfig({
     // via config.ts's resolveSecret (integration_config.secret_ref ->
     // process.env), and the org slug via a plain process.env read in
     // server/integrations/sentry/provider.ts, neither via
-    // useRuntimeConfig(). Scoped to the product-template apps only (basin,
-    // markpost, farflung) — grimicorn.dev and neonpixels.dev don't use
-    // Sentry, per issue #16.
+    // useRuntimeConfig(). Scoped to the product-template apps (basin,
+    // markpost, farflung) plus this dashboard itself (INTERNAL_APPS) —
+    // grimicorn.dev and neonpixels.dev don't use Sentry, per issue #16.
     sentryAuthToken: process.env.NUXT_SENTRY_AUTH_TOKEN || "",
     sentryOrg: process.env.NUXT_SENTRY_ORG || "",
     // One per property (server/integrations/sentry/provider.ts's
@@ -115,6 +115,7 @@ export default defineNuxtConfig({
     sentryProjectBasin: process.env.NUXT_SENTRY_PROJECT_BASIN || "",
     sentryProjectMarkpost: process.env.NUXT_SENTRY_PROJECT_MARKPOST || "",
     sentryProjectFarflung: process.env.NUXT_SENTRY_PROJECT_FARFLUNG || "",
+    sentryProjectDashboard: process.env.NUXT_SENTRY_PROJECT_DASHBOARD || "",
     // The Clerk provider's per-app secret keys
     // (server/integrations/clerk) — one per product-template app, each its
     // own Clerk instance (separate from this dashboard's own auth, configured

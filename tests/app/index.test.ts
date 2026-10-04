@@ -377,6 +377,36 @@ describe("index.vue rollup tiles", () => {
     ]);
   });
 
+  it("lists the dashboard's own Sentry issues after the properties in the open issues tile", () => {
+    mockOverview({
+      data: overviewFixture({
+        openIssues: {
+          value: 7,
+          period: "current",
+          capturedAt: "2026-09-19T00:00:00.000Z",
+          delta: null,
+          byApp: [
+            { slug: "dashboard", value: 2 },
+            { slug: "basin", value: 5 },
+          ],
+        },
+      }),
+    });
+
+    const wrapper = mountPage();
+    const issuesTile = wrapper.findComponent(RollupIssuesTile);
+    const items = issuesTile.props("items") as {
+      label: string;
+      value: string;
+      swatch: string;
+    }[];
+
+    expect(items).toEqual([
+      { label: "basin.fm", value: "5", swatch: "#FFB020" },
+      { label: "dashboard", value: "2", swatch: "#9A9AA8" },
+    ]);
+  });
+
   it("sorts the sessions traffic-source split by share, largest first", () => {
     mockOverview({ data: overviewFixture() });
 

@@ -1,4 +1,4 @@
-import { APPS } from "../../app/config/apps";
+import { APPS, INTERNAL_APPS } from "../../app/config/apps";
 import {
   decryptSecret,
   loadIntegrationEncryptionKey,
@@ -16,13 +16,15 @@ export class IntegrationConfigError extends Error {
   override name = "IntegrationConfigError";
 }
 
-// Every app slug this studio knows about, uppercased for comparison against
+// Every app slug this studio knows about (properties and internal apps), uppercased for comparison against
 // a secretRef's trailing segment (see assertSecretRefIsSafe). Reusing
 // app/config/apps.ts here follows the same precedent as
 // server/db/seed.ts/seedData.ts, which already import it into server/ code;
 // only server/db/schema.ts itself is kept decoupled from app config (see its
 // top-of-file comment).
-const KNOWN_APP_SLUGS = new Set(APPS.map((app) => app.slug.toUpperCase()));
+const KNOWN_APP_SLUGS = new Set(
+  [...APPS, ...INTERNAL_APPS].map((app) => app.slug.toUpperCase()),
+);
 
 // `secretRef` is a row-supplied string used to index process.env — without a
 // guard, any writer of an integration_config row (admin UI, seed data, a
