@@ -25,6 +25,7 @@ const card: AppCard = {
 
 const detail: AppDetailResponse = {
   slug: "basin",
+  status: { label: "LIVE", tone: "ok" },
   metrics: [],
   series: [],
   trafficBreakdown: [],

@@ -13,8 +13,12 @@
               "unitAmount": 900,
               "currency": "usd",
               "product": "prod_basin_core",
-              "recurring": { "interval": "month", "intervalCount": 1 }
-            }
+              "recurring": {
+                "interval": "month",
+                "intervalCount": 1
+              }
+            },
+            "discounts": []
           },
           {
             "id": "si_basin_pro_yearly",
@@ -24,11 +28,16 @@
               "unitAmount": 12000,
               "currency": "usd",
               "product": "prod_basin_pro",
-              "recurring": { "interval": "year", "intervalCount": 1 }
-            }
+              "recurring": {
+                "interval": "year",
+                "intervalCount": 1
+              }
+            },
+            "discounts": []
           }
         ]
-      }
+      },
+      "discounts": []
     },
     {
       "id": "sub_other_app_only",
@@ -43,11 +52,16 @@
               "unitAmount": 500,
               "currency": "usd",
               "product": "prod_markpost_core",
-              "recurring": { "interval": "month", "intervalCount": 1 }
-            }
+              "recurring": {
+                "interval": "month",
+                "intervalCount": 1
+              }
+            },
+            "discounts": []
           }
         ]
-      }
+      },
+      "discounts": []
     },
     {
       "id": "sub_basin_plus_unrelated_addon",
@@ -62,8 +76,12 @@
               "unitAmount": 900,
               "currency": "usd",
               "product": "prod_basin_core",
-              "recurring": { "interval": "month", "intervalCount": 1 }
-            }
+              "recurring": {
+                "interval": "month",
+                "intervalCount": 1
+              }
+            },
+            "discounts": []
           },
           {
             "id": "si_unrelated_addon",
@@ -73,11 +91,16 @@
               "unitAmount": 300,
               "currency": "usd",
               "product": "prod_unrelated_addon",
-              "recurring": { "interval": "month", "intervalCount": 1 }
-            }
+              "recurring": {
+                "interval": "month",
+                "intervalCount": 1
+              }
+            },
+            "discounts": []
           }
         ]
-      }
+      },
+      "discounts": []
     }
   ],
   "hasMore": false

@@ -56,6 +56,7 @@ describe("stripeProvider", () => {
               {
                 id: "si_e2e",
                 quantity: 1,
+                discounts: [],
                 price: {
                   id: "price_e2e",
                   unit_amount: 1500,
@@ -67,6 +68,7 @@ describe("stripeProvider", () => {
             ],
             has_more: false,
           },
+          discounts: [],
         },
       ],
       has_more: false,
@@ -81,7 +83,10 @@ describe("stripeProvider", () => {
     const result = await stripeProvider.fetch(config);
 
     expect(mockSubscriptionsList).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "active" }),
+      expect.objectContaining({
+        limit: 100,
+        expand: ["data.discounts", "data.items.data.discounts"],
+      }),
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
     const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");

@@ -24,6 +24,7 @@ import type {
   SyndicationMatrixRow,
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
+import type { PropertySessions } from "../../shared/types/overviewSessions";
 import { METRIC_SESSIONS, PERIOD_30D, PERIOD_DAILY } from "./dashboardMetrics";
 import {
   integrationEnvironmentKey,
@@ -286,26 +287,69 @@ export function latestMetricsBySlug(
   return [...groups.values()].map(toCurrentMetric);
 }
 
-// One time series per (metric, period) for one app — the sparkline source
-// data. Takes rows from fetchMetricSnapshotSeries (bounded history).
+function vendorKeyOf(row: MetricSnapshotRow): string {
+  return metricVendorGroupKey(row.slug, row.metric, row.period, row.vendor);
+}
+
+// A vendor whose latest poll predates the series window has no rows in
+// `seriesRows` for its (metric, period), yet latestMetricsBySlug still counts
+// it in the tile. Seeds one carry-forward row per such vendor from
+// `latestRows` (fetchLatestMetricSnapshots, unbounded), so the combined
+// sparkline includes every vendor the tile does.
 //
-// Known limitation, not yet worth the added complexity to fix: unlike
-// latestMetricsBySlug (fed by the unbounded fetchLatestMetricSnapshots),
-// this only sees rows inside the series window (SERIES_WINDOW_DAYS). A
-// multi-vendor metric where one vendor's last poll falls outside that
-// window drops out of the combined sum here even though it still counts in
-// the current-value tile — the two can disagree until that vendor polls
-// again. Fixing it would mean threading the unbounded latest-per-vendor
-// rows in here too (to seed a stale vendor's carry-forward even with zero
-// rows inside the window), which touches both API handlers that call this;
-// out of scope for the `posts`-collision fix this exists for.
+// The seed is re-dated to the earliest in-window row of its group, because
+// its true timestamp is outside the window and would stretch the sparkline's
+// day span back to it; the stale value is only needed as the carried-forward
+// baseline. Only latest rows older than that earliest row are seeded. A
+// (metric, period) with no in-window rows at all is left alone (no new
+// series appears for a metric whose every vendor is stale).
+function staleVendorSeedRows(
+  seriesRows: MetricSnapshotRow[],
+  latestRows: MetricSnapshotRow[],
+): MetricSnapshotRow[] {
+  const earliestByGroup = new Map(
+    [...groupVendorBucketsByMetric(seriesRows)].map(([key, buckets]) => [
+      key,
+      minByCapturedAt(buckets.flat()).capturedAt,
+    ]),
+  );
+  const knownVendorKeys = new Set(seriesRows.map(vendorKeyOf));
+
+  return latestRows.flatMap((row) => {
+    const earliestInWindow = earliestByGroup.get(
+      metricGroupKey(row.slug, row.metric, row.period),
+    );
+    if (!earliestInWindow || knownVendorKeys.has(vendorKeyOf(row))) {
+      return [];
+    }
+    // The two queries run concurrently, so a row committed between them can
+    // show up in `latestRows` only; it is in-window, not stale, so skip it
+    // (the next request's series query will include it).
+    if (row.capturedAt >= earliestInWindow) {
+      return [];
+    }
+    return [{ ...row, capturedAt: earliestInWindow }];
+  });
+}
+
+// One time series per (metric, period) for one app — the sparkline source
+// data. Takes rows from fetchMetricSnapshotSeries (bounded history, the
+// SERIES_WINDOW_DAYS window). Optionally takes `latestRows` from
+// fetchLatestMetricSnapshots (unbounded latest-per-vendor) so a multi-vendor
+// metric keeps a vendor whose last poll fell outside the window, matching
+// the vendors latestMetricsBySlug counts in the tile (see
+// staleVendorSeedRows). Omitting it keeps the window-only behavior.
 export function metricSeriesBySlug(
   rows: MetricSnapshotRow[],
   slug: string,
+  latestRows: MetricSnapshotRow[] = [],
 ): MetricSeries[] {
-  const groups = groupVendorBucketsByMetric(
-    rows.filter((row) => row.slug === slug),
+  const seriesRows = rows.filter((row) => row.slug === slug);
+  const seedRows = staleVendorSeedRows(
+    seriesRows,
+    latestRows.filter((row) => row.slug === slug),
   );
+  const groups = groupVendorBucketsByMetric([...seriesRows, ...seedRows]);
   return [...groups.values()].map(toMetricSeries);
 }
 
@@ -808,4 +852,39 @@ export function syndicationMatrixForApp(
       syncedAt: toIsoOrNull(row.syncedAt),
     })),
   }));
+}
+
+// Cap on how many daily points a property's chart series carries — the
+// overview chart is labelled "30 days", but the series window the rows come
+// from (SERIES_WINDOW_DAYS) is wider. GA4 backfills one `daily` row per day,
+// so "the last N points" is the last N days.
+export const SESSIONS_CHART_DAYS = 30;
+
+function isSessionsFor(period: string) {
+  return (entry: { metric: string; period: string }) =>
+    entry.metric === METRIC_SESSIONS && entry.period === period;
+}
+
+// One property's slice of the overview sessions chart: its daily series plus
+// the 30-day total/delta shown beside it. The total comes from the unbounded
+// latest-per-metric rows (so it matches the top rollup tile and never drops
+// a stale-but-real value), the series and delta from the bounded history.
+export function sessionsForApp(
+  latestRows: MetricSnapshotRow[],
+  seriesRows: MetricSnapshotRow[],
+  slug: string,
+): PropertySessions {
+  const series = metricSeriesBySlug(seriesRows, slug);
+  const dailyPoints = series.find(isSessionsFor(PERIOD_DAILY))?.points ?? [];
+  const rollingPoints = series.find(isSessionsFor(PERIOD_30D))?.points ?? [];
+  const total30d = latestMetricsBySlug(latestRows, slug).find(
+    isSessionsFor(PERIOD_30D),
+  );
+
+  return {
+    slug,
+    daily: dailyPoints.slice(-SESSIONS_CHART_DAYS),
+    total30d: total30d?.value ?? null,
+    delta: rollupDelta(rollingPoints),
+  };
 }

@@ -30,16 +30,34 @@ export interface StripePrice {
   recurring: StripeRecurring | null;
 }
 
+// One discount currently attached to a subscription or subscription item,
+// already resolved from Stripe's discount + coupon objects. `end` is a unix
+// timestamp in seconds. Stripe derives it from the coupon's
+// duration_in_months for `repeating` coupons; it is null for both `forever`
+// and `once`, so `duration` is carried too (a `once` coupon is a one-time
+// cut, not recurring, and never reduces MRR).
+export interface StripeDiscount {
+  percentOff: number | null;
+  // Smallest currency unit, applied once per invoice (not per month).
+  amountOff: number | null;
+  currency: string | null;
+  duration: string;
+  start: number;
+  end: number | null;
+}
+
 export interface StripeSubscriptionItem {
   id: string;
   quantity: number | null;
   price: StripePrice;
+  discounts: StripeDiscount[];
 }
 
 export interface StripeSubscription {
   id: string;
   status: string;
   items: { data: StripeSubscriptionItem[] };
+  discounts: StripeDiscount[];
 }
 
 export interface StripeSubscriptionPage {

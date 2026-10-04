@@ -70,6 +70,7 @@ describe("GET /api/apps/[slug]", () => {
 
     expect(result).toEqual({
       slug: "basin",
+      status: { label: "NOT SYNCED", tone: "muted" },
       metrics: [],
       series: [],
       trafficBreakdown: [],
@@ -127,6 +128,65 @@ describe("GET /api/apps/[slug]", () => {
       },
     ]);
     expect(result.lastSyncedAt).toBeNull();
+    expect(result.status).toEqual({ label: "1 ISSUE", tone: "danger" });
+  });
+
+  it("reports LIVE when every active vendor's last sync succeeded", async () => {
+    mockFetchSyncStatuses.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "sentry",
+        lastRunAt: new Date("2026-09-19T00:00:00Z"),
+        lastSuccessAt: new Date("2026-09-19T00:00:00Z"),
+        ok: true,
+        error: null,
+      },
+    ]);
+
+    const result = await appDetailHandler(makeEvent("basin"));
+
+    expect(result.status).toEqual({ label: "LIVE", tone: "ok" });
+  });
+
+  it("ignores a failing disabled vendor when another vendor is healthy", async () => {
+    mockFetchSyncStatuses.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "sentry",
+        lastRunAt: new Date("2026-09-19T00:00:00Z"),
+        lastSuccessAt: null,
+        ok: false,
+        error: "rate limited",
+      },
+      {
+        id: 2,
+        slug: "basin",
+        vendor: "stripe",
+        lastRunAt: new Date("2026-09-19T00:00:00Z"),
+        lastSuccessAt: new Date("2026-09-19T00:00:00Z"),
+        ok: true,
+        error: null,
+      },
+    ]);
+    mockFetchIntegrationConfigs.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "sentry",
+        enabled: false,
+        externalId: null,
+        secretRef: null,
+        encryptedSecret: null,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        updatedAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await appDetailHandler(makeEvent("basin"));
+
+    expect(result.status).toEqual({ label: "LIVE", tone: "ok" });
   });
 
   it("suppresses an alert for a vendor that's been explicitly disabled", async () => {
@@ -158,6 +218,7 @@ describe("GET /api/apps/[slug]", () => {
     const result = await appDetailHandler(makeEvent("basin"));
 
     expect(result.alerts).toEqual([]);
+    expect(result.status).toEqual({ label: "NOT SYNCED", tone: "muted" });
     // sources still reflect sync history regardless of enabled/disabled.
     expect(result.sources).toHaveLength(1);
   });

@@ -8,6 +8,7 @@ export function appDetailFixture(
 ): AppDetailResponse {
   return {
     slug: "basin",
+    status: { label: "LIVE", tone: "ok" },
     metrics: [],
     series: [],
     trafficBreakdown: [],

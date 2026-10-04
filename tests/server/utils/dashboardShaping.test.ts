@@ -9,6 +9,8 @@ import {
   metricSeriesBySlug,
   rollupDelta,
   rollupSeriesAcrossApps,
+  SESSIONS_CHART_DAYS,
+  sessionsForApp,
   syncSourcesForApp,
   syndicationMatrixForApp,
   trafficChannelSplitAcrossApps,
@@ -357,6 +359,127 @@ describe("metricSeriesBySlug", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("metricSeriesBySlug with unbounded latest rows", () => {
+  const staleDevtoRow = metricRow({
+    vendor: "devto",
+    metric: "posts",
+    period: "current",
+    value: 3,
+    // Well outside the 60-day series window.
+    capturedAt: new Date("2026-05-01T00:00:00Z"),
+  });
+  const hashnodeSeriesRows = [
+    metricRow({
+      vendor: "hashnode",
+      metric: "posts",
+      period: "current",
+      value: 10,
+      capturedAt: new Date("2026-09-01T00:00:00Z"),
+    }),
+    metricRow({
+      vendor: "hashnode",
+      metric: "posts",
+      period: "current",
+      value: 12,
+      capturedAt: new Date("2026-09-02T00:00:00Z"),
+    }),
+  ];
+
+  it("includes a vendor whose last poll is outside the window, matching the tile, without stretching the day span", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      staleDevtoRow,
+      hashnodeSeriesRows[1] as MetricSnapshotRow,
+    ]);
+
+    expect(series).toEqual([
+      {
+        metric: "posts",
+        period: "current",
+        points: [
+          { capturedAt: "2026-09-01T00:00:00.000Z", value: 13 },
+          { capturedAt: "2026-09-02T00:00:00.000Z", value: 15 },
+        ],
+      },
+    ]);
+  });
+
+  it("drops the stale vendor when latest rows are not supplied (window-only behavior)", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin");
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("does not create a series for a metric with no in-window rows", () => {
+    expect(metricSeriesBySlug([], "basin", [staleDevtoRow])).toEqual([]);
+  });
+
+  it("does not back-date a vendor whose latest row is in-window but missing from the series rows", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, capturedAt: new Date("2026-09-02T00:00:00Z") },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("does not back-date a latest row exactly at the earliest in-window timestamp", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, capturedAt: new Date("2026-09-01T00:00:00Z") },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("seeds every stale vendor of the same metric and period into the baseline", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      staleDevtoRow,
+      { ...staleDevtoRow, vendor: "medium", value: 5 },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([18, 20]);
+  });
+
+  it("re-dates the seed to the earliest in-window row across every vendor, not just one bucket", () => {
+    const rows = [
+      ...hashnodeSeriesRows.map((row, index) => ({
+        ...row,
+        capturedAt: new Date(`2026-09-0${index + 2}T00:00:00Z`),
+      })),
+      metricRow({
+        vendor: "medium",
+        metric: "posts",
+        period: "current",
+        value: 5,
+        capturedAt: new Date("2026-09-01T00:00:00Z"),
+      }),
+    ];
+
+    const series = metricSeriesBySlug(rows, "basin", [staleDevtoRow]);
+
+    expect(series[0]?.points).toEqual([
+      { capturedAt: "2026-09-01T00:00:00.000Z", value: 8 },
+      { capturedAt: "2026-09-02T00:00:00.000Z", value: 18 },
+      { capturedAt: "2026-09-03T00:00:00.000Z", value: 20 },
+    ]);
+  });
+
+  it("does not seed a stale vendor into a different period's series", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, period: "7d" },
+    ]);
+
+    expect(series).toHaveLength(1);
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
+  });
+
+  it("ignores latest rows belonging to another app", () => {
+    const series = metricSeriesBySlug(hashnodeSeriesRows, "basin", [
+      { ...staleDevtoRow, slug: "markpost" },
+    ]);
+
+    expect(series[0]?.points.map((point) => point.value)).toEqual([10, 12]);
   });
 });
 
@@ -972,5 +1095,71 @@ describe("syndicationMatrixForApp", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("sessionsForApp", () => {
+  function dailyRow(day: number, value: number): MetricSnapshotRow {
+    return metricRow({
+      id: day,
+      vendor: "ga4",
+      metric: "sessions",
+      period: "daily",
+      value,
+      capturedAt: new Date(Date.UTC(2026, 6, day)),
+    });
+  }
+
+  it("ignores other apps, metrics, and periods", () => {
+    const result = sessionsForApp(
+      [],
+      [
+        dailyRow(1, 5),
+        metricRow({
+          id: 90,
+          slug: "markpost",
+          metric: "sessions",
+          period: "daily",
+        }),
+        metricRow({ id: 91, metric: "mrr", period: "current" }),
+      ],
+      "basin",
+    );
+
+    expect(result.daily).toEqual([
+      { capturedAt: "2026-07-01T00:00:00.000Z", value: 5 },
+    ]);
+    expect(result.total30d).toBeNull();
+    expect(result.delta).toBeNull();
+  });
+
+  it("keeps only the most recent SESSIONS_CHART_DAYS daily points", () => {
+    const rows = Array.from({ length: SESSIONS_CHART_DAYS + 5 }, (_, index) =>
+      dailyRow(index + 1, index),
+    );
+
+    const { daily } = sessionsForApp([], rows, "basin");
+
+    expect(daily).toHaveLength(SESSIONS_CHART_DAYS);
+    expect(daily[0]?.value).toBe(5);
+    expect(daily.at(-1)?.value).toBe(SESSIONS_CHART_DAYS + 4);
+  });
+
+  it("takes the 30d total from the latest rows, not the bounded series", () => {
+    const result = sessionsForApp(
+      [
+        metricRow({
+          id: 50,
+          vendor: "ga4",
+          metric: "sessions",
+          period: "30d",
+          value: 999,
+        }),
+      ],
+      [],
+      "basin",
+    );
+
+    expect(result.total30d).toBe(999);
   });
 });
