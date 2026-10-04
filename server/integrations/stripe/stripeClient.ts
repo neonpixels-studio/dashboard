@@ -176,8 +176,9 @@ export function createStripeSubscriptionLister(
     // No `status` filter: Stripe's default returns every non-canceled
     // subscription (active, past_due, trialing, unpaid, ...). Which of those
     // count is decided by MRR_COUNTED_STATUSES (mrr.ts), applied below
-    // before coupon resolution and re-checked in mrr.ts; `status: "all"` is avoided since it would also page
-    // through the account's entire canceled history. Discounts are expanded
+    // before coupon resolution and re-checked in mrr.ts; `status: "all"` is
+    // avoided since it would also page through the account's entire canceled
+    // history. Discounts are expanded
     // (and their coupons resolved below) so mrr.ts can apply the ones
     // currently in effect.
     const page = await stripeClient.subscriptions.list(

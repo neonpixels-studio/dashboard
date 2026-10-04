@@ -228,12 +228,10 @@ describe("createStripeSubscriptionLister", () => {
         "sub_past_due",
       ]);
       expect(page.hasMore).toBe(true);
-      expect(retrieveCoupon).toHaveBeenCalledTimes(2);
-      expect(retrieveCoupon).not.toHaveBeenCalledWith(
-        "co_sub_trial",
-        expect.anything(),
-        expect.anything(),
-      );
+      const retrievedCouponIds = (
+        retrieveCoupon as unknown as { mock: { calls: string[][] } }
+      ).mock.calls.map((call) => call[0]);
+      expect(retrievedCouponIds).toEqual(["co_sub_active", "co_sub_past_due"]);
     });
   });
 

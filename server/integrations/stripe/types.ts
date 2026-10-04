@@ -74,7 +74,8 @@ export interface StripeSubscriptionPage {
 // builds the real implementation; provider unit tests substitute a
 // fixture-backed fake with the same signature and never touch the network.
 // `startingAfter` is the last-seen subscription id, mirroring Stripe's own
-// cursor-pagination parameter.
+// cursor-pagination parameter. Pages carry only MRR-counted statuses (see
+// MRR_COUNTED_STATUSES in mrr.ts), which is its sole consumer today.
 export type ListActiveSubscriptions = (
   startingAfter?: string,
 ) => Promise<StripeSubscriptionPage>;

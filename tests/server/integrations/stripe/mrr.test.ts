@@ -422,6 +422,23 @@ describe("fetchAllActiveSubscriptions", () => {
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
   });
 
+  it("fails loud if an empty filtered page keeps returning the same nextCursor", async () => {
+    const stuckFilteredPage: StripeSubscriptionPage = {
+      data: [],
+      hasMore: true,
+      nextCursor: "sub_x",
+    };
+    const listActiveSubscriptions = fakeListFromPages({
+      first: stuckFilteredPage,
+      sub_x: stuckFilteredPage,
+    });
+
+    await expect(
+      fetchAllActiveSubscriptions(listActiveSubscriptions),
+    ).rejects.toThrow(/did not advance/);
+    expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
+  });
+
   it("fails loud instead of looping forever if a non-empty page's cursor never advances", async () => {
     const stuckPage: StripeSubscriptionPage = {
       data: [
