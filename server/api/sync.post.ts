@@ -18,14 +18,19 @@ export default defineEventHandler(async (event): Promise<SyncSummary> => {
   requireSyncTriggerSecret(event);
 
   const db = useDb();
-  const summary = await runSync(buildSyncOrchestratorDeps(db));
-  // Catches a single vendor failing or going unsynced for hours, which the
-  // scheduled function's all-vendors-failed check cannot see (it has no DB
-  // access). alertOnStaleVendors handles its own
-  // query failures; the catch covers anything else so a monitoring bug can't
-  // 500 a sync that already succeeded.
-  await alertOnStaleVendors({
-    listSyncHealthRows: () => listSyncHealthRows(db),
-  }).catch((error) => reportError("sync: stale vendor alert failed", error));
-  return summary;
+  try {
+    return await runSync(buildSyncOrchestratorDeps(db));
+  } finally {
+    // Catches a single vendor failing or going unsynced for hours, which the
+    // scheduled function's all-vendors-failed check cannot see (it has no DB
+    // access). Runs even when runSync rejects, since a dead sync is exactly
+    // when vendors go stale. alertOnStaleVendors handles its own query
+    // failures; the catch covers anything else so a monitoring bug can't
+    // mask the sync result.
+    // @todo Nothing alerts if the scheduler stops calling this route at all;
+    // that needs a Sentry Cron Monitor check-in on the scheduled function.
+    await alertOnStaleVendors({
+      listSyncHealthRows: () => listSyncHealthRows(db),
+    }).catch((error) => reportError("sync: stale vendor alert failed", error));
+  }
 });

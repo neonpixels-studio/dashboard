@@ -99,4 +99,12 @@ describe("POST /api/sync", () => {
       failure,
     );
   });
+
+  it("still checks for stale vendors when the sync itself rejects", async () => {
+    const failure = new Error("sync crashed");
+    mockRunSync.mockRejectedValue(failure);
+
+    await expect(syncHandler({} as H3Event)).rejects.toBe(failure);
+    expect(mockAlertOnStaleVendors).toHaveBeenCalledTimes(1);
+  });
 });

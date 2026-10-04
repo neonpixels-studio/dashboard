@@ -84,8 +84,9 @@ async function loadSyncHealthRows(
 // Runs after every sync. Monitoring only: a query failure is reported and
 // swallowed so it can never fail the sync response that already succeeded.
 // One event per stale vendor per sync (~every 15 minutes while stale, so it
-// counts against Sentry quota until fixed); the message is static (see errorReporting.ts) and
-// the slug/vendor fingerprint gives each vendor its own Sentry issue.
+// counts against Sentry quota until fixed). The message is static (see
+// errorReporting.ts) and the slug/vendor fingerprint gives each vendor its
+// own Sentry issue.
 export async function alertOnStaleVendors(
   deps: StaleVendorAlertDeps,
 ): Promise<StaleVendor[]> {
