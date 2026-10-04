@@ -13,6 +13,7 @@ import {
 } from "../db/schema";
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
+import type { SyncHealthRow } from "./staleVendorAlert";
 import type { IntegrationConfigRow, ProviderResult } from "./types";
 
 // Stamps the orchestrator's own slug onto every row a provider returned
@@ -84,6 +85,28 @@ export function listEnabledIntegrationConfigs(
     .orderBy(
       sql`${integrationConfig.lastAttemptAt} asc nulls first, ${integrationConfig.id} asc`,
     );
+}
+
+// Health of every enabled (slug, vendor) row, for the stale-vendor alert (see
+// staleVendorAlert.ts). Inner join so a disabled or removed integration, whose
+// sync_status row is left behind, never alerts.
+export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
+  return db
+    .select({
+      slug: syncStatus.slug,
+      vendor: syncStatus.vendor,
+      lastRunAt: syncStatus.lastRunAt,
+      lastSuccessAt: syncStatus.lastSuccessAt,
+    })
+    .from(syncStatus)
+    .innerJoin(
+      integrationConfig,
+      and(
+        eq(integrationConfig.slug, syncStatus.slug),
+        eq(integrationConfig.vendor, syncStatus.vendor),
+      ),
+    )
+    .where(eq(integrationConfig.enabled, true));
 }
 
 // Every row a provider's fetch() returned, stamped with the slug the

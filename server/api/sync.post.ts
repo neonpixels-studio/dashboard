@@ -1,6 +1,8 @@
 import { useDb } from "../db";
 import type { SyncSummary } from "../integrations/orchestrator";
 import { runSync } from "../integrations/orchestrator";
+import { listSyncHealthRows } from "../integrations/persist";
+import { alertOnStaleVendors } from "../integrations/staleVendorAlert";
 import { buildSyncOrchestratorDeps } from "../integrations/syncDeps";
 import { requireSyncTriggerSecret } from "../utils/syncTrigger";
 
@@ -15,5 +17,12 @@ export default defineEventHandler(async (event): Promise<SyncSummary> => {
   requireSyncTriggerSecret(event);
 
   const db = useDb();
-  return runSync(buildSyncOrchestratorDeps(db));
+  const summary = await runSync(buildSyncOrchestratorDeps(db));
+  // Catches a single vendor failing or going unsynced for hours, which the
+  // scheduled function's all-vendors-failed check cannot see (it has no DB
+  // access). Never throws.
+  await alertOnStaleVendors({
+    listSyncHealthRows: () => listSyncHealthRows(db),
+  });
+  return summary;
 });

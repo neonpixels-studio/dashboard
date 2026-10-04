@@ -19,6 +19,16 @@ vi.mock("../../../server/integrations/orchestrator", () => ({
   runSync: mockRunSync,
 }));
 
+const mockListSyncHealthRows = vi.fn();
+vi.mock("../../../server/integrations/persist", () => ({
+  listSyncHealthRows: mockListSyncHealthRows,
+}));
+
+const mockAlertOnStaleVendors = vi.fn();
+vi.mock("../../../server/integrations/staleVendorAlert", () => ({
+  alertOnStaleVendors: mockAlertOnStaleVendors,
+}));
+
 const { default: syncHandler } = await import("../../../server/api/sync.post");
 
 describe("POST /api/sync", () => {
@@ -52,5 +62,17 @@ describe("POST /api/sync", () => {
     expect(mockBuildSyncOrchestratorDeps).toHaveBeenCalledWith(FAKE_DB);
     expect(mockRunSync).toHaveBeenCalledWith(fakeDeps);
     expect(result).toBe(summary);
+  });
+
+  it("checks for stale vendors after the sync using the real db", async () => {
+    mockRunSync.mockResolvedValue({ outcomes: [], skipped: [] });
+    mockListSyncHealthRows.mockResolvedValue([]);
+
+    await syncHandler({} as H3Event);
+
+    expect(mockAlertOnStaleVendors).toHaveBeenCalledTimes(1);
+    const deps = mockAlertOnStaleVendors.mock.calls[0]![0];
+    await deps.listSyncHealthRows();
+    expect(mockListSyncHealthRows).toHaveBeenCalledWith(FAKE_DB);
   });
 });
