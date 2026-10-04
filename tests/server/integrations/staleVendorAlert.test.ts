@@ -51,6 +51,11 @@ describe("findStaleVendors", () => {
     ]);
   });
 
+  it("floors hoursSinceSuccess", () => {
+    const [stale] = findStaleVendors([row("stripe", hoursAgo(7.9))], NOW);
+    expect(stale!.hoursSinceSuccess).toBe(7);
+  });
+
   it("ignores a row with no recorded run or success", () => {
     expect(findStaleVendors([row("medium", null, null)], NOW)).toEqual([]);
   });
@@ -81,6 +86,19 @@ describe("alertOnStaleVendors", () => {
         hoursSinceSuccess: 30,
       }),
     );
+  });
+
+  it("uses the real clock when no now is injected", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    try {
+      const stale = await alertOnStaleVendors({
+        listSyncHealthRows: async () => [row("stripe", hoursAgo(7))],
+      });
+      expect(stale).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reports nothing when every vendor is fresh", async () => {

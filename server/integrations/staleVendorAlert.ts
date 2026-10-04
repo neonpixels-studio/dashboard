@@ -5,7 +5,9 @@ import { reportError, reportErrorCondition } from "../utils/errorReporting";
 // long enough to ride out a vendor incident or a rotation-heavy window, short
 // enough that a dead credential doesn't go unnoticed for days. A time bound
 // rather than a consecutive-failure count because sync_status keeps no
-// failure counter, and a skipped row (never attempted) must alert too.
+// failure counter, and a row skipped for hours (stale last success) must
+// alert too. Known gaps: an enabled row with no sync_status run recorded at
+// all is not judged, and a never-succeeded row alerts as soon as it has run.
 export const STALE_VENDOR_THRESHOLD_MS = 6 * 60 * 60 * 1_000;
 
 const MS_PER_HOUR = 60 * 60 * 1_000;
@@ -67,7 +69,8 @@ export interface StaleVendorAlertDeps {
 
 // Runs after every sync. Monitoring only: a failure here is reported and
 // swallowed so it can never fail the sync response that already succeeded.
-// One event per stale vendor; the message is static so they group into one
+// One event per stale vendor per sync (~every 15 minutes while stale, so it
+// counts against Sentry quota until fixed); the message is static so they group into one
 // Sentry issue, with slug/vendor in context (see errorReporting.ts).
 export async function alertOnStaleVendors(
   deps: StaleVendorAlertDeps,

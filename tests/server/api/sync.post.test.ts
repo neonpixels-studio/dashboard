@@ -65,11 +65,16 @@ describe("POST /api/sync", () => {
   });
 
   it("checks for stale vendors after the sync using the real db", async () => {
-    mockRunSync.mockResolvedValue({ outcomes: [], skipped: [] });
+    const summary = { outcomes: [], skipped: [] };
+    mockRunSync.mockResolvedValue(summary);
     mockListSyncHealthRows.mockResolvedValue([]);
 
-    await syncHandler({} as H3Event);
+    const result = await syncHandler({} as H3Event);
 
+    expect(result).toBe(summary);
+    expect(mockRunSync.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAlertOnStaleVendors.mock.invocationCallOrder[0]!,
+    );
     expect(mockAlertOnStaleVendors).toHaveBeenCalledTimes(1);
     const deps = mockAlertOnStaleVendors.mock.calls[0]![0];
     await deps.listSyncHealthRows();

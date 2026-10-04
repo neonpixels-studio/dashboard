@@ -701,6 +701,12 @@ describe("listSyncHealthRows", () => {
     expect(result).toBe(rows);
     expect(from).toHaveBeenCalledWith(syncStatus);
     expect(innerJoin.mock.calls[0]![0]).toBe(integrationConfig);
-    expect(where).toHaveBeenCalledTimes(1);
+    const dialect = new PgDialect();
+    const joinSql = dialect.sqlToQuery(innerJoin.mock.calls[0]![1]).sql;
+    expect(joinSql).toContain('"slug"');
+    expect(joinSql).toContain('"vendor"');
+    const whereQuery = dialect.sqlToQuery(where.mock.calls[0]![0]);
+    expect(whereQuery.sql).toContain('"enabled" = $1');
+    expect(whereQuery.params).toEqual([true]);
   });
 });
