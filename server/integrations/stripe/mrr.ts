@@ -2,6 +2,7 @@ import {
   applyDiscounts,
   applyDiscountsToItems,
   hasAmountOffDiscount,
+  sumMonthlyDollars,
   type DiscountableItem,
 } from "./discounts";
 import type {
@@ -164,10 +165,9 @@ function trackedItemsForSubscription(
   nowSeconds: number,
 ): TrackedItem[] {
   const matchingIds = new Set(matchingItems.map((item) => item.id));
-  const needsOtherItems = hasAmountOffDiscount(
-    subscription.discounts,
-    nowSeconds,
-  );
+  const needsOtherItems =
+    MRR_APPLIES_DISCOUNTS &&
+    hasAmountOffDiscount(subscription.discounts, nowSeconds);
   const items = needsOtherItems ? subscription.items.data : matchingItems;
   return items.map((item) =>
     toTrackedItem(item, matchingIds.has(item.id), nowSeconds),
@@ -195,9 +195,7 @@ function subscriptionMonthlyDollars(
           monthlyDivisor: monthlyIntervalDivisor(recurring),
         })
       : tracked;
-  return discounted
-    .filter((item) => item.matchesApp)
-    .reduce((sum, item) => sum + item.monthlyDollars, 0);
+  return sumMonthlyDollars(discounted.filter((item) => item.matchesApp));
 }
 
 export interface StripeMrrResult {

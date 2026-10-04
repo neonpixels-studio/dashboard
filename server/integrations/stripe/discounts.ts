@@ -66,7 +66,7 @@ function discountAppliesToProduct(
   );
 }
 
-function sumMonthlyDollars(items: DiscountableItem[]): number {
+export function sumMonthlyDollars(items: DiscountableItem[]): number {
   return items.reduce((sum, item) => sum + item.monthlyDollars, 0);
 }
 

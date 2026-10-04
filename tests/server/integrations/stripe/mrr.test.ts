@@ -726,5 +726,62 @@ describe("computeMrrForProducts status and discount policy", () => {
         compute([buildSubscription({ items: { data: [item] } })]).mrr,
       ).toBe(10);
     });
+
+    it("leaves a matching item alone when a restricted amount_off covers only another product", () => {
+      const subscription = buildSubscription({
+        items: { data: [buildItem(), buildOtherItem()] },
+        discounts: [
+          buildDiscountFor({
+            amountOff: 400,
+            currency: "usd",
+            appliesToProducts: ["prod_other"],
+          }),
+        ],
+      });
+
+      expect(compute([subscription]).mrr).toBe(10);
+    });
+
+    it("splits a restricted amount_off by value across only the covered items", () => {
+      const cheapItem = buildItem({
+        id: "si_cheap",
+        price: { ...buildItem().price, id: "price_cheap", product: "prod_c" },
+        quantity: 1,
+      });
+      const subscription = buildSubscription({
+        items: { data: [buildItem(), buildOtherItem(), cheapItem] },
+        discounts: [
+          buildDiscountFor({
+            amountOff: 400,
+            currency: "usd",
+            appliesToProducts: ["prod_test", "prod_other"],
+          }),
+        ],
+      });
+
+      // prod_test and prod_other are $10 each; $4 splits $2 apiece, and the
+      // uncovered prod_c is excluded from the split.
+      expect(compute([subscription]).mrr).toBe(8);
+    });
+
+    it("does not fail on another app's odd price when only a percent coupon applies", () => {
+      const brokenOtherItem = buildItem({
+        id: "si_broken",
+        price: {
+          ...buildItem().price,
+          id: "price_broken",
+          product: "prod_other",
+          currency: "eur",
+        },
+      });
+      const subscription = buildSubscription({
+        items: { data: [buildItem({ discounts: [] }), brokenOtherItem] },
+        discounts: [buildDiscountFor({ percentOff: 50 })],
+      });
+
+      // Percent discounts never need other items' values, so a broken
+      // unrelated price must not fail this app's computation.
+      expect(compute([subscription]).mrr).toBe(5);
+    });
   });
 });
