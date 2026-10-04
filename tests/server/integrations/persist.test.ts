@@ -3,6 +3,7 @@ import { getTableColumns, SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import {
   listEnabledIntegrationConfigs,
+  listSyncHealthRows,
   persistProviderResult,
   recordConfigSyncAttempt,
   recordSyncAttempt,
@@ -682,5 +683,31 @@ describe("recordSyncAttempt", () => {
     await expect(
       recordSyncAttempt(db, "danholloran", "medium", new Date(), ONE_DAY_MS),
     ).resolves.toBe(false);
+  });
+});
+
+describe("listSyncHealthRows", () => {
+  it("joins sync_status to enabled integration_config rows only", async () => {
+    const rows = [{ slug: "basin", vendor: "stripe" }];
+    const where = vi.fn().mockResolvedValue(rows);
+    const innerJoin = vi.fn().mockReturnValue({ where });
+    const from = vi.fn().mockReturnValue({ innerJoin });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const result = await listSyncHealthRows({
+      select,
+    } as unknown as Parameters<typeof listSyncHealthRows>[0]);
+
+    expect(result).toBe(rows);
+    expect(from).toHaveBeenCalledWith(syncStatus);
+    expect(innerJoin.mock.calls[0]![0]).toBe(integrationConfig);
+    const dialect = new PgDialect();
+    const joinSql = dialect.sqlToQuery(innerJoin.mock.calls[0]![1]).sql;
+    expect(joinSql).toBe(
+      '("integration_config"."slug" = "sync_status"."slug" and "integration_config"."vendor" = "sync_status"."vendor")',
+    );
+    const whereQuery = dialect.sqlToQuery(where.mock.calls[0]![0]);
+    expect(whereQuery.sql).toContain('"enabled" = $1');
+    expect(whereQuery.params).toEqual([true]);
   });
 });

@@ -19,11 +19,27 @@ vi.mock("../../../server/integrations/orchestrator", () => ({
   runSync: mockRunSync,
 }));
 
+const mockListSyncHealthRows = vi.fn();
+vi.mock("../../../server/integrations/persist", () => ({
+  listSyncHealthRows: mockListSyncHealthRows,
+}));
+
+const mockAlertOnStaleVendors = vi.fn();
+vi.mock("../../../server/integrations/staleVendorAlert", () => ({
+  alertOnStaleVendors: mockAlertOnStaleVendors,
+}));
+
+const mockReportError = vi.fn();
+vi.mock("../../../server/utils/errorReporting", () => ({
+  reportError: mockReportError,
+}));
+
 const { default: syncHandler } = await import("../../../server/api/sync.post");
 
 describe("POST /api/sync", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockAlertOnStaleVendors.mockResolvedValue([]);
   });
 
   it("checks the trigger secret before doing anything else", async () => {
@@ -52,5 +68,43 @@ describe("POST /api/sync", () => {
     expect(mockBuildSyncOrchestratorDeps).toHaveBeenCalledWith(FAKE_DB);
     expect(mockRunSync).toHaveBeenCalledWith(fakeDeps);
     expect(result).toBe(summary);
+  });
+
+  it("checks for stale vendors after the sync using the real db", async () => {
+    const summary = { outcomes: [], skipped: [] };
+    mockRunSync.mockResolvedValue(summary);
+    mockListSyncHealthRows.mockResolvedValue([]);
+
+    const result = await syncHandler({} as H3Event);
+
+    expect(result).toBe(summary);
+    expect(mockRunSync.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAlertOnStaleVendors.mock.invocationCallOrder[0]!,
+    );
+    expect(mockAlertOnStaleVendors).toHaveBeenCalledTimes(1);
+    const deps = mockAlertOnStaleVendors.mock.calls[0]![0];
+    await deps.listSyncHealthRows();
+    expect(mockListSyncHealthRows).toHaveBeenCalledWith(FAKE_DB);
+  });
+
+  it("still returns the summary when the stale vendor check rejects", async () => {
+    const summary = { outcomes: [], skipped: [] };
+    mockRunSync.mockResolvedValue(summary);
+    const failure = new Error("boom");
+    mockAlertOnStaleVendors.mockRejectedValue(failure);
+
+    await expect(syncHandler({} as H3Event)).resolves.toBe(summary);
+    expect(mockReportError).toHaveBeenCalledWith(
+      "sync: stale vendor alert failed",
+      failure,
+    );
+  });
+
+  it("still checks for stale vendors when the sync itself rejects", async () => {
+    const failure = new Error("sync crashed");
+    mockRunSync.mockRejectedValue(failure);
+
+    await expect(syncHandler({} as H3Event)).rejects.toBe(failure);
+    expect(mockAlertOnStaleVendors).toHaveBeenCalledTimes(1);
   });
 });

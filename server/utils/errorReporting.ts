@@ -14,6 +14,7 @@ import * as Sentry from "@sentry/nuxt";
 function sentryCaptureContext(
   message: string,
   context: Record<string, unknown> | undefined,
+  fingerprintExtra: string[] = [],
 ): {
   tags: { reportSite: string };
   fingerprint: string[];
@@ -21,7 +22,7 @@ function sentryCaptureContext(
 } {
   return {
     tags: { reportSite: message },
-    fingerprint: ["{{ default }}", message],
+    fingerprint: ["{{ default }}", message, ...fingerprintExtra],
     extra: context,
   };
 }
@@ -79,9 +80,14 @@ export function reportError(
 // otherwise be called with a context object standing in for `error`, losing
 // both the exception (there isn't one) and the context (it landed in the
 // wrong parameter).
+//
+// `fingerprintExtra` splits one static message into separate Sentry issues
+// per value (e.g. per slug/vendor), so a second affected entity still opens
+// its own issue and notifies while the first is unresolved.
 export function reportErrorCondition(
   message: string,
   context?: Record<string, unknown>,
+  fingerprintExtra?: string[],
 ): void {
   if (context) {
     console.error(message, context);
@@ -92,7 +98,7 @@ export function reportErrorCondition(
   captureSafely(() => {
     Sentry.captureMessage(message, {
       level: "error",
-      ...sentryCaptureContext(message, context),
+      ...sentryCaptureContext(message, context, fingerprintExtra),
     });
   });
 }
