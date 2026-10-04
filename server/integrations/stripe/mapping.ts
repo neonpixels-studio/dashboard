@@ -96,6 +96,7 @@ function toDiscount(discount: string | Stripe.Discount): StripeDiscount {
     duration: coupon.duration,
     start: discount.start,
     end: discount.end,
+    appliesToProducts: coupon.applies_to?.products ?? null,
   };
 }
 

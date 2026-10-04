@@ -130,10 +130,16 @@ describe("createStripeSubscriptionLister", () => {
       duration: "forever",
       start: 1,
       end: null,
+      appliesToProducts: null,
     };
     expect(page.data[0]?.discounts).toEqual([expected]);
     expect(page.data[0]?.items.data[0]?.discounts).toEqual([expected]);
     expect(retrieveCoupon).toHaveBeenCalledTimes(1);
+    expect(retrieveCoupon).toHaveBeenCalledWith(
+      "co_1",
+      { expand: ["applies_to"] },
+      expect.anything(),
+    );
   });
 
   describe("when a coupon lookup fails", () => {

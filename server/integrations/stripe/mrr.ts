@@ -1,7 +1,8 @@
 import {
   applyDiscounts,
+  applyDiscountsToItems,
   hasAmountOffDiscount,
-  type DiscountContext,
+  type DiscountableItem,
 } from "./discounts";
 import type {
   ListActiveSubscriptions,
@@ -131,66 +132,72 @@ function normalizeItemNetMonthlyDollars(
   if (!MRR_APPLIES_DISCOUNTS || grossDollars === 0 || !item.price.recurring) {
     return grossDollars;
   }
-  return applyDiscounts(grossDollars, item.discounts, {
+  return applyDiscounts(grossDollars, item.price.product, item.discounts, {
     nowSeconds,
     monthlyDivisor: monthlyIntervalDivisor(item.price.recurring),
   });
 }
 
-function sumNetMonthlyDollars(
-  items: StripeSubscriptionItem[],
+interface TrackedItem extends DiscountableItem {
+  matchesApp: boolean;
+}
+
+function toTrackedItem(
+  item: StripeSubscriptionItem,
+  matchesApp: boolean,
   nowSeconds: number,
-): number {
-  return items.reduce(
-    (sum, item) => sum + normalizeItemNetMonthlyDollars(item, nowSeconds),
-    0,
+): TrackedItem {
+  return {
+    productId: item.price.product,
+    monthlyDollars: normalizeItemNetMonthlyDollars(item, nowSeconds),
+    matchesApp,
+  };
+}
+
+// A subscription-level amount_off is split across the items it covers by
+// value, including other apps' items; computing those is only needed (and
+// only risks tripping on another app's odd price) when such a discount
+// exists, so otherwise just the matching items are tracked.
+function trackedItemsForSubscription(
+  subscription: StripeSubscription,
+  matchingItems: StripeSubscriptionItem[],
+  nowSeconds: number,
+): TrackedItem[] {
+  const matchingIds = new Set(matchingItems.map((item) => item.id));
+  const needsOtherItems = hasAmountOffDiscount(
+    subscription.discounts,
+    nowSeconds,
+  );
+  const items = needsOtherItems ? subscription.items.data : matchingItems;
+  return items.map((item) =>
+    toTrackedItem(item, matchingIds.has(item.id), nowSeconds),
   );
 }
 
 // Stripe requires every item on a subscription to share one billing
 // interval, so the first recurring item's cycle is the subscription's.
-function subscriptionDiscountContext(
-  subscription: StripeSubscription,
-  matchingNetDollars: number,
-  nowSeconds: number,
-): DiscountContext | null {
-  const recurring = subscription.items.data.find((item) => item.price.recurring)
-    ?.price.recurring;
-  if (!recurring) {
-    return null;
-  }
-  // A subscription-level amount_off is split across ALL items by value;
-  // computing the others' totals is only needed (and only risks tripping
-  // on another app's odd price) when such a discount exists.
-  const needsShare = hasAmountOffDiscount(subscription.discounts, nowSeconds);
-  const allNetDollars = needsShare
-    ? sumNetMonthlyDollars(subscription.items.data, nowSeconds)
-    : matchingNetDollars;
-  return {
-    nowSeconds,
-    monthlyDivisor: monthlyIntervalDivisor(recurring),
-    share: allNetDollars > 0 ? matchingNetDollars / allNetDollars : 0,
-  };
-}
-
 function subscriptionMonthlyDollars(
   subscription: StripeSubscription,
   matchingItems: StripeSubscriptionItem[],
   nowSeconds: number,
 ): number {
-  const matchingNetDollars = sumNetMonthlyDollars(matchingItems, nowSeconds);
-  if (!MRR_APPLIES_DISCOUNTS || matchingNetDollars === 0) {
-    return matchingNetDollars;
-  }
-  const context = subscriptionDiscountContext(
+  const tracked = trackedItemsForSubscription(
     subscription,
-    matchingNetDollars,
+    matchingItems,
     nowSeconds,
   );
-  if (!context) {
-    return matchingNetDollars;
-  }
-  return applyDiscounts(matchingNetDollars, subscription.discounts, context);
+  const recurring = subscription.items.data.find((item) => item.price.recurring)
+    ?.price.recurring;
+  const discounted =
+    MRR_APPLIES_DISCOUNTS && recurring
+      ? applyDiscountsToItems(tracked, subscription.discounts, {
+          nowSeconds,
+          monthlyDivisor: monthlyIntervalDivisor(recurring),
+        })
+      : tracked;
+  return discounted
+    .filter((item) => item.matchesApp)
+    .reduce((sum, item) => sum + item.monthlyDollars, 0);
 }
 
 export interface StripeMrrResult {

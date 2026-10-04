@@ -224,6 +224,7 @@ describe("normalizeItemToMonthlyDollars", () => {
           }),
         ],
       },
+      discounts: [],
     };
 
     // computeMrrForProducts still throws overall when any matched item is
@@ -439,6 +440,7 @@ describe("computeMrrForProducts status and discount policy", () => {
       duration: "forever",
       start: NOW_SECONDS - 100,
       end: null,
+      appliesToProducts: null,
       ...overrides,
     };
   }
@@ -630,5 +632,99 @@ describe("computeMrrForProducts status and discount policy", () => {
 
     // matching net $5, other net $10, $9 off: 5 - 9 * (5 / 15) = 2.
     expect(compute([subscription]).mrr).toBe(2);
+  });
+
+  describe("coupon applies_to product restrictions", () => {
+    function buildOtherItem(): StripeSubscriptionItem {
+      return buildItem({
+        id: "si_other",
+        price: {
+          ...buildItem().price,
+          id: "price_other",
+          product: "prod_other",
+        },
+      });
+    }
+
+    it("does not apply a restricted subscription-level coupon to a non-matching item", () => {
+      const subscription = buildSubscription({
+        discounts: [
+          buildDiscountFor({
+            percentOff: 50,
+            appliesToProducts: ["prod_other"],
+          }),
+        ],
+      });
+
+      expect(compute([subscription]).mrr).toBe(10);
+    });
+
+    it("applies a restricted subscription-level coupon to a matching item", () => {
+      const subscription = buildSubscription({
+        discounts: [
+          buildDiscountFor({
+            percentOff: 50,
+            appliesToProducts: ["prod_test"],
+          }),
+        ],
+      });
+
+      expect(compute([subscription]).mrr).toBe(5);
+    });
+
+    it("discounts only the covered item when a restricted coupon sits beside an uncovered one", () => {
+      const subscription = buildSubscription({
+        items: { data: [buildItem(), buildOtherItem()] },
+        discounts: [
+          buildDiscountFor({
+            percentOff: 50,
+            appliesToProducts: ["prod_other"],
+          }),
+        ],
+      });
+
+      // The 50% coupon covers prod_other only, so prod_test stays at $10.
+      expect(compute([subscription]).mrr).toBe(10);
+    });
+
+    it("still discounts every item for an unrestricted coupon", () => {
+      const subscription = buildSubscription({
+        items: { data: [buildItem(), buildOtherItem()] },
+        discounts: [buildDiscountFor({ percentOff: 50 })],
+      });
+
+      expect(compute([subscription]).mrr).toBe(5);
+    });
+
+    it("shares a restricted amount_off only across the items it covers", () => {
+      const subscription = buildSubscription({
+        items: { data: [buildItem(), buildOtherItem()] },
+        discounts: [
+          buildDiscountFor({
+            amountOff: 400,
+            currency: "usd",
+            appliesToProducts: ["prod_test"],
+          }),
+        ],
+      });
+
+      // The whole $4 lands on prod_test (the only covered item): 10 - 4.
+      expect(compute([subscription]).mrr).toBe(6);
+    });
+
+    it("does not apply a restricted item-level coupon to a non-matching product", () => {
+      const item = buildItem({
+        discounts: [
+          buildDiscountFor({
+            percentOff: 50,
+            appliesToProducts: ["prod_other"],
+          }),
+        ],
+      });
+
+      expect(
+        compute([buildSubscription({ items: { data: [item] } })]).mrr,
+      ).toBe(10);
+    });
   });
 });
