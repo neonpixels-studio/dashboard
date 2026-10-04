@@ -1,6 +1,7 @@
 import { toValue } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 import type { AppDetailResponse } from "#shared/types/dashboard";
+import { usePollingRefresh } from "./usePollingRefresh";
 
 // Wraps `GET /api/apps/[slug]` for the property detail page (wired in issue
 // #20). `slug` accepts a ref/getter so callers can pass a reactive route
@@ -21,5 +22,6 @@ export function useApp(slug: MaybeRefOrGetter<string>) {
       enabled: () => toValue(slug).length > 0,
     },
   );
+  usePollingRefresh(refresh);
   return { data, pending, error, refresh };
 }

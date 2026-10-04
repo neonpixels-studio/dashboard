@@ -1,4 +1,5 @@
 import type { AppsResponse } from "#shared/types/dashboard";
+import { usePollingRefresh } from "./usePollingRefresh";
 
 // Wraps `GET /api/apps` for the per-property card grid (wired in issue #19).
 export function useApps() {
@@ -6,5 +7,6 @@ export function useApps() {
     "/api/apps",
     { key: "apps" },
   );
+  usePollingRefresh(refresh);
   return { data, pending, error, refresh };
 }

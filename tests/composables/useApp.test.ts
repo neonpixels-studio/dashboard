@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ref } from "vue";
+import { effectScope, ref } from "vue";
+import { DATA_REFRESH_INTERVAL_MS } from "../../app/composables/usePollingRefresh";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
 vi.stubGlobal("useFetch", vi.fn());
@@ -115,5 +116,25 @@ describe("useApp", () => {
     expect(detail.pending.value).toBe(false);
     expect(detail.error.value).toBeNull();
     expect(detail.refresh).toBe(refresh);
+  });
+});
+
+describe("useApp polling", () => {
+  it("re-runs refresh on the shared interval", async () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    vi.stubGlobal("useFetch", () => ({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(null),
+      refresh,
+    }));
+    const scope = effectScope();
+    scope.run(() => useApp("basin"));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    scope.stop();
+    vi.useRealTimers();
   });
 });
