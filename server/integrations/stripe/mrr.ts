@@ -1,9 +1,13 @@
 import {
   applyDiscounts,
-  hasAmountOffDiscount,
-  type DiscountContext,
+  applyDiscountsToItems,
+  discountAppliesToProduct,
+  isDiscountInEffect,
+  sumMonthlyDollars,
+  type DiscountableItem,
 } from "./discounts";
 import type {
+  StripeDiscount,
   ListActiveSubscriptions,
   StripeRecurring,
   StripeSubscription,
@@ -131,66 +135,88 @@ function normalizeItemNetMonthlyDollars(
   if (!MRR_APPLIES_DISCOUNTS || grossDollars === 0 || !item.price.recurring) {
     return grossDollars;
   }
-  return applyDiscounts(grossDollars, item.discounts, {
+  return applyDiscounts(grossDollars, item.price.product, item.discounts, {
     nowSeconds,
     monthlyDivisor: monthlyIntervalDivisor(item.price.recurring),
   });
 }
 
-function sumNetMonthlyDollars(
-  items: StripeSubscriptionItem[],
+interface TrackedItem extends DiscountableItem {
+  matchesApp: boolean;
+}
+
+function toTrackedItem(
+  item: StripeSubscriptionItem,
+  matchesApp: boolean,
   nowSeconds: number,
-): number {
-  return items.reduce(
-    (sum, item) => sum + normalizeItemNetMonthlyDollars(item, nowSeconds),
-    0,
+): TrackedItem {
+  return {
+    productId: item.price.product,
+    monthlyDollars: normalizeItemNetMonthlyDollars(item, nowSeconds),
+    matchesApp,
+  };
+}
+
+function isCoveredByAmountOff(
+  item: StripeSubscriptionItem,
+  discounts: StripeDiscount[],
+  nowSeconds: number,
+): boolean {
+  return discounts.some(
+    (discount) =>
+      discount.amountOff !== null &&
+      isDiscountInEffect(discount, nowSeconds) &&
+      discountAppliesToProduct(discount, item.price.product),
   );
+}
+
+// A subscription-level amount_off is split by value across the items it
+// covers, including other apps' items; those are only priced (and only risk
+// tripping on another app's odd price) when an in-effect amount_off actually
+// covers them, so otherwise just the matching items are tracked.
+function trackedItemsForSubscription(
+  subscription: StripeSubscription,
+  matchingItems: StripeSubscriptionItem[],
+  nowSeconds: number,
+): TrackedItem[] {
+  const matchingIds = new Set(matchingItems.map((item) => item.id));
+  const shouldTrack = (item: StripeSubscriptionItem): boolean =>
+    matchingIds.has(item.id) ||
+    (MRR_APPLIES_DISCOUNTS &&
+      isCoveredByAmountOff(item, subscription.discounts, nowSeconds));
+  return subscription.items.data
+    .filter(shouldTrack)
+    .map((item) => toTrackedItem(item, matchingIds.has(item.id), nowSeconds));
 }
 
 // Stripe requires every item on a subscription to share one billing
 // interval, so the first recurring item's cycle is the subscription's.
-function subscriptionDiscountContext(
-  subscription: StripeSubscription,
-  matchingNetDollars: number,
-  nowSeconds: number,
-): DiscountContext | null {
-  const recurring = subscription.items.data.find((item) => item.price.recurring)
-    ?.price.recurring;
-  if (!recurring) {
-    return null;
-  }
-  // A subscription-level amount_off is split across ALL items by value;
-  // computing the others' totals is only needed (and only risks tripping
-  // on another app's odd price) when such a discount exists.
-  const needsShare = hasAmountOffDiscount(subscription.discounts, nowSeconds);
-  const allNetDollars = needsShare
-    ? sumNetMonthlyDollars(subscription.items.data, nowSeconds)
-    : matchingNetDollars;
-  return {
-    nowSeconds,
-    monthlyDivisor: monthlyIntervalDivisor(recurring),
-    share: allNetDollars > 0 ? matchingNetDollars / allNetDollars : 0,
-  };
-}
-
 function subscriptionMonthlyDollars(
   subscription: StripeSubscription,
   matchingItems: StripeSubscriptionItem[],
   nowSeconds: number,
 ): number {
-  const matchingNetDollars = sumNetMonthlyDollars(matchingItems, nowSeconds);
+  const matchingNetDollars = sumMonthlyDollars(
+    matchingItems.map((item) => toTrackedItem(item, true, nowSeconds)),
+  );
   if (!MRR_APPLIES_DISCOUNTS || matchingNetDollars === 0) {
     return matchingNetDollars;
   }
-  const context = subscriptionDiscountContext(
+  const tracked = trackedItemsForSubscription(
     subscription,
-    matchingNetDollars,
+    matchingItems,
     nowSeconds,
   );
-  if (!context) {
-    return matchingNetDollars;
-  }
-  return applyDiscounts(matchingNetDollars, subscription.discounts, context);
+  const recurring = subscription.items.data.find((item) => item.price.recurring)
+    ?.price.recurring;
+  const discounted =
+    MRR_APPLIES_DISCOUNTS && recurring
+      ? applyDiscountsToItems(tracked, subscription.discounts, {
+          nowSeconds,
+          monthlyDivisor: monthlyIntervalDivisor(recurring),
+        })
+      : tracked;
+  return sumMonthlyDollars(discounted.filter((item) => item.matchesApp));
 }
 
 export interface StripeMrrResult {

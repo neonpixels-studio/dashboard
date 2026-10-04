@@ -130,10 +130,50 @@ describe("createStripeSubscriptionLister", () => {
       duration: "forever",
       start: 1,
       end: null,
+      appliesToProducts: null,
     };
     expect(page.data[0]?.discounts).toEqual([expected]);
     expect(page.data[0]?.items.data[0]?.discounts).toEqual([expected]);
     expect(retrieveCoupon).toHaveBeenCalledTimes(1);
+    expect(retrieveCoupon).toHaveBeenCalledWith(
+      "co_1",
+      { expand: ["applies_to"] },
+      expect.anything(),
+    );
+  });
+
+  it("re-fetches an inline coupon by id so applies_to is expanded", async () => {
+    const discount = {
+      id: "di_1",
+      start: 1,
+      end: null,
+      source: { type: "coupon", coupon: { id: "co_inline" } },
+    };
+    const subscription = buildStripeSubscription("sub_1", {
+      discounts: [discount as unknown as Stripe.Discount],
+    });
+    const list = vi.fn(async () => ({ data: [subscription], has_more: false }));
+    const retrieveCoupon = vi.fn(async () => ({
+      id: "co_inline",
+      percent_off: 20,
+      amount_off: null,
+      currency: null,
+      duration: "forever",
+      applies_to: { products: ["prod_a"] },
+    })) as never;
+    const listActiveSubscriptions = createStripeSubscriptionLister(
+      "sk_test_unused",
+      buildStubStripeClient(list, retrieveCoupon),
+    );
+
+    const page = await listActiveSubscriptions();
+
+    expect(retrieveCoupon).toHaveBeenCalledWith(
+      "co_inline",
+      { expand: ["applies_to"] },
+      expect.anything(),
+    );
+    expect(page.data[0]?.discounts[0]?.appliesToProducts).toEqual(["prod_a"]);
   });
 
   describe("uncounted subscription statuses", () => {

@@ -27,6 +27,10 @@ const SUBSCRIPTION_EXPANDS = ["data.discounts", "data.items.data.discounts"];
 // of a real client built from a real secret key.
 type StripeSubscriptionsClient = Pick<Stripe, "subscriptions" | "coupons">;
 
+// `applies_to` is not on a coupon by default; without expanding it a
+// product-restricted coupon is indistinguishable from an unrestricted one.
+const COUPON_EXPANDS = ["applies_to"];
+
 type CouponLookup = (couponId: string) => Promise<Stripe.Coupon>;
 
 // Replaces each discount's bare coupon id with the full coupon. `lookup`
@@ -36,13 +40,17 @@ async function resolveDiscountCoupon(
   discount: string | Stripe.Discount,
   lookup: CouponLookup,
 ): Promise<string | Stripe.Discount> {
-  if (
-    typeof discount === "string" ||
-    typeof discount.source.coupon !== "string"
-  ) {
+  if (typeof discount === "string") {
     return discount;
   }
-  const coupon = await lookup(discount.source.coupon);
+  const couponId =
+    typeof discount.source.coupon === "string"
+      ? discount.source.coupon
+      : discount.source.coupon?.id;
+  if (!couponId) {
+    return discount;
+  }
+  const coupon = await lookup(couponId);
   return { ...discount, source: { ...discount.source, coupon } };
 }
 
@@ -78,7 +86,7 @@ function createCachedCouponLookup(
       return cached;
     }
     const pending = stripeClient.coupons
-      .retrieve(couponId, {}, { timeout: timeoutMs() })
+      .retrieve(couponId, { expand: COUPON_EXPANDS }, { timeout: timeoutMs() })
       .catch((error: unknown) => {
         // Don't let one transient failure poison this coupon id for the
         // lister's lifetime; a deleted coupon fails loud with its id.

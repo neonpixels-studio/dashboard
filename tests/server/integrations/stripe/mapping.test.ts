@@ -228,8 +228,21 @@ describe("toStripeSubscription", () => {
           duration: "repeating",
           start: 1000,
           end: 2000,
+          appliesToProducts: null,
         },
       ]);
+    });
+
+    it("maps a product-restricted coupon's applies_to products", () => {
+      const discount = buildDiscount();
+      (discount.source.coupon as { applies_to?: unknown }).applies_to = {
+        products: ["prod_a", "prod_b"],
+      };
+      const subscription = buildStripeSubscription({ discounts: [discount] });
+
+      expect(
+        toStripeSubscription(subscription).discounts[0]?.appliesToProducts,
+      ).toEqual(["prod_a", "prod_b"]);
     });
 
     it("maps item-level discounts", () => {
@@ -248,6 +261,7 @@ describe("toStripeSubscription", () => {
           duration: "repeating",
           start: 1000,
           end: null,
+          appliesToProducts: null,
         },
       ]);
     });

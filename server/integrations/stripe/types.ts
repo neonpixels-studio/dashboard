@@ -44,6 +44,9 @@ export interface StripeDiscount {
   duration: string;
   start: number;
   end: number | null;
+  // Product ids the coupon is restricted to (Stripe's `applies_to.products`);
+  // null means unrestricted, so it applies to every item.
+  appliesToProducts: string[] | null;
 }
 
 export interface StripeSubscriptionItem {
