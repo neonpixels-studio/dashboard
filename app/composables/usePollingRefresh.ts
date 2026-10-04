@@ -5,7 +5,8 @@ import { getCurrentScope, onScopeDispose } from "vue";
 export const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 // Re-runs `refresh` on an interval while the tab is visible. A hidden tab
-// stops polling and refreshes once as soon as it becomes visible again.
+// stops polling and refreshes once when it becomes visible again, unless a
+// refresh already ran within the last interval.
 // Cleans up with the calling scope; no-op during SSR.
 export function usePollingRefresh(
   refresh: () => Promise<unknown> | unknown,
@@ -17,12 +18,14 @@ export function usePollingRefresh(
 
   let timer: ReturnType<typeof setInterval> | undefined;
   let inFlight = false;
+  let lastRefreshedAt = Date.now();
 
   const refreshOnce = async () => {
     if (inFlight) {
       return;
     }
     inFlight = true;
+    lastRefreshedAt = Date.now();
     try {
       await refresh();
     } catch {
@@ -48,8 +51,11 @@ export function usePollingRefresh(
       stop();
       return;
     }
-    void refreshOnce();
     start();
+    if (Date.now() - lastRefreshedAt < intervalMs) {
+      return;
+    }
+    void refreshOnce();
   };
 
   document.addEventListener("visibilitychange", handleVisibilityChange);

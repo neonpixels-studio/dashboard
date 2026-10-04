@@ -159,4 +159,23 @@ describe("useApp polling", () => {
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("starts refreshing once a reactive slug becomes non-empty", async () => {
+    const refresh = vi.fn();
+    vi.stubGlobal("useFetch", () => ({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(null),
+      refresh,
+    }));
+    const slug = ref("");
+    scope.run(() => useApp(slug));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).not.toHaveBeenCalled();
+
+    slug.value = "basin";
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
 });

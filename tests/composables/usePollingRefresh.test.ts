@@ -14,29 +14,31 @@ function setHidden(hidden: boolean) {
 }
 
 describe("usePollingRefresh", () => {
+  let scope: ReturnType<typeof effectScope>;
+
   beforeEach(() => {
     vi.useFakeTimers();
     setHidden(false);
+    scope = effectScope();
   });
 
   afterEach(() => {
+    scope.stop();
     vi.useRealTimers();
+    setHidden(false);
   });
 
   it("calls refresh once per interval", async () => {
     const refresh = vi.fn();
-    const scope = effectScope();
     scope.run(() => usePollingRefresh(refresh));
 
     expect(refresh).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS * 3);
     expect(refresh).toHaveBeenCalledTimes(3);
-    scope.stop();
   });
 
   it("stops polling when the scope is disposed", async () => {
     const refresh = vi.fn();
-    const scope = effectScope();
     scope.run(() => usePollingRefresh(refresh));
     scope.stop();
 
@@ -46,7 +48,6 @@ describe("usePollingRefresh", () => {
 
   it("pauses while hidden and refreshes immediately on return", async () => {
     const refresh = vi.fn();
-    const scope = effectScope();
     scope.run(() => usePollingRefresh(refresh));
 
     setHidden(true);
@@ -57,7 +58,6 @@ describe("usePollingRefresh", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
     expect(refresh).toHaveBeenCalledTimes(2);
-    scope.stop();
   });
 
   it("skips a tick while the previous refresh is still in flight", async () => {
@@ -65,7 +65,6 @@ describe("usePollingRefresh", () => {
     const refresh = vi.fn(
       () => new Promise<void>((resolve) => (resolveRefresh = resolve)),
     );
-    const scope = effectScope();
     scope.run(() => usePollingRefresh(refresh));
 
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS * 2);
@@ -74,27 +73,36 @@ describe("usePollingRefresh", () => {
     resolveRefresh();
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
     expect(refresh).toHaveBeenCalledTimes(2);
-    scope.stop();
   });
 
   it("keeps polling after a refresh rejects", async () => {
     const refresh = vi.fn().mockRejectedValue(new Error("boom"));
-    const scope = effectScope();
     scope.run(() => usePollingRefresh(refresh));
 
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS * 2);
     expect(refresh).toHaveBeenCalledTimes(2);
-    scope.stop();
   });
 
   it("does not poll when the tab starts hidden", async () => {
     setHidden(true);
     const refresh = vi.fn();
-    const scope = effectScope();
     scope.run(() => usePollingRefresh(refresh));
 
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS * 2);
     expect(refresh).not.toHaveBeenCalled();
-    scope.stop();
+  });
+
+  it("does not refresh on tab return within one interval of the last refresh", async () => {
+    const refresh = vi.fn();
+    scope.run(() => usePollingRefresh(refresh));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    setHidden(true);
+    setHidden(false);
+    setHidden(true);
+    setHidden(false);
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });
