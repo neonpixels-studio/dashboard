@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import AppHeaderBand from "../../app/components/AppHeaderBand.vue";
 import SkeletonBlock from "../../app/components/SkeletonBlock.vue";
 import { findAppBySlug } from "../../app/config/apps";
+import { UNAVAILABLE_STATUS } from "../../app/utils/headerStatus";
 import type { AppStatus } from "../../shared/types/dashboard";
 
 const app = findAppBySlug("basin")!;
@@ -52,5 +53,12 @@ describe("AppHeaderBand", () => {
 
   it("matches its snapshot once status has loaded", () => {
     expect(mountBand({ label: "LIVE", tone: "ok" }).html()).toMatchSnapshot();
+  });
+
+  it("matches its snapshot in the error state", () => {
+    const wrapper = mountBand(UNAVAILABLE_STATUS);
+    expect(wrapper.attributes("aria-busy")).toBe("false");
+    expect(wrapper.find(".status-chip").text()).toBe("UNAVAILABLE");
+    expect(wrapper.html()).toMatchSnapshot();
   });
 });

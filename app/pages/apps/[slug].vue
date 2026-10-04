@@ -3,7 +3,7 @@
     <ControlTopBar :crumb="app.name" />
     <AppHeaderBand
       :app="app"
-      :status="detail?.status ?? null"
+      :status="headerStatus"
       :secondary-links="secondaryLinks"
     />
     <component
@@ -26,6 +26,7 @@ import {
 import { findAppBySlug, type AppTemplate } from "~/config/apps";
 import { useApp } from "~/composables/useApp";
 import { toAppDetailViewModel } from "~/utils/appViewModel";
+import { resolveHeaderStatus } from "~/utils/headerStatus";
 
 const route = useRoute();
 const app = findAppBySlug(String(route.params.slug));
@@ -52,6 +53,9 @@ const templateComponent = TEMPLATE_COMPONENTS[app.template];
 const secondaryLinks = TEMPLATE_SECONDARY_LINKS[app.template];
 
 const { data: detail, pending, error, refresh } = useApp(() => app.slug);
+const headerStatus = computed(() =>
+  resolveHeaderStatus(detail.value?.status, error.value),
+);
 const appViewModel = computed(() =>
   toAppDetailViewModel(app, detail.value ?? null),
 );
