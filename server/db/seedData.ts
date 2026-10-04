@@ -1,9 +1,14 @@
-import type { AppTemplate, DashboardApp } from "../../app/config/apps";
+import type {
+  AppTemplate,
+  DashboardApp,
+  InternalApp,
+} from "../../app/config/apps";
 import type { integrationVendor } from "./schema";
 
 type IntegrationVendor = (typeof integrationVendor.enumValues)[number];
 
 const GA4_VENDOR: IntegrationVendor = "ga4";
+const SENTRY_VENDOR: IntegrationVendor = "sentry";
 
 // Exhaustive over `AppTemplate` so a new template value fails to compile here
 // instead of silently falling through to "no vendors".
@@ -26,7 +31,9 @@ export interface IntegrationConfigSeedRow {
  *
  * Every app gets a GA4 row (every property shows a "GA" pill). Product apps
  * additionally get Stripe/Clerk/Sentry and the writing app gets its
- * cross-posting targets. This grouping is derived from `template`, not from
+ * cross-posting targets. Internal apps (app/config/apps.ts's INTERNAL_APPS)
+ * only report their own Sentry issues, so they get a single Sentry row. This
+ * grouping is derived from `template`, not from
  * live integration health — `AppCard.integrations`/`IntegrationHealth`
  * (`shared/types/dashboard.ts`) reflect what's actually configured and
  * synced, and are computed separately in `server/utils/dashboardShaping.ts`.
@@ -38,8 +45,9 @@ export interface IntegrationConfigSeedRow {
  */
 export function buildIntegrationConfigSeed(
   apps: DashboardApp[],
+  internalApps: InternalApp[] = [],
 ): IntegrationConfigSeedRow[] {
-  return apps.flatMap((app) => {
+  const propertyRows = apps.flatMap((app) => {
     const vendors = [GA4_VENDOR, ...VENDORS_BY_TEMPLATE[app.template]];
     return vendors.map((vendor) => ({
       slug: app.slug,
@@ -47,4 +55,10 @@ export function buildIntegrationConfigSeed(
       enabled: false,
     }));
   });
+  const internalRows = internalApps.map((app) => ({
+    slug: app.slug,
+    vendor: SENTRY_VENDOR,
+    enabled: false,
+  }));
+  return [...propertyRows, ...internalRows];
 }

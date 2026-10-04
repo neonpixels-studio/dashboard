@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { AppTemplate, DashboardApp } from "../../../app/config/apps";
-import { APPS } from "../../../app/config/apps";
+import type {
+  AppTemplate,
+  DashboardApp,
+  InternalApp,
+} from "../../../app/config/apps";
+import { APPS, INTERNAL_APPS } from "../../../app/config/apps";
 import { buildIntegrationConfigSeed } from "../../../server/db/seedData";
 
 const PRODUCT_VENDORS = ["stripe", "clerk", "sentry"];
@@ -64,6 +68,18 @@ describe("buildIntegrationConfigSeed", () => {
     expect(vendorsForSlug(rows, "fixture-marketing")).toEqual(["ga4"]);
   });
 
+  it("gives an internal app a single disabled sentry row", () => {
+    const internalApp: InternalApp = {
+      name: "fixture-internal",
+      slug: "fixture-internal",
+      accent: "#000000",
+    };
+    const rows = buildIntegrationConfigSeed(FIXTURE_APPS, [internalApp]);
+    expect(rows.filter((row) => row.slug === "fixture-internal")).toEqual([
+      { slug: "fixture-internal", vendor: "sentry", enabled: false },
+    ]);
+  });
+
   // Grounds the fixture-based assertions above in the real console config,
   // per the issue's acceptance criteria — asserted on vendor membership and
   // pair-uniqueness rather than exact row counts, so adding another app of
@@ -109,8 +125,15 @@ describe("buildIntegrationConfigSeed", () => {
       }
     });
 
+    it("gives every internal app a sentry row", () => {
+      const rows = buildIntegrationConfigSeed(APPS, INTERNAL_APPS);
+      for (const app of INTERNAL_APPS) {
+        expect(vendorsForSlug(rows, app.slug)).toEqual(["sentry"]);
+      }
+    });
+
     it("produces exactly one row per (slug, vendor) pair", () => {
-      const rows = buildIntegrationConfigSeed(APPS);
+      const rows = buildIntegrationConfigSeed(APPS, INTERNAL_APPS);
       const pairIds = rows.map((row) => `${row.slug}:${row.vendor}`);
       expect(new Set(pairIds).size).toBe(pairIds.length);
     });

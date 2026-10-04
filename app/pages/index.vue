@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { APPS, findAppBySlug, sortByAppOrder } from "~/config/apps";
+import { APPS, findRollupSourceBySlug, sortByAppOrder } from "~/config/apps";
 import { toAppCardViewModel } from "~/utils/appViewModel";
 import { useOverview } from "~/composables/useOverview";
 import { useApps } from "~/composables/useApps";
@@ -167,11 +167,11 @@ const cardViewModels = computed(() =>
 const hasAppsError = computed(() => !!appsError.value);
 
 function accentFor(slug: string): string {
-  return findAppBySlug(slug)?.accent ?? "var(--ink-3)";
+  return findRollupSourceBySlug(slug)?.accent ?? "var(--ink-3)";
 }
 
 function nameFor(slug: string): string {
-  return findAppBySlug(slug)?.name ?? slug;
+  return findRollupSourceBySlug(slug)?.name ?? slug;
 }
 
 const {

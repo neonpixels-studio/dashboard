@@ -110,6 +110,18 @@ describe("resolveIntegrationConfig", () => {
     );
   });
 
+  it("treats an internal app's slug suffix as belonging to another app", () => {
+    vi.stubEnv("NUXT_SENTRY_TOKEN_DASHBOARD", "dashboards-secret");
+    const row = buildRow({
+      slug: "basin",
+      secretRef: "NUXT_SENTRY_TOKEN_DASHBOARD",
+    });
+
+    expect(() => resolveIntegrationConfig(row, vi.fn())).toThrow(
+      /belongs to app "dashboard", not "basin"/,
+    );
+  });
+
   it("accepts a per-app, slug-suffixed secretRef scoped to the vendor (e.g. clerk)", () => {
     vi.stubEnv("NUXT_CLERK_SECRET_KEY_BASIN", "clerk-secret");
     const row = buildRow({

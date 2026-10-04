@@ -4,7 +4,7 @@
 // helpers those handlers use.
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { APPS } from "../../app/config/apps";
+import { APPS, INTERNAL_APPS } from "../../app/config/apps";
 import * as schema from "./schema";
 import {
   buildIntegrationConfigSeed,
@@ -51,7 +51,7 @@ async function main(): Promise<void> {
   const db = drizzle(neon(requireDatabaseUrl()), { schema });
   const { attempted, inserted } = await seedIntegrationConfig(
     db,
-    buildIntegrationConfigSeed(APPS),
+    buildIntegrationConfigSeed(APPS, INTERNAL_APPS),
   );
   console.log(
     `Seeded ${inserted} of ${attempted} integration_config row(s) (rest already present).`,

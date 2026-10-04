@@ -184,8 +184,10 @@ simply produces no rows (not a zeroed metric, not a thrown error).
 ### Sentry
 
 Reports open-issue and fatal-issue counts for the product-template apps
-(basin, markpost, farflung) — grimicorn.dev and neonpixels.dev don't use
-Sentry and get no `integration_config` row for it. One shared Sentry org
+(basin, markpost, farflung) and for this dashboard itself (`INTERNAL_APPS` in
+`app/config/apps.ts`: it shows up as a row in the OPEN ISSUES tile, never as a
+property card) — grimicorn.dev and neonpixels.dev don't use Sentry and get no
+`integration_config` row for it. One shared Sentry org
 across properties, scoped per property by project slug — see
 `server/integrations/sentry/provider.ts`. The per-app status-chip
 label/tone mapping ships as a standalone, unit-tested pure function,

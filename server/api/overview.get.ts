@@ -1,4 +1,4 @@
-import { APPS } from "../../app/config/apps";
+import { APPS, INTERNAL_APPS } from "../../app/config/apps";
 import { useDb } from "../db";
 import { requireUser } from "../utils/auth";
 import {
@@ -103,12 +103,15 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
 
   const db = useDb();
   const slugs = APPS.map((app) => app.slug);
+  // Internal apps only ever sync Sentry, so they join the open-issues rollup
+  // (and sync freshness) without touching any property-only tile.
+  const issueSlugs = [...slugs, ...INTERNAL_APPS.map((app) => app.slug)];
 
   const [metricRows, seriesRows, breakdownRows, syncRows] = await Promise.all([
-    fetchLatestMetricSnapshots(db, slugs),
-    fetchMetricSnapshotSeries(db, slugs),
+    fetchLatestMetricSnapshots(db, issueSlugs),
+    fetchMetricSnapshotSeries(db, issueSlugs),
     fetchLatestTrafficBreakdowns(db, slugs),
-    fetchSyncStatuses(db, slugs),
+    fetchSyncStatuses(db, issueSlugs),
   ]);
 
   const mrrRollup = metricRollupWithSplit(
@@ -153,13 +156,13 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
     openIssues: withDelta(
       metricRollupWithSplit(
         metricRows,
-        slugs,
+        issueSlugs,
         METRIC_OPEN_ISSUES,
         PERIOD_CURRENT,
       ),
       {
         seriesRows,
-        slugs,
+        slugs: issueSlugs,
         metric: METRIC_OPEN_ISSUES,
         period: PERIOD_CURRENT,
         windowDays: OPEN_ISSUES_DELTA_WINDOW_DAYS,

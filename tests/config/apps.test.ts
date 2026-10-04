@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { APPS, findAppBySlug, sortByAppOrder } from "../../app/config/apps";
+import {
+  APPS,
+  INTERNAL_APPS,
+  findAppBySlug,
+  findRollupSourceBySlug,
+  sortByAppOrder,
+} from "../../app/config/apps";
 
 const VALID_TEMPLATES = ["product", "writing", "marketing"];
 
@@ -37,6 +43,34 @@ describe("apps config", () => {
     expect(findAppBySlug("basin")?.name).toBe("basin.fm");
     expect(findAppBySlug("nope")).toBeUndefined();
   });
+
+  it("never reuses a property slug for an internal app", () => {
+    const propertySlugs = new Set(APPS.map((app) => app.slug));
+    for (const internalApp of INTERNAL_APPS) {
+      expect(propertySlugs.has(internalApp.slug)).toBe(false);
+    }
+  });
+
+  it("doesn't resolve an internal app as a property", () => {
+    expect(findAppBySlug("dashboard")).toBeUndefined();
+  });
+});
+
+describe("findRollupSourceBySlug", () => {
+  it("resolves a property's name and accent", () => {
+    expect(findRollupSourceBySlug("basin")).toMatchObject({
+      name: "basin.fm",
+      accent: "#FFB020",
+    });
+  });
+
+  it("resolves an internal app that isn't a property", () => {
+    expect(findRollupSourceBySlug("dashboard")?.name).toBe("dashboard");
+  });
+
+  it("returns undefined for an unknown slug", () => {
+    expect(findRollupSourceBySlug("nope")).toBeUndefined();
+  });
 });
 
 describe("sortByAppOrder", () => {
@@ -64,6 +98,20 @@ describe("sortByAppOrder", () => {
     sortByAppOrder(rows);
 
     expect(rows).toEqual(original);
+  });
+
+  it("sorts an internal app after every property", () => {
+    const rows = [
+      { slug: "dashboard", value: 1 },
+      { slug: "farflung", value: 2 },
+      { slug: "basin", value: 3 },
+    ];
+
+    expect(sortByAppOrder(rows).map((row) => row.slug)).toEqual([
+      "basin",
+      "farflung",
+      "dashboard",
+    ]);
   });
 
   it("sorts an unknown slug last rather than throwing", () => {

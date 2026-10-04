@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { H3Event } from "h3";
-import { APPS } from "../../../app/config/apps";
+import { APPS, INTERNAL_APPS } from "../../../app/config/apps";
 import type { MetricSnapshotRow } from "../../../server/utils/dashboardQueries";
 
 const mockRequireUser = vi.fn();
@@ -266,22 +266,48 @@ describe("GET /api/overview", () => {
     ]);
   });
 
-  it("fetches metrics scoped to every configured app slug", async () => {
+  it("fetches metrics scoped to every property plus internal app slug, traffic to properties only", async () => {
     await overviewHandler({} as H3Event);
 
-    const expectedSlugs = APPS.map((app) => app.slug);
-    expect(mockFetchLatestMetricSnapshots).toHaveBeenCalledWith(
-      {},
-      expectedSlugs,
-    );
-    expect(mockFetchMetricSnapshotSeries).toHaveBeenCalledWith(
-      {},
-      expectedSlugs,
-    );
+    const propertySlugs = APPS.map((app) => app.slug);
+    const issueSlugs = [
+      ...propertySlugs,
+      ...INTERNAL_APPS.map((app) => app.slug),
+    ];
+    expect(mockFetchLatestMetricSnapshots).toHaveBeenCalledWith({}, issueSlugs);
+    expect(mockFetchMetricSnapshotSeries).toHaveBeenCalledWith({}, issueSlugs);
     expect(mockFetchLatestTrafficBreakdowns).toHaveBeenCalledWith(
       {},
-      expectedSlugs,
+      propertySlugs,
     );
-    expect(mockFetchSyncStatuses).toHaveBeenCalledWith({}, expectedSlugs);
+    expect(mockFetchSyncStatuses).toHaveBeenCalledWith({}, issueSlugs);
+  });
+
+  it("counts the dashboard's own Sentry issues in open issues, but in no property-only rollup", async () => {
+    mockFetchLatestMetricSnapshots.mockResolvedValue([
+      metricRow({
+        slug: "basin",
+        vendor: "sentry",
+        metric: "open_issues",
+        value: 3,
+      }),
+      metricRow({
+        slug: "dashboard",
+        vendor: "sentry",
+        metric: "open_issues",
+        value: 2,
+      }),
+      metricRow({ slug: "dashboard", vendor: "stripe", value: 999 }),
+    ]);
+
+    const result = await overviewHandler({} as H3Event);
+
+    expect(result.openIssues.value).toBe(5);
+    expect(result.openIssues.byApp).toEqual([
+      { slug: "basin", value: 3 },
+      { slug: "dashboard", value: 2 },
+    ]);
+    expect(result.mrr.value).toBeNull();
+    expect(result.mrr.byApp).toEqual([]);
   });
 });
