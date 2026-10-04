@@ -63,6 +63,10 @@ export interface StripeSubscription {
 export interface StripeSubscriptionPage {
   data: StripeSubscription[];
   hasMore: boolean;
+  // Id of the last row Stripe returned, which can differ from the last row in
+  // `data` when the lister drops uncounted statuses. Falls back to the last
+  // `data` id when omitted (fixture-backed fakes).
+  nextCursor?: string;
 }
 
 // The seam every pure function in this package is tested against instead of

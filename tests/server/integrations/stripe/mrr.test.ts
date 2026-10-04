@@ -330,6 +330,41 @@ describe("fetchAllActiveSubscriptions", () => {
     expect(listActiveSubscriptions).toHaveBeenNthCalledWith(2, "sub_page1");
   });
 
+  it("keeps paging past an empty filtered page by following nextCursor", async () => {
+    const filteredEmptyPage: StripeSubscriptionPage = {
+      data: [],
+      hasMore: true,
+      nextCursor: "sub_trial_last",
+    };
+    const finalPage: StripeSubscriptionPage = {
+      data: [
+        {
+          id: "sub_active",
+          status: "active",
+          items: { data: [] },
+          discounts: [],
+        },
+      ],
+      hasMore: false,
+    };
+    const listActiveSubscriptions = fakeListFromPages({
+      first: filteredEmptyPage,
+      sub_trial_last: finalPage,
+    });
+
+    const subscriptions = await fetchAllActiveSubscriptions(
+      listActiveSubscriptions,
+    );
+
+    expect(subscriptions.map((subscription) => subscription.id)).toEqual([
+      "sub_active",
+    ]);
+    expect(listActiveSubscriptions).toHaveBeenNthCalledWith(
+      2,
+      "sub_trial_last",
+    );
+  });
+
   it("stops after a single page when hasMore is false", async () => {
     const singlePage: StripeSubscriptionPage = {
       data: [

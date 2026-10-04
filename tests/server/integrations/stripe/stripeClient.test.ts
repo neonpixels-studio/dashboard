@@ -175,6 +175,31 @@ describe("createStripeSubscriptionLister", () => {
       },
     );
 
+    it("reports the last raw row as the cursor even when it was filtered out", async () => {
+      const list = vi.fn(async () => ({
+        data: [
+          buildSubscriptionWithCoupon("sub_active", "active"),
+          buildSubscriptionWithCoupon("sub_trial", "trialing"),
+        ],
+        has_more: true,
+      }));
+      const retrieveCoupon = vi.fn(async () => ({
+        id: "co",
+        percent_off: 10,
+        amount_off: null,
+        currency: null,
+        duration: "forever",
+      })) as never;
+      const listActiveSubscriptions = createStripeSubscriptionLister(
+        "sk_test_unused",
+        buildStubStripeClient(list, retrieveCoupon),
+      );
+
+      const page = await listActiveSubscriptions();
+
+      expect(page.nextCursor).toBe("sub_trial");
+    });
+
     it("still resolves coupons for counted subscriptions on the same page", async () => {
       const list = vi.fn(async () => ({
         data: [

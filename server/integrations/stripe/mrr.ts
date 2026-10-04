@@ -253,19 +253,19 @@ export function computeMrrForProducts(
 // return a partial, plausible-looking subscription list.
 function assertPageAdvanced(
   page: StripeSubscriptionPage,
-  lastSubscription: StripeSubscription | undefined,
+  nextCursor: string | undefined,
   previousStartingAfter: string | undefined,
 ): void {
-  if (page.hasMore && !lastSubscription) {
+  if (page.hasMore && !nextCursor) {
     throw new Error(
       "Stripe subscription pagination returned an empty page while " +
         "still claiming has_more — refusing to silently truncate the list.",
     );
   }
-  if (page.hasMore && lastSubscription?.id === previousStartingAfter) {
+  if (page.hasMore && nextCursor === previousStartingAfter) {
     throw new Error(
       "Stripe subscription pagination did not advance — " +
-        `listActiveSubscriptions returned the same cursor ("${lastSubscription?.id}") twice in a row.`,
+        `listActiveSubscriptions returned the same cursor ("${nextCursor}") twice in a row.`,
     );
   }
 }
@@ -285,11 +285,11 @@ export async function fetchAllActiveSubscriptions(
   while (hasMore) {
     const previousStartingAfter = startingAfter;
     const page = await listActiveSubscriptions(startingAfter);
-    const lastSubscription = page.data.at(-1);
-    assertPageAdvanced(page, lastSubscription, previousStartingAfter);
+    const nextCursor = page.nextCursor ?? page.data.at(-1)?.id;
+    assertPageAdvanced(page, nextCursor, previousStartingAfter);
 
     allSubscriptions.push(...page.data);
-    startingAfter = lastSubscription?.id;
+    startingAfter = nextCursor;
     hasMore = page.hasMore;
   }
 
