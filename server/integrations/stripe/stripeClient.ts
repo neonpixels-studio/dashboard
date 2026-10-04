@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { NO_DEADLINE, type FetchDeadline } from "../types";
 import { toStripeSubscription } from "./mapping";
+import { MRR_COUNTED_STATUSES } from "./mrr";
 import type { ListActiveSubscriptions } from "./types";
 
 // A hung Stripe request would otherwise block a sync indefinitely (no
@@ -188,8 +189,14 @@ export function createStripeSubscriptionLister(
       { timeout: perAttemptTimeoutMs },
     );
 
+    // Uncounted statuses (trialing, unpaid, ...) never reach mrr.ts's tally,
+    // so skip them here: resolving their coupons is wasted calls and a
+    // deleted coupon on one would otherwise fail the whole sync.
+    const countedSubscriptions = page.data.filter((subscription) =>
+      MRR_COUNTED_STATUSES.has(subscription.status),
+    );
     const resolved = await Promise.all(
-      page.data.map((subscription) =>
+      countedSubscriptions.map((subscription) =>
         resolveSubscriptionCoupons(subscription, couponLookup),
       ),
     );

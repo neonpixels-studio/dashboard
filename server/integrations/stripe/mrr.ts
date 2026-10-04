@@ -30,7 +30,7 @@ const MILLISECONDS_PER_SECOND = 1000;
 // Subscription statuses that count toward MRR and the subscriber count.
 // `past_due` is a paying customer in dunning; `trialing` has paid nothing
 // yet. Everything else (unpaid, incomplete, paused, canceled, ...) is out.
-const MRR_COUNTED_STATUSES: ReadonlySet<string> = new Set([
+export const MRR_COUNTED_STATUSES: ReadonlySet<string> = new Set([
   "active",
   "past_due",
 ]);
