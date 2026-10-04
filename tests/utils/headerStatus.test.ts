@@ -23,7 +23,7 @@ describe("resolveHeaderStatus", () => {
     expect(resolveHeaderStatus(undefined, undefined)).toBeNull();
   });
 
-  it("keeps the last known status when a refresh fails", () => {
+  it("prefers a resolved status over an error", () => {
     expect(resolveHeaderStatus(liveStatus, new Error("boom"))).toBe(liveStatus);
   });
 
