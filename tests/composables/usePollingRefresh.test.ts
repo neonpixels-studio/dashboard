@@ -42,7 +42,9 @@ describe("usePollingRefresh", () => {
     scope.run(() => usePollingRefresh(refresh));
     scope.stop();
 
+    setHidden(true);
     await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS * 3);
+    setHidden(false);
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -103,6 +105,19 @@ describe("usePollingRefresh", () => {
     setHidden(false);
     setHidden(true);
     setHidden(false);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps its tick phase across a quick hide and show", async () => {
+    const refresh = vi.fn();
+    scope.run(() => usePollingRefresh(refresh));
+
+    await vi.advanceTimersByTimeAsync(DATA_REFRESH_INTERVAL_MS - 10_000);
+    setHidden(true);
+    setHidden(false);
+    expect(refresh).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 });

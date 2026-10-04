@@ -4,10 +4,10 @@ import { getCurrentScope, onScopeDispose } from "vue";
 // so polling at a third of that picks up new data within ~5 minutes of a sync.
 export const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-// Re-runs `refresh` on an interval while the tab is visible. A hidden tab
-// stops polling and refreshes once when it becomes visible again, unless a
-// refresh already ran within the last interval.
-// Cleans up with the calling scope; no-op during SSR.
+// Re-runs `refresh` on an interval. Ticks that land while the tab is hidden
+// are skipped; when the tab becomes visible again it refreshes once, unless a
+// refresh already ran within the last interval. Cleans up with the calling
+// scope; no-op during SSR.
 export function usePollingRefresh(
   refresh: () => Promise<unknown> | unknown,
   intervalMs: number = DATA_REFRESH_INTERVAL_MS,
@@ -16,7 +16,6 @@ export function usePollingRefresh(
     return;
   }
 
-  let timer: ReturnType<typeof setInterval> | undefined;
   let inFlight = false;
   let lastRefreshedAt = Date.now();
 
@@ -35,37 +34,26 @@ export function usePollingRefresh(
     }
   };
 
-  const start = () => {
-    if (timer === undefined) {
-      timer = setInterval(refreshOnce, intervalMs);
-    }
-  };
-
-  const stop = () => {
-    clearInterval(timer);
-    timer = undefined;
-  };
-
-  const handleVisibilityChange = () => {
+  const handleTick = () => {
     if (document.hidden) {
-      stop();
-      return;
-    }
-    start();
-    if (Date.now() - lastRefreshedAt < intervalMs) {
       return;
     }
     void refreshOnce();
   };
 
+  const handleVisibilityChange = () => {
+    if (document.hidden || Date.now() - lastRefreshedAt < intervalMs) {
+      return;
+    }
+    void refreshOnce();
+  };
+
+  const timer = setInterval(handleTick, intervalMs);
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  if (!document.hidden) {
-    start();
-  }
 
   if (getCurrentScope()) {
     onScopeDispose(() => {
-      stop();
+      clearInterval(timer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     });
   }
