@@ -45,6 +45,7 @@ describe("findStaleVendors", () => {
     expect(findStaleVendors([row("stripe", null)], NOW)).toEqual([
       expect.objectContaining({
         vendor: "stripe",
+        lastRunAt: NOW.toISOString(),
         lastSuccessAt: null,
         hoursSinceSuccess: null,
       }),
@@ -85,6 +86,7 @@ describe("alertOnStaleVendors", () => {
         vendor: "stripe",
         hoursSinceSuccess: 30,
       }),
+      ["basin", "stripe"],
     );
   });
 
@@ -96,6 +98,7 @@ describe("alertOnStaleVendors", () => {
         listSyncHealthRows: async () => [row("stripe", hoursAgo(7))],
       });
       expect(stale).toHaveLength(1);
+      expect(mockReportErrorCondition).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

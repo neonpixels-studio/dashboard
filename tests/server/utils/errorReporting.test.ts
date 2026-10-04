@@ -133,6 +133,22 @@ describe("reportErrorCondition", () => {
     vi.restoreAllMocks();
   });
 
+  it("appends fingerprintExtra to the Sentry fingerprint", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    reportErrorCondition("[test] stale", { slug: "basin" }, [
+      "basin",
+      "stripe",
+    ]);
+
+    expect(captureMessageMock).toHaveBeenCalledWith(
+      "[test] stale",
+      expect.objectContaining({
+        fingerprint: ["{{ default }}", "[test] stale", "basin", "stripe"],
+      }),
+    );
+  });
+
   it("logs the message and context to the console", () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")
