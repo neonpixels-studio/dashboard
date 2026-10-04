@@ -11,11 +11,15 @@ vi.mock("../../app/composables/useApp", () => ({
   useApp: () => mockUseApp(),
 }));
 
-function mountPage(detail: AppDetailResponse | null, pending = false) {
+function mountPage(
+  detail: AppDetailResponse | null,
+  pending = false,
+  error: Error | null = null,
+) {
   mockUseApp.mockReturnValue({
     data: ref(detail),
     pending: ref(pending),
-    error: ref(null),
+    error: ref(error),
     refresh: vi.fn(),
   });
   return mount(AppDetailPage, {
@@ -49,5 +53,15 @@ describe("apps/[slug] page", () => {
     const wrapper = mountPage(null, true);
 
     expect(wrapper.findComponent(AppHeaderBand).props("status")).toBeNull();
+  });
+
+  it("passes UNAVAILABLE to the header band when the detail fetch fails", () => {
+    const wrapper = mountPage(null, false, new Error("boom"));
+
+    expect(wrapper.findComponent(AppHeaderBand).props("status")).toEqual({
+      label: "UNAVAILABLE",
+      tone: "danger",
+    });
+    expect(wrapper.find(".header-band").attributes("aria-busy")).toBe("false");
   });
 });

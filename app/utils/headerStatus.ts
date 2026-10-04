@@ -1,0 +1,22 @@
+import type { AppStatus } from "#shared/types/dashboard";
+
+export const UNAVAILABLE_STATUS: AppStatus = {
+  label: "UNAVAILABLE",
+  tone: "danger",
+};
+
+// Last known status wins, so a failed background refresh never replaces real
+// data. With no status and a failed fetch, the header shows an explicit
+// error chip instead of a skeleton that never resolves.
+export function resolveHeaderStatus(
+  status: AppStatus | null | undefined,
+  error: unknown,
+): AppStatus | null {
+  if (status) {
+    return status;
+  }
+  if (error) {
+    return UNAVAILABLE_STATUS;
+  }
+  return null;
+}
