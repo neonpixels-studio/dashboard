@@ -5,9 +5,10 @@ export const UNAVAILABLE_STATUS: AppStatus = {
   tone: "danger",
 };
 
-// Last known status wins, so a failed background refresh never replaces real
-// data. With no status and a failed fetch, the header shows an explicit
-// error chip instead of a skeleton that never resolves.
+// A resolved status always wins. With no status and a failed fetch, the
+// header shows an explicit error chip instead of a skeleton that never
+// resolves. Note Nuxt resets `data` to its default when a fetch fails, so in
+// practice a failed refresh also lands here with no status.
 export function resolveHeaderStatus(
   status: AppStatus | null | undefined,
   error: unknown,

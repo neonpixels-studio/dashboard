@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { ref } from "vue";
 import AppDetailPage from "../../app/pages/apps/[slug].vue";
 import AppHeaderBand from "../../app/components/AppHeaderBand.vue";
+import { UNAVAILABLE_STATUS } from "../../app/utils/headerStatus";
 import { appDetailFixture } from "../support/appDetailFixture";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
@@ -58,10 +59,9 @@ describe("apps/[slug] page", () => {
   it("passes UNAVAILABLE to the header band when the detail fetch fails", () => {
     const wrapper = mountPage(null, false, new Error("boom"));
 
-    expect(wrapper.findComponent(AppHeaderBand).props("status")).toEqual({
-      label: "UNAVAILABLE",
-      tone: "danger",
-    });
+    expect(wrapper.findComponent(AppHeaderBand).props("status")).toBe(
+      UNAVAILABLE_STATUS,
+    );
     expect(wrapper.find(".header-band").attributes("aria-busy")).toBe("false");
   });
 });
