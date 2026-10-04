@@ -783,5 +783,29 @@ describe("computeMrrForProducts status and discount policy", () => {
       // unrelated price must not fail this app's computation.
       expect(compute([subscription]).mrr).toBe(5);
     });
+
+    it("does not price an uncovered item's odd price for a restricted amount_off", () => {
+      const brokenOtherItem = buildItem({
+        id: "si_broken",
+        price: {
+          ...buildItem().price,
+          id: "price_broken",
+          product: "prod_other",
+          currency: "eur",
+        },
+      });
+      const subscription = buildSubscription({
+        items: { data: [buildItem(), brokenOtherItem] },
+        discounts: [
+          buildDiscountFor({
+            amountOff: 400,
+            currency: "usd",
+            appliesToProducts: ["prod_test"],
+          }),
+        ],
+      });
+
+      expect(compute([subscription]).mrr).toBe(6);
+    });
   });
 });

@@ -1,11 +1,13 @@
 import {
   applyDiscounts,
   applyDiscountsToItems,
-  hasAmountOffDiscount,
+  discountAppliesToProduct,
+  isDiscountInEffect,
   sumMonthlyDollars,
   type DiscountableItem,
 } from "./discounts";
 import type {
+  StripeDiscount,
   ListActiveSubscriptions,
   StripeRecurring,
   StripeSubscription,
@@ -155,23 +157,36 @@ function toTrackedItem(
   };
 }
 
-// A subscription-level amount_off is split across the items it covers by
-// value, including other apps' items; computing those is only needed (and
-// only risks tripping on another app's odd price) when such a discount
-// exists, so otherwise just the matching items are tracked.
+function isCoveredByAmountOff(
+  item: StripeSubscriptionItem,
+  discounts: StripeDiscount[],
+  nowSeconds: number,
+): boolean {
+  return discounts.some(
+    (discount) =>
+      discount.amountOff !== null &&
+      isDiscountInEffect(discount, nowSeconds) &&
+      discountAppliesToProduct(discount, item.price.product),
+  );
+}
+
+// A subscription-level amount_off is split by value across the items it
+// covers, including other apps' items; those are only priced (and only risk
+// tripping on another app's odd price) when an in-effect amount_off actually
+// covers them, so otherwise just the matching items are tracked.
 function trackedItemsForSubscription(
   subscription: StripeSubscription,
   matchingItems: StripeSubscriptionItem[],
   nowSeconds: number,
 ): TrackedItem[] {
   const matchingIds = new Set(matchingItems.map((item) => item.id));
-  const needsOtherItems =
-    MRR_APPLIES_DISCOUNTS &&
-    hasAmountOffDiscount(subscription.discounts, nowSeconds);
-  const items = needsOtherItems ? subscription.items.data : matchingItems;
-  return items.map((item) =>
-    toTrackedItem(item, matchingIds.has(item.id), nowSeconds),
-  );
+  const shouldTrack = (item: StripeSubscriptionItem): boolean =>
+    matchingIds.has(item.id) ||
+    (MRR_APPLIES_DISCOUNTS &&
+      isCoveredByAmountOff(item, subscription.discounts, nowSeconds));
+  return subscription.items.data
+    .filter(shouldTrack)
+    .map((item) => toTrackedItem(item, matchingIds.has(item.id), nowSeconds));
 }
 
 // Stripe requires every item on a subscription to share one billing

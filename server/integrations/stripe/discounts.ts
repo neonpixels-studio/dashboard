@@ -9,7 +9,7 @@ const ONE_TIME_DISCOUNT_DURATION = "once";
  * A recurring discount is in effect from `start` until `end` (exclusive); a null
  * `end` never expires. Times are unix seconds, like Stripe's.
  */
-function isDiscountInEffect(
+export function isDiscountInEffect(
   discount: StripeDiscount,
   nowSeconds: number,
 ): boolean {
@@ -22,7 +22,7 @@ function isDiscountInEffect(
   return discount.end === null || discount.end > nowSeconds;
 }
 
-export function hasAmountOffDiscount(
+function hasAmountOffDiscount(
   discounts: StripeDiscount[],
   nowSeconds: number,
 ): boolean {
@@ -56,7 +56,7 @@ export interface DiscountableItem {
 
 // A coupon with no `applies_to` covers every item; otherwise only items whose
 // product is on its list.
-function discountAppliesToProduct(
+export function discountAppliesToProduct(
   discount: StripeDiscount,
   productId: string,
 ): boolean {
