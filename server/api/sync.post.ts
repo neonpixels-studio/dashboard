@@ -35,8 +35,10 @@ export default defineEventHandler(async (event): Promise<SyncSummary> => {
     }).catch((error) => reportError("sync: stale vendor alert failed", error));
     // Bounded retention prune (see retention.ts). Isolated like the alert
     // above so a prune failure can never mask the sync result.
-    await pruneOldSnapshots(db).catch((error) =>
-      reportError("sync: snapshot retention prune failed", error),
-    );
+    await pruneOldSnapshots(db)
+      .then((summary) => console.info("sync: retention prune", summary))
+      .catch((error) =>
+        reportError("sync: snapshot retention prune failed", error),
+      );
   }
 });

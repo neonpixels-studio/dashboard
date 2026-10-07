@@ -79,7 +79,7 @@ async function pruneTrafficBreakdowns(
               select 1 from traffic_breakdown newer_row
               where newer_row.slug = old_row.slug
                 and newer_row.captured_at
-                  > old_row.captured_at + ${BREAKDOWN_BATCH_TOLERANCE_MS} * interval '1 millisecond'
+                  > old_row.captured_at + ${BREAKDOWN_BATCH_TOLERANCE_MS}::double precision * interval '1 millisecond'
             )
           order by old_row.captured_at asc
           limit ${PRUNE_BATCH_LIMIT}
@@ -90,13 +90,25 @@ async function pruneTrafficBreakdowns(
   return deleted.length;
 }
 
+// Runs both prunes even if one rejects, so a lock timeout on one table never
+// starves the other; the first failure is rethrown afterwards for reporting.
 export async function pruneOldSnapshots(
   db: DrizzleDb,
   now: Date = new Date(),
 ): Promise<PruneSummary> {
   const cutoff = retentionCutoff(now);
+  const [metricResult, trafficResult] = await Promise.allSettled([
+    pruneMetricSnapshots(db, cutoff),
+    pruneTrafficBreakdowns(db, cutoff),
+  ]);
+  if (metricResult.status === "rejected") {
+    throw metricResult.reason;
+  }
+  if (trafficResult.status === "rejected") {
+    throw trafficResult.reason;
+  }
   return {
-    metricSnapshotDeleted: await pruneMetricSnapshots(db, cutoff),
-    trafficBreakdownDeleted: await pruneTrafficBreakdowns(db, cutoff),
+    metricSnapshotDeleted: metricResult.value,
+    trafficBreakdownDeleted: trafficResult.value,
   };
 }

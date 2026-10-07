@@ -146,4 +146,12 @@ describe("POST /api/sync", () => {
 
     expect(mockPruneOldSnapshots).toHaveBeenCalledTimes(1);
   });
+
+  it("still prunes when the sync itself rejects", async () => {
+    const failure = new Error("sync crashed");
+    mockRunSync.mockRejectedValue(failure);
+
+    await expect(syncHandler({} as H3Event)).rejects.toBe(failure);
+    expect(mockPruneOldSnapshots).toHaveBeenCalledTimes(1);
+  });
 });

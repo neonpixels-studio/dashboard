@@ -23,7 +23,12 @@ function createFakeDb(deletedRowsPerCall: unknown[][] = [[], []]) {
   deletedRowsPerCall.forEach((rows) => returning.mockResolvedValueOnce(rows));
   const where = vi.fn().mockReturnValue({ returning });
   const deleteFrom = vi.fn().mockReturnValue({ where });
-  return { db: { delete: deleteFrom } as unknown as FakeDb, where, deleteFrom };
+  return {
+    db: { delete: deleteFrom } as unknown as FakeDb,
+    where,
+    deleteFrom,
+    returning,
+  };
 }
 
 function compiledWhere(where: ReturnType<typeof vi.fn>, callIndex: number) {
@@ -100,5 +105,14 @@ describe("pruneOldSnapshots", () => {
     expect(statement).toContain("newer_row.slug = old_row.slug");
     expect(statement).toContain("old_row.captured_at + $");
     expect(params).toContain(BREAKDOWN_BATCH_TOLERANCE_MS);
+  });
+
+  it("still attempts the traffic prune when the metric prune rejects", async () => {
+    const failure = new Error("lock timeout");
+    const { db, returning } = createFakeDb([]);
+    returning.mockRejectedValueOnce(failure).mockResolvedValueOnce([]);
+
+    await expect(pruneOldSnapshots(db, NOW)).rejects.toBe(failure);
+    expect(returning).toHaveBeenCalledTimes(2);
   });
 });
