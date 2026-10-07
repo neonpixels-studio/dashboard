@@ -81,6 +81,20 @@ describe("error.vue", () => {
     expect(wrapper.find("h1").text()).toBe("This dashboard is private.");
   });
 
+  it("ignores the not-owner code on a non-403 status", () => {
+    const wrapper = mount(ErrorPage, {
+      props: {
+        error: {
+          ...UNAUTHORIZED_ERROR,
+          statusCode: 500,
+          data: { code: NOT_OWNER_ERROR_CODE },
+        },
+      },
+    });
+
+    expect(wrapper.find("h1").text()).toBe("Something went wrong.");
+  });
+
   it("does not treat every 403 as the disabled-signups case", () => {
     const wrapper = mount(ErrorPage, {
       props: { error: OTHER_FORBIDDEN_ERROR },
