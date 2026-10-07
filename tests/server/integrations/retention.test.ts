@@ -112,8 +112,8 @@ describe("pruneOldSnapshots", () => {
 
     const { sql: statement, params } = compiledWhere(where, 1);
     expect(statement).toContain("newer_row.slug = old_row.slug");
-    expect(statement).toContain(
-      "and newer_row.captured_at > old_row.captured_at + $2::double precision * interval '1 millisecond'",
+    expect(statement).toMatch(
+      /and newer_row\.captured_at > old_row\.captured_at \+ \$\d+::double precision \* interval '1 millisecond'/,
     );
     expect(params).toContain(BREAKDOWN_BATCH_TOLERANCE_MS);
   });

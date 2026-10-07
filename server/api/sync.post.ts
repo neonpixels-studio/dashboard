@@ -2,11 +2,21 @@ import { useDb } from "../db";
 import type { SyncSummary } from "../integrations/orchestrator";
 import { runSync } from "../integrations/orchestrator";
 import { listSyncHealthRows } from "../integrations/persist";
+import type { PruneSummary } from "../integrations/retention";
 import { pruneOldSnapshots } from "../integrations/retention";
 import { alertOnStaleVendors } from "../integrations/staleVendorAlert";
 import { buildSyncOrchestratorDeps } from "../integrations/syncDeps";
 import { reportError } from "../utils/errorReporting";
 import { requireSyncTriggerSecret } from "../utils/syncTrigger";
+
+// Silent when a drained backlog leaves nothing to delete, so the 15-minute
+// cadence doesn't log a no-op line on every run.
+function logPruneSummary(summary: PruneSummary): void {
+  if (summary.metricSnapshotDeleted + summary.trafficBreakdownDeleted === 0) {
+    return;
+  }
+  console.info("sync: retention prune", summary);
+}
 
 // The manual/backfill trigger the issue asks for, and also the only thing
 // netlify/functions/scheduled-sync.ts calls — the scheduled function is a
@@ -36,7 +46,7 @@ export default defineEventHandler(async (event): Promise<SyncSummary> => {
     // Bounded retention prune (see retention.ts). Isolated like the alert
     // above so a prune failure can never mask the sync result.
     await pruneOldSnapshots(db)
-      .then((summary) => console.info("sync: retention prune", summary))
+      .then(logPruneSummary)
       .catch((error) =>
         reportError("sync: snapshot retention prune failed", error),
       );
