@@ -172,10 +172,12 @@ describe("useApp last good data", () => {
     data.value = DETAIL_RESPONSE;
     await nextTick();
 
+    data.value = undefined;
+    await nextTick();
     data.value = options.default();
     await nextTick();
 
-    expect(data.value).toEqual(DETAIL_RESPONSE);
+    expect(data.value).toBe(DETAIL_RESPONSE);
     scope.stop();
   });
 
@@ -195,6 +197,12 @@ describe("useApp last good data", () => {
     await nextTick();
 
     slug.value = "markpost";
+    expect(options.default()).toBeUndefined();
+
+    // Only one slug is remembered, so returning to basin has no stale data.
+    data.value = { ...DETAIL_RESPONSE, slug: "markpost" };
+    await nextTick();
+    slug.value = "basin";
     expect(options.default()).toBeUndefined();
     scope.stop();
   });
