@@ -120,4 +120,49 @@ describe("withScheduledSyncMonitor", () => {
       expect.any(Error),
     );
   });
+
+  it("still sends the closing check-in when in_progress failed", async () => {
+    vi.stubEnv("SENTRY_DSN", DSN);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    captureCheckInMock
+      .mockImplementationOnce(() => {
+        throw new Error("sdk down");
+      })
+      .mockReturnValueOnce(undefined);
+
+    await withScheduledSyncMonitor(async () => new Response("ok"));
+
+    expect(captureCheckInMock).toHaveBeenLastCalledWith(
+      {
+        monitorSlug: SCHEDULED_SYNC_MONITOR_SLUG,
+        status: "ok",
+        checkInId: undefined,
+      },
+      undefined,
+    );
+  });
+
+  it("rethrows the job error, not the SDK error, when the error check-in fails", async () => {
+    vi.stubEnv("SENTRY_DSN", DSN);
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    captureCheckInMock
+      .mockReturnValueOnce("check-in-1")
+      .mockImplementationOnce(() => {
+        throw new Error("sdk down");
+      });
+    const failure = new Error("boom");
+
+    await expect(
+      withScheduledSyncMonitor(async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to send Sentry cron check-in",
+      expect.any(Error),
+    );
+  });
 });
