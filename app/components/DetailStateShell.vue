@@ -1,17 +1,21 @@
 <template>
   <DataErrorState
-    v-if="error"
+    v-if="showErrorState"
     message="Couldn't load live data for this property."
     :last-synced-at="lastSyncedAt"
     @retry="refresh"
   />
 
   <div v-else class="detail-body">
-    <template v-if="pending && !hasData">
+    <template v-if="showPending">
       <slot name="pending" />
     </template>
 
     <template v-else>
+      <AppAlert v-if="error" tone="warn" title="Showing last synced data">
+        Couldn't refresh live data for this property. Retrying automatically.
+      </AppAlert>
+
       <ul v-if="alerts.length" class="alerts-list">
         <li v-for="(alert, index) in alerts" :key="index">
           <AppAlert
@@ -43,9 +47,12 @@
 // re-sets `pending` without clearing `detail` — swapping back to skeletons
 // would hide real, still-valid content behind a loading flash for no
 // reason. `hasData` lets a caller say "I already have something to show".
+// For the same reason a failed refresh with `hasData` keeps the content and
+// shows a warning, rather than replacing the page with the error state
+// (which is reserved for failing before anything has loaded).
 import type { AppAlert } from "#shared/types/dashboard";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     pending: boolean;
     error: unknown;
@@ -56,6 +63,9 @@ withDefaults(
   }>(),
   { alerts: () => [], hasData: false },
 );
+
+const showErrorState = computed(() => !!props.error && !props.hasData);
+const showPending = computed(() => props.pending && !props.hasData);
 </script>
 
 <style scoped>

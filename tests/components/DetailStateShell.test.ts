@@ -76,10 +76,18 @@ describe("DetailStateShell", () => {
     expect(wrapper.find(".loaded-slot").exists()).toBe(false);
   });
 
-  it("shows the error state over already-loaded content too — a failed refresh still needs surfacing", () => {
+  it("keeps already-loaded content and shows a stale-data warning when a refresh fails", () => {
     const wrapper = mountShell({ error: new Error("boom"), hasData: true });
-    expect(wrapper.findComponent(DataErrorState).exists()).toBe(true);
-    expect(wrapper.find(".loaded-slot").exists()).toBe(false);
+    expect(wrapper.findComponent(DataErrorState).exists()).toBe(false);
+    expect(wrapper.find(".loaded-slot").exists()).toBe(true);
+    const warning = wrapper.findComponent(AppAlert);
+    expect(warning.props("tone")).toBe("warn");
+    expect(warning.text()).toContain("Showing last synced data");
+  });
+
+  it("shows no stale-data warning when there is no error", () => {
+    const wrapper = mountShell({ hasData: true });
+    expect(wrapper.findAllComponents(AppAlert)).toHaveLength(0);
   });
 
   it("wires the error state's retry to the refresh prop", async () => {
