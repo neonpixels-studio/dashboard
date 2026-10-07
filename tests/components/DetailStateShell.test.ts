@@ -80,9 +80,21 @@ describe("DetailStateShell", () => {
     const wrapper = mountShell({ error: new Error("boom"), hasData: true });
     expect(wrapper.findComponent(DataErrorState).exists()).toBe(false);
     expect(wrapper.find(".loaded-slot").exists()).toBe(true);
-    const warning = wrapper.findComponent(AppAlert);
-    expect(warning.props("tone")).toBe("warn");
+    const warning = wrapper.find(".stale-warning");
+    expect(warning.classes()).toContain("warn");
     expect(warning.text()).toContain("Showing last synced data");
+  });
+
+  it("keeps content and the warning, with no skeleton, while retrying after a failure", () => {
+    const wrapper = mountShell({
+      pending: true,
+      error: new Error("boom"),
+      hasData: true,
+    });
+    expect(wrapper.find(".loaded-slot").exists()).toBe(true);
+    expect(wrapper.find(".stale-warning").exists()).toBe(true);
+    expect(wrapper.find(".pending-slot").exists()).toBe(false);
+    expect(wrapper.findComponent(DataErrorState).exists()).toBe(false);
   });
 
   it("shows no stale-data warning when there is no error", () => {

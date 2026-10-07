@@ -12,7 +12,12 @@
     </template>
 
     <template v-else>
-      <AppAlert v-if="error" tone="warn" title="Showing last synced data">
+      <AppAlert
+        v-if="error"
+        class="stale-warning"
+        tone="warn"
+        title="Showing last synced data"
+      >
         Couldn't refresh live data for this property. Retrying automatically.
       </AppAlert>
 
