@@ -1,5 +1,7 @@
 import { shallowRef, toValue, watch } from "vue";
 import type { MaybeRefOrGetter } from "vue";
+import type { KeysOf } from "#app/composables/asyncData";
+import type { NuxtError } from "#app";
 import type { AppDetailResponse } from "#shared/types/dashboard";
 import { usePollingRefresh } from "./usePollingRefresh";
 
@@ -20,21 +22,27 @@ export function useApp(slug: MaybeRefOrGetter<string>) {
   const lastGood = shallowRef<
     { slug: string; response: AppDetailResponse } | undefined
   >();
-  const { data, pending, error, refresh } = useFetch<AppDetailResponse>(
-    () => `/api/apps/${encodedSlug()}`,
-    {
-      key: () => `app-detail-${encodedSlug()}`,
-      // An empty slug would otherwise request `/api/apps/` — Nitro's own
-      // collection route (`GET /api/apps`, an `AppCard[]`) — and silently
-      // hand back the wrong shape as if it were an `AppDetailResponse`.
-      enabled: () => toValue(slug).length > 0,
-      // Slug is checked so switching properties never shows another one's data.
-      default: () =>
-        lastGood.value?.slug === toValue(slug)
-          ? lastGood.value.response
-          : undefined,
-    },
-  );
+  const { data, pending, error, refresh } = useFetch<
+    AppDetailResponse,
+    NuxtError<unknown>,
+    string,
+    "get",
+    AppDetailResponse,
+    AppDetailResponse,
+    KeysOf<AppDetailResponse>,
+    AppDetailResponse | undefined
+  >(() => `/api/apps/${encodedSlug()}`, {
+    key: () => `app-detail-${encodedSlug()}`,
+    // An empty slug would otherwise request `/api/apps/` — Nitro's own
+    // collection route (`GET /api/apps`, an `AppCard[]`) — and silently
+    // hand back the wrong shape as if it were an `AppDetailResponse`.
+    enabled: () => toValue(slug).length > 0,
+    // Slug is checked so switching properties never shows another one's data.
+    default: () =>
+      lastGood.value?.slug === toValue(slug)
+        ? lastGood.value.response
+        : undefined,
+  });
   watch(
     data,
     (response) => {
