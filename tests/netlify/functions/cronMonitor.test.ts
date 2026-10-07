@@ -43,7 +43,11 @@ describe("withScheduledSyncMonitor", () => {
     expect(result).toBe(response);
     expect(captureCheckInMock).toHaveBeenNthCalledWith(
       1,
-      { monitorSlug: SCHEDULED_SYNC_MONITOR_SLUG, status: "in_progress" },
+      {
+        monitorSlug: SCHEDULED_SYNC_MONITOR_SLUG,
+        status: "in_progress",
+        checkInId: undefined,
+      },
       SCHEDULED_SYNC_MONITOR_CONFIG,
     );
     expect(captureCheckInMock).toHaveBeenNthCalledWith(
@@ -100,7 +104,9 @@ describe("withScheduledSyncMonitor", () => {
 
   it("does not let an SDK failure break the job", async () => {
     vi.stubEnv("SENTRY_DSN", DSN);
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     captureCheckInMock.mockImplementation(() => {
       throw new Error("sdk down");
     });
@@ -108,6 +114,10 @@ describe("withScheduledSyncMonitor", () => {
 
     await expect(withScheduledSyncMonitor(async () => response)).resolves.toBe(
       response,
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to send Sentry cron check-in",
+      expect.any(Error),
     );
   });
 });
