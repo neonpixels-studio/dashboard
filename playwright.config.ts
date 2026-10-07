@@ -83,6 +83,9 @@ export default defineConfig({
       // Sign-ups must stay enabled so the e2e user can register itself on the
       // fresh database.
       NUXT_DISABLE_SIGNUPS: "",
+      // Pinned (not inherited) so global-setup's allowlist check and the
+      // server always read the same value.
+      NUXT_OWNER_CLERK_USER_IDS: process.env.NUXT_OWNER_CLERK_USER_IDS ?? "",
     },
   },
 });

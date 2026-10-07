@@ -20,7 +20,10 @@
 
 <script setup lang="ts">
 import type { NuxtError } from "#app";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
+import {
+  NOT_OWNER_ERROR_CODE,
+  SIGNUPS_DISABLED_ERROR_CODE,
+} from "#shared/constants/errors";
 
 interface ErrorContent {
   heading: string;
@@ -47,6 +50,12 @@ const SIGNUPS_DISABLED_CONTENT: ErrorContent = {
   heading: "Sign-ups are closed.",
   message:
     "This dashboard isn't accepting new accounts right now. If you think you should have access, reach out to whoever invited you.",
+};
+
+const NOT_OWNER_CONTENT: ErrorContent = {
+  heading: "This dashboard is private.",
+  message:
+    "Your account isn't on the access list. If you think you should have access, reach out to the owner.",
 };
 
 // Deliberately never surfaces error.statusMessage: the only other status this
@@ -79,12 +88,23 @@ const isSignupsDisabled = computed(() => {
   return errorData?.code === SIGNUPS_DISABLED_ERROR_CODE;
 });
 
+const isNotOwner = computed(() => {
+  if (statusCode.value !== SIGNUPS_DISABLED_STATUS_CODE) {
+    return false;
+  }
+  const errorData = props.error?.data as { code?: string } | undefined;
+  return errorData?.code === NOT_OWNER_ERROR_CODE;
+});
+
 const content = computed<ErrorContent>(() => {
   if (statusCode.value === NOT_FOUND_STATUS_CODE) {
     return NOT_FOUND_CONTENT;
   }
   if (isSignupsDisabled.value) {
     return SIGNUPS_DISABLED_CONTENT;
+  }
+  if (isNotOwner.value) {
+    return NOT_OWNER_CONTENT;
   }
   return GENERIC_CONTENT;
 });

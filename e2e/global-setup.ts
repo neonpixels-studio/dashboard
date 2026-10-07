@@ -16,7 +16,9 @@ async function runMigrations() {
 // test user's id; a recreated Clerk user would otherwise 403 every spec with
 // no hint why.
 function assertTestUserIsOwner(userId: string) {
-  const allowedIds = (process.env.NUXT_OWNER_CLERK_USER_IDS ?? "").split(",");
+  const allowedIds = (process.env.NUXT_OWNER_CLERK_USER_IDS ?? "")
+    .split(",")
+    .map((allowedId) => allowedId.trim());
   if (allowedIds.includes(userId)) {
     return;
   }
