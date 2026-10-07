@@ -167,6 +167,27 @@ describe("useApp last good data", () => {
     scope.stop();
   });
 
+  it("keeps the response after a simulated Nuxt error reset", async () => {
+    const { data, options, scope } = mountWithData("basin");
+    data.value = DETAIL_RESPONSE;
+    await nextTick();
+
+    data.value = options.default();
+    await nextTick();
+
+    expect(data.value).toEqual(DETAIL_RESPONSE);
+    scope.stop();
+  });
+
+  it("matches on the requested slug even if the response slug differs", async () => {
+    const { data, options, scope } = mountWithData("Basin");
+    data.value = DETAIL_RESPONSE;
+    await nextTick();
+
+    expect(options.default()).toEqual(DETAIL_RESPONSE);
+    scope.stop();
+  });
+
   it("never serves one property's data for another slug", async () => {
     const slug = ref("basin");
     const { data, options, scope } = mountWithData(slug);

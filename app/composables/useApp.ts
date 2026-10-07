@@ -17,7 +17,9 @@ export function useApp(slug: MaybeRefOrGetter<string>) {
   // Encoded once per call so a slug containing `/`, `?`, or `#` can't change
   // the request path or inject a query string into our own endpoint.
   const encodedSlug = () => encodeURIComponent(toValue(slug));
-  const lastGood = shallowRef<AppDetailResponse | undefined>();
+  const lastGood = shallowRef<
+    { slug: string; response: AppDetailResponse } | undefined
+  >();
   const { data, pending, error, refresh } = useFetch<AppDetailResponse>(
     () => `/api/apps/${encodedSlug()}`,
     {
@@ -28,14 +30,16 @@ export function useApp(slug: MaybeRefOrGetter<string>) {
       enabled: () => toValue(slug).length > 0,
       // Slug is checked so switching properties never shows another one's data.
       default: () =>
-        lastGood.value?.slug === toValue(slug) ? lastGood.value : undefined,
+        lastGood.value?.slug === toValue(slug)
+          ? lastGood.value.response
+          : undefined,
     },
   );
   watch(
     data,
     (response) => {
       if (response) {
-        lastGood.value = response;
+        lastGood.value = { slug: toValue(slug), response };
       }
     },
     { immediate: true },
