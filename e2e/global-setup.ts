@@ -12,12 +12,26 @@ async function runMigrations() {
   await migrate(database, { migrationsFolder });
 }
 
+// The webServer boots before this runs, so the allowlist must already hold the
+// test user's id; a recreated Clerk user would otherwise 403 every spec with
+// no hint why.
+function assertTestUserIsOwner(userId: string) {
+  const allowedIds = (process.env.NUXT_OWNER_CLERK_USER_IDS ?? "").split(",");
+  if (allowedIds.includes(userId)) {
+    return;
+  }
+  throw new Error(
+    `E2E Clerk user ${userId} is not in NUXT_OWNER_CLERK_USER_IDS. Run: npx dotenvx set NUXT_OWNER_CLERK_USER_IDS "${userId}" -f .env.e2e`,
+  );
+}
+
 export default async function globalSetup() {
   console.log("\n[e2e setup] Running migrations...");
   await runMigrations();
 
   console.log("[e2e setup] Ensuring Clerk test user exists...");
-  await getOrCreateTestClerkUser();
+  const testUser = await getOrCreateTestClerkUser();
+  assertTestUserIsOwner(testUser.id);
 
   // Auth storageState is created by the "setup" test project after the
   // webServer is running (see e2e/auth.setup.ts).

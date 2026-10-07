@@ -1,5 +1,5 @@
 import { clerkMiddleware } from "@clerk/nuxt/server";
-import { getOrCreateUser } from "../utils/auth";
+import { assertOwner, getOrCreateUser } from "../utils/auth";
 
 // @nuxt/nitro-server's own error handler renders the custom error page by
 // internally re-fetching this exact path, replaying the original request's
@@ -26,5 +26,7 @@ export default clerkMiddleware(async (event) => {
   if (!userId) {
     return;
   }
+  // Before getOrCreateUser so a stranger never gets a database row.
+  assertOwner(userId);
   event.context.user = await getOrCreateUser(userId);
 });

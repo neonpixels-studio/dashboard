@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { H3Event } from "h3";
 
 const mockGetOrCreateUser = vi.fn();
+const mockAssertOwner = vi.fn();
 
 // clerkMiddleware is identity here so the test drives the inner handler
 // directly; Clerk's own session verification is not under test.
@@ -10,6 +11,7 @@ vi.mock("@clerk/nuxt/server", () => ({
 }));
 vi.mock("../../../server/utils/auth", () => ({
   getOrCreateUser: mockGetOrCreateUser,
+  assertOwner: mockAssertOwner,
 }));
 
 const { default: authMiddleware } =
@@ -27,6 +29,7 @@ function eventWithUserId(userId: string | null, path = "/") {
 describe("server auth middleware", () => {
   beforeEach(() => {
     mockGetOrCreateUser.mockReset();
+    mockAssertOwner.mockReset();
     mockGetOrCreateUser.mockResolvedValue(dbUser);
   });
 
@@ -37,6 +40,20 @@ describe("server auth middleware", () => {
 
     expect(mockGetOrCreateUser).toHaveBeenCalledWith("user_abc");
     expect(event.context.user).toEqual(dbUser);
+  });
+
+  it("rejects a non-owner with 403 before creating a database row", async () => {
+    mockAssertOwner.mockImplementation(() => {
+      throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+    });
+    const event = eventWithUserId("user_stranger");
+
+    await expect(authMiddleware(event)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(mockAssertOwner).toHaveBeenCalledWith("user_stranger");
+    expect(mockGetOrCreateUser).not.toHaveBeenCalled();
+    expect(event.context.user).toBeUndefined();
   });
 
   it("passes an unauthenticated request through with no user", async () => {

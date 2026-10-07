@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import { useDb } from "../db";
 import { users } from "../db/schema";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
+import {
+  NOT_OWNER_ERROR_CODE,
+  SIGNUPS_DISABLED_ERROR_CODE,
+} from "#shared/constants/errors";
 
 export type DbUser = InferSelectModel<typeof users>;
 
@@ -13,12 +16,39 @@ declare module "h3" {
   }
 }
 
+const ALLOWLIST_SEPARATOR = ",";
+
 export function requireUser(event: H3Event): DbUser {
   const user = event.context.user;
   if (!user) {
     throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
   }
+  assertOwner(user.providerId);
   return user;
+}
+
+function ownerClerkUserIds(): string[] {
+  // Read via runtimeConfig for the same build-time bake-in as signupsDisabled().
+  return useRuntimeConfig()
+    .ownerClerkUserIds.split(ALLOWLIST_SEPARATOR)
+    .map((userId: string) => userId.trim())
+    .filter((userId: string) => userId.length > 0);
+}
+
+// Fails closed: an unset or empty allowlist matches nobody.
+export function isOwner(providerId: string): boolean {
+  return ownerClerkUserIds().includes(providerId);
+}
+
+export function assertOwner(providerId: string): void {
+  if (isOwner(providerId)) {
+    return;
+  }
+  throw createError({
+    statusCode: 403,
+    statusMessage: "Forbidden",
+    data: { code: NOT_OWNER_ERROR_CODE },
+  });
 }
 
 export function signupsDisabled(): boolean {

@@ -87,6 +87,12 @@ Two external services. `.env.example` documents every var and where to get it.
 - Set `NUXT_DISABLE_SIGNUPS=true` in an environment to reject new identities
   with a 403 while existing users keep working. It is read through
   `runtimeConfig`, so it bakes in at build time — set it per environment.
+- `NUXT_OWNER_CLERK_USER_IDS` is a comma-separated allowlist of Clerk user ids
+  (Clerk dashboard -> Users -> User ID). Any other signed-in identity gets a
+  403 from `server/middleware/auth.ts` and from `requireUser()`, and never gets
+  a database row. It fails closed: unset or empty denies everyone, so set it in
+  every dotenvx env file (`npx dotenvx set NUXT_OWNER_CLERK_USER_IDS "user_..."
+-f .env[.dev|.e2e|.production]`) and in Netlify before deploying.
 
 ## Integrations
 
