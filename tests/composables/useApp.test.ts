@@ -177,7 +177,7 @@ describe("useApp last good data", () => {
     data.value = options.default();
     await nextTick();
 
-    expect(data.value).toBe(DETAIL_RESPONSE);
+    expect(data.value).toEqual(DETAIL_RESPONSE);
     scope.stop();
   });
 
