@@ -42,7 +42,7 @@ async function pruneMetricSnapshots(
         metricSnapshot.id,
         sql`(
           select old_row.id from metric_snapshot old_row
-          where old_row.captured_at < ${cutoff}
+          where old_row.captured_at < ${cutoff.toISOString()}::timestamptz
             and exists (
               select 1 from metric_snapshot newer_row
               where newer_row.slug = old_row.slug
@@ -74,7 +74,7 @@ async function pruneTrafficBreakdowns(
         trafficBreakdown.id,
         sql`(
           select old_row.id from traffic_breakdown old_row
-          where old_row.captured_at < ${cutoff}
+          where old_row.captured_at < ${cutoff.toISOString()}::timestamptz
             and exists (
               select 1 from traffic_breakdown newer_row
               where newer_row.slug = old_row.slug
@@ -90,25 +90,42 @@ async function pruneTrafficBreakdowns(
   return deleted.length;
 }
 
+function valuesOrThrowFailures(
+  results: PromiseSettledResult<number>[],
+): number[] {
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failures.length === 1) {
+    throw failures[0]!.reason;
+  }
+  if (failures.length > 1) {
+    throw new AggregateError(
+      failures.map((failure) => failure.reason),
+      "snapshot retention prune failed for multiple tables",
+    );
+  }
+  return results.map(
+    (result) => (result as PromiseFulfilledResult<number>).value,
+  );
+}
+
 // Runs both prunes even if one rejects, so a lock timeout on one table never
-// starves the other; the first failure is rethrown afterwards for reporting.
+// starves the other; failures are rethrown afterwards for reporting.
 export async function pruneOldSnapshots(
   db: DrizzleDb,
   now: Date = new Date(),
 ): Promise<PruneSummary> {
   const cutoff = retentionCutoff(now);
-  const [metricResult, trafficResult] = await Promise.allSettled([
-    pruneMetricSnapshots(db, cutoff),
-    pruneTrafficBreakdowns(db, cutoff),
-  ]);
-  if (metricResult.status === "rejected") {
-    throw metricResult.reason;
-  }
-  if (trafficResult.status === "rejected") {
-    throw trafficResult.reason;
-  }
+  const [metricSnapshotDeleted, trafficBreakdownDeleted] =
+    valuesOrThrowFailures(
+      await Promise.allSettled([
+        pruneMetricSnapshots(db, cutoff),
+        pruneTrafficBreakdowns(db, cutoff),
+      ]),
+    );
   return {
-    metricSnapshotDeleted: metricResult.value,
-    trafficBreakdownDeleted: trafficResult.value,
+    metricSnapshotDeleted: metricSnapshotDeleted!,
+    trafficBreakdownDeleted: trafficBreakdownDeleted!,
   };
 }

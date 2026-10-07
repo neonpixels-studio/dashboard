@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
+import { metricSnapshot, trafficBreakdown } from "../../../server/db/schema";
 import {
   PRUNE_BATCH_LIMIT,
   SNAPSHOT_RETENTION_DAYS,
@@ -32,7 +33,8 @@ function createFakeDb(deletedRowsPerCall: unknown[][] = [[], []]) {
 }
 
 function compiledWhere(where: ReturnType<typeof vi.fn>, callIndex: number) {
-  return dialect.sqlToQuery(where.mock.calls[callIndex]![0] as SQL);
+  const query = dialect.sqlToQuery(where.mock.calls[callIndex]![0] as SQL);
+  return { ...query, sql: query.sql.replace(/\s+/g, " ") };
 }
 
 describe("retentionCutoff", () => {
@@ -49,10 +51,15 @@ describe("retentionCutoff", () => {
 
 describe("pruneOldSnapshots", () => {
   it("deletes from metric_snapshot then traffic_breakdown and reports counts", async () => {
-    const { db } = createFakeDb([[{ id: 1 }, { id: 2 }], [{ id: 9 }]]);
+    const { db, deleteFrom } = createFakeDb([
+      [{ id: 1 }, { id: 2 }],
+      [{ id: 9 }],
+    ]);
 
     const summary = await pruneOldSnapshots(db, NOW);
 
+    expect(deleteFrom).toHaveBeenNthCalledWith(1, metricSnapshot);
+    expect(deleteFrom).toHaveBeenNthCalledWith(2, trafficBreakdown);
     expect(summary).toEqual({
       metricSnapshotDeleted: 2,
       trafficBreakdownDeleted: 1,
@@ -78,7 +85,7 @@ describe("pruneOldSnapshots", () => {
       expect(statement).toContain("old_row.captured_at <");
       expect(statement).toContain("limit");
       expect(params).toContain(PRUNE_BATCH_LIMIT);
-      expect(params).toContainEqual(retentionCutoff(NOW));
+      expect(params).toContain(retentionCutoff(NOW).toISOString());
     }
   });
 
@@ -93,7 +100,9 @@ describe("pruneOldSnapshots", () => {
         `newer_row.${keyColumn} = old_row.${keyColumn}`,
       );
     }
-    expect(statement).toContain("newer_row.captured_at > old_row.captured_at");
+    expect(statement).toContain(
+      "and newer_row.captured_at > old_row.captured_at )",
+    );
   });
 
   it("never deletes the latest traffic batch of a slug", async () => {
@@ -103,7 +112,9 @@ describe("pruneOldSnapshots", () => {
 
     const { sql: statement, params } = compiledWhere(where, 1);
     expect(statement).toContain("newer_row.slug = old_row.slug");
-    expect(statement).toContain("old_row.captured_at + $");
+    expect(statement).toContain(
+      "and newer_row.captured_at > old_row.captured_at + $2::double precision * interval '1 millisecond'",
+    );
     expect(params).toContain(BREAKDOWN_BATCH_TOLERANCE_MS);
   });
 
@@ -114,5 +125,18 @@ describe("pruneOldSnapshots", () => {
 
     await expect(pruneOldSnapshots(db, NOW)).rejects.toBe(failure);
     expect(returning).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports both failures when both prunes reject", async () => {
+    const metricFailure = new Error("metric lock timeout");
+    const trafficFailure = new Error("traffic lock timeout");
+    const { db, returning } = createFakeDb([]);
+    returning
+      .mockRejectedValueOnce(metricFailure)
+      .mockRejectedValueOnce(trafficFailure);
+
+    await expect(pruneOldSnapshots(db, NOW)).rejects.toMatchObject({
+      errors: [metricFailure, trafficFailure],
+    });
   });
 });
