@@ -50,6 +50,13 @@
       "when": 1790914503143,
       "tag": "0006_rename_wanderist_slug_to_farflung",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791415770746,
+      "tag": "0007_add_captured_at_indexes_for_retention",
+      "breakpoints": true
     }
   ]
 }

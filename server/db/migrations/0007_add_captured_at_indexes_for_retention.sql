@@ -1,0 +1,2 @@
+CREATE INDEX "metric_snapshot_captured_at_idx" ON "metric_snapshot" USING btree ("captured_at");--> statement-breakpoint
+CREATE INDEX "traffic_breakdown_captured_at_idx" ON "traffic_breakdown" USING btree ("captured_at");

@@ -2,6 +2,7 @@ import { useDb } from "../db";
 import type { SyncSummary } from "../integrations/orchestrator";
 import { runSync } from "../integrations/orchestrator";
 import { listSyncHealthRows } from "../integrations/persist";
+import { pruneOldSnapshots } from "../integrations/retention";
 import { alertOnStaleVendors } from "../integrations/staleVendorAlert";
 import { buildSyncOrchestratorDeps } from "../integrations/syncDeps";
 import { reportError } from "../utils/errorReporting";
@@ -32,5 +33,10 @@ export default defineEventHandler(async (event): Promise<SyncSummary> => {
     await alertOnStaleVendors({
       listSyncHealthRows: () => listSyncHealthRows(db),
     }).catch((error) => reportError("sync: stale vendor alert failed", error));
+    // Bounded retention prune (see retention.ts). Isolated like the alert
+    // above so a prune failure can never mask the sync result.
+    await pruneOldSnapshots(db).catch((error) =>
+      reportError("sync: snapshot retention prune failed", error),
+    );
   }
 });
