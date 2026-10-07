@@ -297,6 +297,15 @@ attempted integration failing in one run — as Sentry error-level events, so a
 total sync outage is visible in Sentry without a human checking Netlify
 function logs.
 
+`scheduled-sync.ts` also sends Sentry Cron check-ins
+(`netlify/functions/cronMonitor.ts`): `in_progress` at the start, then `ok` or
+`error` (non-2xx response or a throw). The first check-in upserts a
+`scheduled-sync` monitor (every 15 minutes, 5 minute margin), so there is no
+manual setup in Sentry; Sentry alerts when a check-in is missed, i.e. when the
+scheduler stops invoking the function entirely. It needs only `SENTRY_DSN` and
+no-ops without it. If the schedule in `scheduled-sync.ts` changes, update
+`SCHEDULED_SYNC_CRON` too (a test enforces they match).
+
 Setup, four vars (dotenvx files — `.env.example` documents them):
 
 1. DSN — Sentry → this app's project → Settings → Client Keys (DSN) →

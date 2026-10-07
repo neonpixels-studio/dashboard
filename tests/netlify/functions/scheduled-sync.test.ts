@@ -10,11 +10,13 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 const captureExceptionMock = vi.fn();
 const captureMessageMock = vi.fn();
 const initMock = vi.fn();
+const captureCheckInMock = vi.fn().mockReturnValue("check-in-id");
 const flushMock = vi.fn().mockResolvedValue(true);
 
 vi.mock("@sentry/nuxt", () => ({
   captureException: (...args: unknown[]) => captureExceptionMock(...args),
   captureMessage: (...args: unknown[]) => captureMessageMock(...args),
+  captureCheckIn: (...args: unknown[]) => captureCheckInMock(...args),
   init: (...args: unknown[]) => initMock(...args),
   flush: (...args: unknown[]) => flushMock(...args),
 }));
@@ -48,6 +50,7 @@ afterEach(() => {
   captureExceptionMock.mockClear();
   captureMessageMock.mockClear();
   initMock.mockClear();
+  captureCheckInMock.mockClear();
   flushMock.mockClear();
   flushMock.mockResolvedValue(true);
   loadEnvMock.mockReset();

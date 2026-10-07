@@ -10,6 +10,7 @@ import {
   reportError,
   reportErrorCondition,
 } from "../../server/utils/errorReporting";
+import { withScheduledSyncMonitor } from "./cronMonitor";
 import { loadEnv } from "./env";
 import { initSentry, flushSentry } from "./sentry";
 
@@ -269,7 +270,7 @@ export default async function scheduledSync(): Promise<Response> {
   // own client initialized in this runtime.
   initSentry();
   try {
-    return await runScheduledSync();
+    return await withScheduledSyncMonitor(runScheduledSync);
   } catch (error) {
     // A safety net for anything runScheduledSync doesn't already report
     // itself (e.g. requireSiteUrl/requireTriggerSecret throwing on a missing
