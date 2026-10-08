@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { effectScope, ref } from "vue";
+import { effectScope, nextTick, ref } from "vue";
 import { DATA_REFRESH_INTERVAL_MS } from "../../app/composables/usePollingRefresh";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
@@ -116,6 +116,95 @@ describe("useApp", () => {
     expect(detail.pending.value).toBe(false);
     expect(detail.error.value).toBeNull();
     expect(detail.refresh).toBe(refresh);
+  });
+});
+
+describe("useApp last good data", () => {
+  type FetchOptions = { default: () => AppDetailResponse | undefined };
+
+  function mountWithData(slug: string | { value: string }) {
+    const data = ref<AppDetailResponse | undefined>(undefined);
+    const mockUseFetch = vi.fn(() => ({
+      data,
+      pending: ref(false),
+      error: ref(null),
+      refresh: vi.fn(),
+    }));
+    vi.stubGlobal("useFetch", mockUseFetch);
+    const scope = effectScope();
+    scope.run(() =>
+      useApp(() => (typeof slug === "string" ? slug : slug.value)),
+    );
+    const options = (
+      mockUseFetch.mock.calls[0] as unknown[]
+    )[1] as FetchOptions;
+    return { data, options, scope };
+  }
+
+  it("defaults to undefined before any successful response", () => {
+    const { options, scope } = mountWithData("basin");
+    expect(options.default()).toBeUndefined();
+    scope.stop();
+  });
+
+  it("defaults to the last successful response so a failed refresh keeps it", async () => {
+    const { data, options, scope } = mountWithData("basin");
+    data.value = DETAIL_RESPONSE;
+    await nextTick();
+
+    expect(options.default()).toEqual(DETAIL_RESPONSE);
+    scope.stop();
+  });
+
+  it("does not remember an undefined data reset", async () => {
+    const { data, options, scope } = mountWithData("basin");
+    data.value = DETAIL_RESPONSE;
+    await nextTick();
+    data.value = undefined;
+    await nextTick();
+
+    expect(options.default()).toEqual(DETAIL_RESPONSE);
+    scope.stop();
+  });
+
+  it("keeps the response after a simulated Nuxt error reset", async () => {
+    const { data, options, scope } = mountWithData("basin");
+    data.value = DETAIL_RESPONSE;
+    await nextTick();
+
+    data.value = undefined;
+    await nextTick();
+    data.value = options.default();
+    await nextTick();
+
+    expect(data.value).toEqual(DETAIL_RESPONSE);
+    scope.stop();
+  });
+
+  it("matches on the requested slug even if the response slug differs", async () => {
+    const { data, options, scope } = mountWithData("Basin");
+    data.value = DETAIL_RESPONSE;
+    await nextTick();
+
+    expect(options.default()).toEqual(DETAIL_RESPONSE);
+    scope.stop();
+  });
+
+  it("never serves one property's data for another slug", async () => {
+    const slug = ref("basin");
+    const { data, options, scope } = mountWithData(slug);
+    data.value = DETAIL_RESPONSE;
+    await nextTick();
+
+    slug.value = "markpost";
+    expect(options.default()).toBeUndefined();
+
+    // Only one slug is remembered, so returning to basin has no stale data.
+    data.value = { ...DETAIL_RESPONSE, slug: "markpost" };
+    await nextTick();
+    slug.value = "basin";
+    expect(options.default()).toBeUndefined();
+    scope.stop();
   });
 });
 

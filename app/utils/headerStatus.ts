@@ -7,8 +7,9 @@ export const UNAVAILABLE_STATUS: AppStatus = {
 
 // A resolved status always wins. With no status and a failed fetch, the
 // header shows an explicit error chip instead of a skeleton that never
-// resolves. Note Nuxt resets `data` to its default when a fetch fails, so in
-// practice a failed refresh also lands here with no status.
+// resolves. useApp keeps the last good data on a failed refresh, so this only
+// applies when the very first fetch fails. With last good data kept, the chip
+// intentionally keeps its last known status; the body carries the stale warning.
 export function resolveHeaderStatus(
   status: AppStatus | null | undefined,
   error: unknown,
