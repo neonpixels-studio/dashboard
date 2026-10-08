@@ -20,7 +20,10 @@
 
 <script setup lang="ts">
 import type { NuxtError } from "#app";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
+import {
+  NOT_OWNER_ERROR_CODE,
+  SIGNUPS_DISABLED_ERROR_CODE,
+} from "#shared/constants/errors";
 
 interface ErrorContent {
   heading: string;
@@ -31,7 +34,7 @@ interface ErrorContent {
 // server/utils/auth.ts and server/api/apps/[slug].get.ts) so this page can
 // give each one a real message instead of the generic fallback.
 const NOT_FOUND_STATUS_CODE = 404;
-const SIGNUPS_DISABLED_STATUS_CODE = 403;
+const FORBIDDEN_STATUS_CODE = 403;
 // Falls back to a server-error status (rather than 404) for a missing or
 // statusless error, since presenting an unknown failure as "page not found"
 // would hide a real bug behind the wrong message.
@@ -47,6 +50,12 @@ const SIGNUPS_DISABLED_CONTENT: ErrorContent = {
   heading: "Sign-ups are closed.",
   message:
     "This dashboard isn't accepting new accounts right now. If you think you should have access, reach out to whoever invited you.",
+};
+
+const NOT_OWNER_CONTENT: ErrorContent = {
+  heading: "This dashboard is private.",
+  message:
+    "Your account isn't on the access list. If you think you should have access, reach out to the owner.",
 };
 
 // Deliberately never surfaces error.statusMessage: the only other status this
@@ -71,13 +80,18 @@ const statusCode = computed(
 // object by default (experimental.parseErrorData), so `data` is only ever a
 // string here if that's explicitly turned off; the optional chaining below
 // degrades to the generic message rather than throwing if so.
-const isSignupsDisabled = computed(() => {
-  if (statusCode.value !== SIGNUPS_DISABLED_STATUS_CODE) {
+function isForbiddenWithCode(errorCode: string): boolean {
+  if (statusCode.value !== FORBIDDEN_STATUS_CODE) {
     return false;
   }
   const errorData = props.error?.data as { code?: string } | undefined;
-  return errorData?.code === SIGNUPS_DISABLED_ERROR_CODE;
-});
+  return errorData?.code === errorCode;
+}
+
+const isSignupsDisabled = computed(() =>
+  isForbiddenWithCode(SIGNUPS_DISABLED_ERROR_CODE),
+);
+const isNotOwner = computed(() => isForbiddenWithCode(NOT_OWNER_ERROR_CODE));
 
 const content = computed<ErrorContent>(() => {
   if (statusCode.value === NOT_FOUND_STATUS_CODE) {
@@ -85,6 +99,9 @@ const content = computed<ErrorContent>(() => {
   }
   if (isSignupsDisabled.value) {
     return SIGNUPS_DISABLED_CONTENT;
+  }
+  if (isNotOwner.value) {
+    return NOT_OWNER_CONTENT;
   }
   return GENERIC_CONTENT;
 });

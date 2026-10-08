@@ -4,3 +4,6 @@
 // alongside the disabled-signups one in server/utils/auth.ts) — so consumers
 // match on this instead of statusCode + statusMessage.
 export const SIGNUPS_DISABLED_ERROR_CODE = "signups_disabled";
+
+// Thrown with a 403 when a Clerk identity is not on the owner allowlist.
+export const NOT_OWNER_ERROR_CODE = "not_owner";

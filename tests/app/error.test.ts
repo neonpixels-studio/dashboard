@@ -1,7 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import type { NuxtError } from "#app";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
+import {
+  NOT_OWNER_ERROR_CODE,
+  SIGNUPS_DISABLED_ERROR_CODE,
+} from "#shared/constants/errors";
 import ErrorPage from "~/error.vue";
 
 const NOT_FOUND_ERROR: NuxtError = {
@@ -63,6 +66,33 @@ describe("error.vue", () => {
       "This dashboard isn't accepting new accounts right now. If you think you should have access, reach out to whoever invited you.",
     );
     expect(wrapper.element).toMatchSnapshot();
+  });
+
+  it("renders a private-dashboard message for the not-owner 403", () => {
+    const wrapper = mount(ErrorPage, {
+      props: {
+        error: {
+          ...OTHER_FORBIDDEN_ERROR,
+          data: { code: NOT_OWNER_ERROR_CODE },
+        },
+      },
+    });
+
+    expect(wrapper.find("h1").text()).toBe("This dashboard is private.");
+  });
+
+  it("ignores the not-owner code on a non-403 status", () => {
+    const wrapper = mount(ErrorPage, {
+      props: {
+        error: {
+          ...UNAUTHORIZED_ERROR,
+          statusCode: 500,
+          data: { code: NOT_OWNER_ERROR_CODE },
+        },
+      },
+    });
+
+    expect(wrapper.find("h1").text()).toBe("Something went wrong.");
   });
 
   it("does not treat every 403 as the disabled-signups case", () => {

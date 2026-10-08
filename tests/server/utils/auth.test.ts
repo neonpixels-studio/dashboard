@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { H3Event } from "h3";
-import { SIGNUPS_DISABLED_ERROR_CODE } from "#shared/constants/errors";
+import {
+  NOT_OWNER_ERROR_CODE,
+  SIGNUPS_DISABLED_ERROR_CODE,
+} from "#shared/constants/errors";
 import { users } from "../../../server/db/schema";
 
 const mockFindFirst = vi.fn();
@@ -9,7 +12,7 @@ const mockOnConflictDoNothing = vi.fn();
 const mockValues = vi.fn();
 const mockInsert = vi.fn();
 
-const runtimeConfig = { disableSignups: "" };
+const runtimeConfig = { disableSignups: "", ownerClerkUserIds: "user_abc" };
 
 vi.mock("../../../server/db", () => ({
   useDb: () => ({
@@ -19,7 +22,7 @@ vi.mock("../../../server/db", () => ({
 }));
 vi.stubGlobal("useRuntimeConfig", () => runtimeConfig);
 
-const { getOrCreateUser, requireUser, signupsDisabled } =
+const { assertOwner, getOrCreateUser, isOwner, requireUser, signupsDisabled } =
   await import("../../../server/utils/auth");
 
 const existingUser = {
@@ -30,6 +33,10 @@ const existingUser = {
 };
 
 describe("requireUser", () => {
+  beforeEach(() => {
+    runtimeConfig.ownerClerkUserIds = "user_abc";
+  });
+
   it("returns the user resolved onto the event context", () => {
     const event = { context: { user: existingUser } } as unknown as H3Event;
     expect(requireUser(event)).toEqual(existingUser);
@@ -39,6 +46,45 @@ describe("requireUser", () => {
     const event = { context: {} } as unknown as H3Event;
     expect(() => requireUser(event)).toThrowError(
       expect.objectContaining({ statusCode: 401 }),
+    );
+  });
+});
+
+describe("requireUser owner gate", () => {
+  const event = { context: { user: existingUser } } as unknown as H3Event;
+  const forbidden = expect.objectContaining({
+    statusCode: 403,
+    data: { code: NOT_OWNER_ERROR_CODE },
+  });
+
+  it("throws 403 for a user who is not on the allowlist", () => {
+    runtimeConfig.ownerClerkUserIds = "user_someone_else";
+    expect(() => requireUser(event)).toThrowError(forbidden);
+  });
+
+  it("fails closed with 403 when the allowlist is empty", () => {
+    runtimeConfig.ownerClerkUserIds = "";
+    expect(() => requireUser(event)).toThrowError(forbidden);
+  });
+
+  it("allows a user on a multi-entry allowlist", () => {
+    runtimeConfig.ownerClerkUserIds = "user_other, user_abc";
+    expect(requireUser(event)).toEqual(existingUser);
+  });
+});
+
+describe("isOwner / assertOwner", () => {
+  it("ignores blank entries so a stray comma never matches an empty id", () => {
+    runtimeConfig.ownerClerkUserIds = " ,user_abc,, ";
+    expect(isOwner("")).toBe(false);
+    expect(isOwner("user_abc")).toBe(true);
+  });
+
+  it("only matches exact ids", () => {
+    runtimeConfig.ownerClerkUserIds = "user_abc";
+    expect(isOwner("user_ab")).toBe(false);
+    expect(() => assertOwner("user_abcd")).toThrowError(
+      expect.objectContaining({ statusCode: 403 }),
     );
   });
 });
@@ -60,6 +106,7 @@ describe("getOrCreateUser", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     runtimeConfig.disableSignups = "";
+    runtimeConfig.ownerClerkUserIds = "user_abc";
     mockInsert.mockReturnValue({ values: mockValues });
     mockValues.mockReturnValue({
       onConflictDoNothing: mockOnConflictDoNothing,

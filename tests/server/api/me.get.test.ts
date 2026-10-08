@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { H3Event } from "h3";
+
+vi.stubGlobal("useRuntimeConfig", () => ({ ownerClerkUserIds: "user_abc" }));
 
 const { default: meHandler } = await import("../../../server/api/me.get");
 
@@ -18,6 +20,16 @@ describe("GET /api/me", () => {
       id: dbUser.id,
       createdAt: dbUser.createdAt,
     });
+  });
+
+  it("throws 403 for a signed-in user who is not an owner", () => {
+    const event = {
+      context: { user: { ...dbUser, providerId: "user_stranger" } },
+    } as unknown as H3Event;
+
+    expect(() => meHandler(event)).toThrowError(
+      expect.objectContaining({ statusCode: 403 }),
+    );
   });
 
   it("throws 401 when the middleware resolved no user", () => {
