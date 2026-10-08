@@ -10,11 +10,13 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 const captureExceptionMock = vi.fn();
 const captureMessageMock = vi.fn();
 const initMock = vi.fn();
+const captureCheckInMock = vi.fn().mockReturnValue("check-in-id");
 const flushMock = vi.fn().mockResolvedValue(true);
 
 vi.mock("@sentry/nuxt", () => ({
   captureException: (...args: unknown[]) => captureExceptionMock(...args),
   captureMessage: (...args: unknown[]) => captureMessageMock(...args),
+  captureCheckIn: (...args: unknown[]) => captureCheckInMock(...args),
   init: (...args: unknown[]) => initMock(...args),
   flush: (...args: unknown[]) => flushMock(...args),
 }));
@@ -48,6 +50,7 @@ afterEach(() => {
   captureExceptionMock.mockClear();
   captureMessageMock.mockClear();
   initMock.mockClear();
+  captureCheckInMock.mockClear();
   flushMock.mockClear();
   flushMock.mockResolvedValue(true);
   loadEnvMock.mockReset();
@@ -59,6 +62,42 @@ describe("scheduled-sync config", () => {
     // edit to the schedule is caught here rather than only noticed
     // once the cadence silently changes in production.
     expect(config.schedule).toBe("*/15 * * * *");
+  });
+});
+
+describe("scheduledSync cron monitor", () => {
+  it("brackets a successful run with in_progress then ok check-ins", async () => {
+    vi.stubEnv("SENTRY_DSN", "https://example@o0.ingest.sentry.io/1");
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("{}", { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    await scheduledSync();
+
+    expect(captureCheckInMock.mock.calls[0][0]).toMatchObject({
+      status: "in_progress",
+    });
+    expect(captureCheckInMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      status: "ok",
+      checkInId: "check-in-id",
+    });
+  });
+
+  it("ends with an error check-in when the run throws", async () => {
+    vi.stubEnv("SENTRY_DSN", "https://example@o0.ingest.sentry.io/1");
+    vi.stubEnv("URL", "");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(scheduledSync()).rejects.toThrow(/process\.env\.URL/);
+
+    expect(captureCheckInMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      status: "error",
+      checkInId: "check-in-id",
+    });
   });
 });
 
