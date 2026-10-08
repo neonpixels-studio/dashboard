@@ -121,7 +121,7 @@ export function fetchMetricSnapshotSeries(
 // merged in. Unbounded (no fixed history window) for the same reason as
 // fetchLatestMetricSnapshots: a channel split shouldn't silently drop out of
 // the rollup once it ages past a fixed window.
-const BREAKDOWN_BATCH_TOLERANCE_MS = 5 * 60 * 1000;
+export const BREAKDOWN_BATCH_TOLERANCE_MS = 5 * 60 * 1000;
 
 export function breakdownBatchStart(capturedAt: Date): Date {
   return new Date(capturedAt.getTime() - BREAKDOWN_BATCH_TOLERANCE_MS);

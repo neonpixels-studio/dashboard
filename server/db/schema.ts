@@ -154,6 +154,9 @@ export const metricSnapshot = pgTable(
       table.metric,
       table.capturedAt.desc(),
     ),
+    // The retention prune (server/integrations/retention.ts) filters on
+    // captured_at alone, which neither composite above can serve.
+    index("metric_snapshot_captured_at_idx").on(table.capturedAt),
     // A row is uniquely identified by (slug, vendor, metric, period,
     // captured_at) — e.g. GA4's PERIOD_DAILY backfill in
     // server/integrations/ga4/provider.ts re-reports up to 30 prior days
@@ -194,6 +197,8 @@ export const trafficBreakdown = pgTable(
       table.slug,
       table.capturedAt.desc(),
     ),
+    // Same reasoning as metric_snapshot_captured_at_idx.
+    index("traffic_breakdown_captured_at_idx").on(table.capturedAt),
     check(
       "traffic_breakdown_pct_range",
       sql`${table.pct} >= 0 AND ${table.pct} <= 100`,
