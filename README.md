@@ -199,10 +199,11 @@ across properties, scoped per property by project slug — see
 label/tone mapping ships as a standalone, unit-tested pure function,
 `server/integrations/sentry/mapping.ts`'s `sentryStatusChip`: any
 unresolved fatal-level issue is `danger` ("N FATAL"), otherwise any other
-open issue is `warn` ("N OPEN"), otherwise `ok` ("OK"). It isn't called
-from the read API yet — wiring it into the property card's status chip
-(alongside curating which metrics render there at all) is
-`app/components/PropertyCard.vue`'s existing `@todo #19`, not this issue.
+open issue is `warn` ("N OPEN"), otherwise `ok` ("OK"). The chip
+replaces the generic LIVE label on the property card and app detail via
+`computeAppStatus` in `server/utils/dashboardShaping.ts`, but only when every
+sync is healthy and both Sentry counts exist; failing syncs still show
+"N ISSUES".
 
 1. Auth token — <https://sentry.io/settings/account/api/auth-tokens/>, needs
    `project:read` and `org:read` scopes → `NUXT_SENTRY_AUTH_TOKEN`.
