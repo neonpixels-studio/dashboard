@@ -12,6 +12,18 @@
 
 export const ALLOWLIST_REVIEW_BY = "2026-12-27";
 
+const SIMPLE_GIT_DEVTOOLS_RATIONALE =
+  "Reached only via nuxt > @nuxt/devtools > simple-git, the Nuxt devtools " +
+  "Git integration that runs only under `nuxt dev` and is never bundled " +
+  "into the deployed Netlify output. No non-breaking fix: the patched " +
+  "simple-git 4.x drops the default export that @nuxt/devtools@3.4.2 " +
+  "imports (`import Git from 'simple-git'`), so an override breaks `nuxt " +
+  "prepare` (verified 2026-10-07); the only @nuxt/devtools release without " +
+  "it is 4.0.0-beta.4 and nuxt@4.6.0 still pins ^3.4.2. Unreachability " +
+  "verified 2026-10-07 via `grep -rniE 'simple-git' server app shared " +
+  "netlify scripts` - no dashboard-owned call sites. Re-check for a devtools release " +
+  "supporting simple-git 4 by ALLOWLIST_REVIEW_BY.";
+
 // `packages` lists the exact npm package name(s) the advisory is filed against
 // (matched against `via.name` from `npm audit`). The gate only suppresses an
 // advisory when BOTH its ID and the affected package match an entry — so if a
@@ -47,6 +59,34 @@ export const ALLOWED_ADVISORIES = [
       "Unreachability verified 2026-10-04 via " +
       "`grep -rniE 'node-forge|listhen' server app shared netlify scripts` — " +
       "no dashboard-owned call sites. Re-check for a node-forge patch by ALLOWLIST_REVIEW_BY.",
+  },
+  {
+    id: "GHSA-v5rq-49vh-5v5c",
+    packages: ["@simple-git/argv-parser"],
+    reason:
+      "@simple-git/argv-parser omits the VISUAL editor variable from unsafe editor detection (fixed in 2.0.1, which only simple-git 4 consumes). " +
+      SIMPLE_GIT_DEVTOOLS_RATIONALE,
+  },
+  {
+    id: "GHSA-x6jw-m9v5-85vh",
+    packages: ["simple-git"],
+    reason:
+      "simple-git unsafe-operation guard does not block trailer command configuration (fixed in 4.0.2). " +
+      SIMPLE_GIT_DEVTOOLS_RATIONALE,
+  },
+  {
+    id: "GHSA-g4wm-2vf7-vfgr",
+    packages: ["simple-git"],
+    reason:
+      "simple-git allows command execution through unblocked Git configuration includes (fixed in 4.0.2). " +
+      SIMPLE_GIT_DEVTOOLS_RATIONALE,
+  },
+  {
+    id: "GHSA-858h-whjf-mvg5",
+    packages: ["simple-git"],
+    reason:
+      "simple-git unsafe-operations plugin bypass via git long-option abbreviation (fixed in 4.0.2). " +
+      SIMPLE_GIT_DEVTOOLS_RATIONALE,
   },
 ];
 
