@@ -270,6 +270,18 @@ Nuxt app), so it decrypts that file itself at invoke time via
 "Netlify Functions env" below for the one key that must be scoped to
 Functions.
 
+### Snapshot retention
+
+Every `POST /api/sync` ends with a bounded prune
+(`server/integrations/retention.ts`) of `metric_snapshot` and
+`traffic_breakdown`. Rows older than `SNAPSHOT_RETENTION_DAYS` (the sparkline
+window plus 30 days) are deleted, at most `PRUNE_BATCH_LIMIT` per table per
+run, so a backlog drains over several 15-minute syncs. The newest row per
+`(slug, vendor, metric, period)` and each slug's latest traffic batch are
+always kept, because the current-value tiles read them with no time bound.
+No new env vars or services; migration `0007` adds `captured_at` indexes so
+the prune doesn't scan the tables.
+
 ### Encrypting per-app secrets
 
 `NUXT_INTEGRATION_ENCRYPTION_KEY` — base64-encoded 32-byte AES-256-GCM key.

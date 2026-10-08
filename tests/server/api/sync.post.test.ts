@@ -29,6 +29,11 @@ vi.mock("../../../server/integrations/staleVendorAlert", () => ({
   alertOnStaleVendors: mockAlertOnStaleVendors,
 }));
 
+const mockPruneOldSnapshots = vi.fn();
+vi.mock("../../../server/integrations/retention", () => ({
+  pruneOldSnapshots: mockPruneOldSnapshots,
+}));
+
 const mockReportError = vi.fn();
 vi.mock("../../../server/utils/errorReporting", () => ({
   reportError: mockReportError,
@@ -40,6 +45,7 @@ describe("POST /api/sync", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockAlertOnStaleVendors.mockResolvedValue([]);
+    mockPruneOldSnapshots.mockResolvedValue({});
   });
 
   it("checks the trigger secret before doing anything else", async () => {
@@ -106,5 +112,46 @@ describe("POST /api/sync", () => {
 
     await expect(syncHandler({} as H3Event)).rejects.toBe(failure);
     expect(mockAlertOnStaleVendors).toHaveBeenCalledTimes(1);
+  });
+
+  it("prunes old snapshots with the real db after the sync", async () => {
+    mockRunSync.mockResolvedValue({ outcomes: [], skipped: [] });
+
+    await syncHandler({} as H3Event);
+
+    expect(mockPruneOldSnapshots).toHaveBeenCalledWith(FAKE_DB);
+    expect(mockRunSync.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPruneOldSnapshots.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("still returns the summary when the prune rejects", async () => {
+    const summary = { outcomes: [], skipped: [] };
+    mockRunSync.mockResolvedValue(summary);
+    const failure = new Error("prune boom");
+    mockPruneOldSnapshots.mockRejectedValue(failure);
+
+    await expect(syncHandler({} as H3Event)).resolves.toBe(summary);
+    expect(mockReportError).toHaveBeenCalledWith(
+      "sync: snapshot retention prune failed",
+      failure,
+    );
+  });
+
+  it("still prunes when the stale vendor check rejects", async () => {
+    mockRunSync.mockResolvedValue({ outcomes: [], skipped: [] });
+    mockAlertOnStaleVendors.mockRejectedValue(new Error("alert boom"));
+
+    await syncHandler({} as H3Event);
+
+    expect(mockPruneOldSnapshots).toHaveBeenCalledTimes(1);
+  });
+
+  it("still prunes when the sync itself rejects", async () => {
+    const failure = new Error("sync crashed");
+    mockRunSync.mockRejectedValue(failure);
+
+    await expect(syncHandler({} as H3Event)).rejects.toBe(failure);
+    expect(mockPruneOldSnapshots).toHaveBeenCalledTimes(1);
   });
 });
