@@ -40,6 +40,16 @@ describe("ControlTopBar", () => {
     expect(wrapper.find(".brand-sub").exists()).toBe(false);
   });
 
+  it("links Alerts to the #alerts panel and has no Integrations item", () => {
+    const wrapper = mountBar();
+    const hrefs = wrapper.findAll(".nav-link").map((link) => ({
+      text: link.text(),
+      href: link.attributes("href"),
+    }));
+    expect(hrefs).toContainEqual({ text: "Alerts", href: "#alerts" });
+    expect(hrefs.map((link) => link.text)).not.toContain("Integrations");
+  });
+
   it("links the brand mark back to the overview", () => {
     expect(mountBar().find("a.brand").attributes("href")).toBe("/");
   });

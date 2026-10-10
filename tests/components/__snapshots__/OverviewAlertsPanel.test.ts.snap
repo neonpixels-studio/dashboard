@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OverviewAlertsPanel > matches its snapshot when all clear 1`] = `
+"<section data-v-ce3effab="" id="alerts" class="card alerts-panel" aria-labelledby="alerts-title">
+  <div data-v-ce3effab="" class="panel-head"><svg data-v-ce3effab="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+      <line x1="12" y1="9" x2="12" y2="13"></line>
+      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg>
+    <h2 data-v-ce3effab="" id="alerts-title" class="panel-title">ALERTS</h2>
+    <!--v-if-->
+  </div>
+  <p data-v-ce3effab="" class="alerts-clear"> All clear. No sync failures or stale vendors. </p>
+</section>"
+`;
+
+exports[`OverviewAlertsPanel > matches its snapshot with alerts 1`] = `
+"<section data-v-ce3effab="" id="alerts" class="card alerts-panel" aria-labelledby="alerts-title">
+  <div data-v-ce3effab="" class="panel-head"><svg data-v-ce3effab="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+      <line x1="12" y1="9" x2="12" y2="13"></line>
+      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg>
+    <h2 data-v-ce3effab="" id="alerts-title" class="panel-title">ALERTS</h2><span data-v-ce3effab="" class="panel-count">2</span>
+  </div>
+  <ul data-v-ce3effab="" class="alert-list">
+    <li data-v-ce3effab="" class="alert-row"><span data-v-ce3effab="" class="alert-property">basin.fm</span><span data-v-ce3effab="" class="alert-source">stripe</span><span data-v-ce3effab="" class="alert-message">stripe: 401 unauthorized</span><time data-v-ce3effab="" class="alert-time" datetime="2026-10-10T14:05:00.000Z">10 OCT 2026 · 14:05 UTC</time><a data-v-ce3effab="" href="/apps/basin" class="alert-link">View</a></li>
+    <li data-v-ce3effab="" class="alert-row"><span data-v-ce3effab="" class="alert-property">markpost.io</span><span data-v-ce3effab="" class="alert-source">ga4</span><span data-v-ce3effab="" class="alert-message">No successful sync in 8h</span>
+      <!--v-if--><a data-v-ce3effab="" href="/apps/markpost" class="alert-link">View</a>
+    </li>
+  </ul>
+</section>"
+`;

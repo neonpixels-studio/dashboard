@@ -27,7 +27,6 @@ exports[`ControlTopBar > matches its snapshot without a crumb 1`] = `
       <li data-v-2e629669=""><a data-v-2e629669="" href="/" class="nav-link active">Overview</a></li>
       <li data-v-2e629669=""><a data-v-2e629669="" href="#properties" class="nav-link">Properties</a></li>
       <li data-v-2e629669=""><a data-v-2e629669="" href="#alerts" class="nav-link">Alerts</a></li>
-      <li data-v-2e629669=""><a data-v-2e629669="" href="#integrations" class="nav-link">Integrations</a></li>
     </ul>
   </nav><button data-v-2e629669="" type="button" class="range-btn"> LAST 30 DAYS <svg data-v-2e629669="" width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden="true">
       <path data-v-2e629669="" d="M1 1.5L4.5 5L8 1.5" stroke="#9A9AA8" stroke-width="1.5" stroke-linecap="round"></path>

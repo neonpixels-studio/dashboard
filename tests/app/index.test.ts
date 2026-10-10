@@ -19,6 +19,7 @@ import PropertyCardMetrics from "../../app/components/PropertyCardMetrics.vue";
 import PropertyCardMetricsSkeleton from "../../app/components/PropertyCardMetricsSkeleton.vue";
 import RollupMrrTile from "../../app/components/RollupMrrTile.vue";
 import RollupStatTile from "../../app/components/RollupStatTile.vue";
+import OverviewAlertsPanel from "../../app/components/OverviewAlertsPanel.vue";
 import RollupIssuesTile from "../../app/components/RollupIssuesTile.vue";
 import RollupValueRow from "../../app/components/RollupValueRow.vue";
 import type {
@@ -41,6 +42,11 @@ vi.mock("../../app/composables/useOverviewSessions", () => ({
   useOverviewSessions: () => mockUseOverviewSessions(),
 }));
 
+const mockUseOverviewAlerts = vi.fn();
+vi.mock("../../app/composables/useOverviewAlerts", () => ({
+  useOverviewAlerts: () => mockUseOverviewAlerts(),
+}));
+
 const mockUseApps = vi.fn();
 vi.mock("../../app/composables/useApps", () => ({
   useApps: () => mockUseApps(),
@@ -58,6 +64,7 @@ const GLOBAL_COMPONENTS = {
   StatList,
   PropertySessionsChart,
   SessionsByPropertyPanel,
+  OverviewAlertsPanel,
   AxisRow,
   PropertyCard,
   PropertyCardMetrics,
@@ -234,6 +241,12 @@ beforeEach(() => {
   // require every one of those tests to also stub useApps.
   mockApps({});
   mockSessions({});
+  mockUseOverviewAlerts.mockReturnValue({
+    data: ref([]),
+    pending: ref(false),
+    error: ref(null),
+    refresh: vi.fn(),
+  });
 });
 
 afterEach(() => {
@@ -715,5 +728,37 @@ describe("index.vue property grid", () => {
     cards().forEach((card) => {
       expect(card.props("isPending")).toBe(true);
     });
+  });
+});
+
+describe("index.vue alerts panel", () => {
+  it("renders the alerts panel as the #alerts nav target and no longer exposes #integrations", () => {
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findAllComponents(OverviewAlertsPanel)).toHaveLength(1);
+    expect(wrapper.findAll("#alerts")).toHaveLength(1);
+    expect(wrapper.find("#alerts").element.tagName).toBe("SECTION");
+    expect(wrapper.find("#integrations").exists()).toBe(false);
+  });
+
+  it("passes the fetched alerts through and wires retry to refresh", async () => {
+    const refresh = vi.fn();
+    mockUseOverviewAlerts.mockReturnValue({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(new Error("boom")),
+      refresh,
+    });
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+    await wrapper
+      .findComponent(OverviewAlertsPanel)
+      .find(".retry-btn")
+      .trigger("click");
+
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });

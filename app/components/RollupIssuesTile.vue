@@ -1,5 +1,5 @@
 <template>
-  <div id="alerts" class="card rollup-tile issues-tile">
+  <div class="card rollup-tile issues-tile">
     <div class="issues-head">
       <AppIcon name="triangle" :size="12" :stroke-width="1.5" />
       <span class="issues-label">OPEN ISSUES</span>
