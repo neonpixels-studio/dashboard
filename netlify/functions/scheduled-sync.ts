@@ -60,19 +60,21 @@ function requireTriggerSecret(): string {
 }
 
 // Bounds how long one invocation waits on /api/sync. Deliberately *below*
-// Netlify's default synchronous function execution limit (10s as of this
-// writing) rather than some larger "generous" value — if it were longer,
-// Netlify would kill the whole function first and this abort would never
-// fire, defeating the point. /api/sync's own runSync (see
-// server/integrations/orchestrator.ts) batches providers and stops
-// *admitting new batches* once its own DEFAULT_RUN_BUDGET_MS (7s, below
-// this ceiling) is spent — rows it doesn't get to are simply left for the
+// Netlify's 30s scheduled function execution limit (the tighter of the two:
+// /api/sync itself runs as a synchronous function with a 60s limit, per
+// https://docs.netlify.com/build/functions/configuration/#default-values)
+// rather than some larger "generous" value — if it were longer, Netlify
+// would kill this function first and the abort would never fire, defeating
+// the point. The 5s left under 30s covers dotenvx decryption and the Sentry
+// flush. /api/sync's own runSync (see server/integrations/orchestrator.ts)
+// batches providers and stops *admitting new batches* once its own
+// DEFAULT_RUN_BUDGET_MS (18s, below this ceiling) is spent — rows it doesn't get to are simply left for the
 // next scheduled invocation (see SyncSummary.skipped). That bounds fan-out
 // growth from provider *count*, but not an individual provider's own
 // request timeout (each vendor client sets its own, up to 20s) — a single
 // slow row can still exceed this ceiling on its own; see runSync's
 // DEFAULT_RUN_BUDGET_MS comment.
-const FETCH_TIMEOUT_MS = 9_000;
+const FETCH_TIMEOUT_MS = 25_000;
 
 // Caps how much of a non-2xx /api/sync response body reaches Sentry as
 // `extra` data — see its call site's own comment.

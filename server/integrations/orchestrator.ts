@@ -102,11 +102,11 @@ const BATCH_SIZE = 5;
 
 // Ceiling on how long runSync's batching loop may keep *admitting new
 // batches*, in ms — it does not bound how long an already-admitted batch
-// takes to finish. Netlify's default synchronous Function execution limit
-// is ~10s (see netlify/functions/scheduled-sync.ts's FETCH_TIMEOUT_MS
-// comment); this sits below that function's own 9s client-side abort so
-// /api/sync stops starting new work with room to spare, rather than either
-// racing the platform's hard kill or the caller's own timeout. On its own
+// takes to finish. scheduled-sync aborts its /api/sync call at 25s (see
+// netlify/functions/scheduled-sync.ts's FETCH_TIMEOUT_MS comment, which
+// sits under Netlify's 30s scheduled function limit); this sits 7s below
+// that so every row's fetch is cut off with room left to persist results
+// and run the stale-vendor check, rather than racing the caller's abort. On its own
 // this would NOT bound a single provider's own request timeout (each vendor
 // client sets its own, e.g. STRIPE_REQUEST_TIMEOUT_MS/GA4_REQUEST_TIMEOUT_MS
 // at 20s) — a row that hangs its full 20s could still push a run past this
@@ -114,7 +114,7 @@ const BATCH_SIZE = 5;
 // gap: the same runBudgetMs also bounds every admitted row's own
 // provider.fetch call via a shared FetchDeadline (see issue #62), not just
 // which batches this loop starts.
-const DEFAULT_RUN_BUDGET_MS = 7_000;
+const DEFAULT_RUN_BUDGET_MS = 18_000;
 
 // Node's setTimeout silently coerces any delay above this (~24.8 days) down
 // to 1ms instead of throwing or clamping to its own max — the same

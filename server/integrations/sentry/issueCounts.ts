@@ -6,7 +6,7 @@ import type { SearchSentryIssues } from "./types";
 // server/integrations/stripe/mrr.ts's assertPageAdvanced. Deliberately NOT
 // sized "generously" the way that guard is: netlify/functions/scheduled-sync.ts's
 // FETCH_TIMEOUT_MS caps the studio's ENTIRE /api/sync call (every provider,
-// concurrently) at 9s, well under Netlify's own 10s synchronous function
+// concurrently) at 25s, under Netlify's own 30s scheduled function
 // limit — a chain of sequential paginated requests here is the one shape in
 // this provider that could burn through that whole budget on its own. 20
 // pages (Sentry's default page size, ~25-100 issues/page, so 500-2,000
@@ -21,8 +21,8 @@ const MAX_ISSUE_SEARCH_PAGES = 20;
 // individual request (sentryClient.ts's SENTRY_REQUEST_TIMEOUT_MS is
 // deliberately per-request, at 20s — longer than this). MAX_ISSUE_SEARCH_PAGES
 // alone doesn't bound elapsed time if pages are merely slow rather than
-// fully hung; this does. Kept comfortably under scheduled-sync.ts's 9s
-// /api/sync ceiling so a slow Sentry query fails loud on its own, specific
+// fully hung; this does. Kept under orchestrator.ts's 18s run budget
+// (and scheduled-sync.ts's 25s /api/sync ceiling) so a slow Sentry query fails loud on its own, specific
 // terms instead of just being one anonymous contributor to the whole sync
 // getting killed with no indication of which provider was slow.
 const MAX_ISSUE_SEARCH_DURATION_MS = 8_000;
