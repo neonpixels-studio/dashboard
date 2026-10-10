@@ -2,16 +2,16 @@
 
 exports[`OverviewRangeSelector > matches its snapshot with 7 days selected 1`] = `
 "<ul data-v-434991f8="" class="range-selector" aria-label="Date range">
-  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option active" aria-pressed="true" aria-label="Last 7 days">7D </button></li>
-  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false" aria-label="Last 30 days">30D </button></li>
-  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false" aria-label="Last 60 days">60D </button></li>
+  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option active" aria-pressed="true">7D<span data-v-434991f8="" class="sr-only"> (last 7 days)</span></button></li>
+  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false">30D<span data-v-434991f8="" class="sr-only"> (last 30 days)</span></button></li>
+  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false">60D<span data-v-434991f8="" class="sr-only"> (last 60 days)</span></button></li>
 </ul>"
 `;
 
 exports[`OverviewRangeSelector > matches its snapshot with the default range selected 1`] = `
 "<ul data-v-434991f8="" class="range-selector" aria-label="Date range">
-  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false" aria-label="Last 7 days">7D </button></li>
-  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option active" aria-pressed="true" aria-label="Last 30 days">30D </button></li>
-  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false" aria-label="Last 60 days">60D </button></li>
+  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false">7D<span data-v-434991f8="" class="sr-only"> (last 7 days)</span></button></li>
+  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option active" aria-pressed="true">30D<span data-v-434991f8="" class="sr-only"> (last 30 days)</span></button></li>
+  <li data-v-434991f8=""><button data-v-434991f8="" type="button" class="range-option" aria-pressed="false">60D<span data-v-434991f8="" class="sr-only"> (last 60 days)</span></button></li>
 </ul>"
 `;

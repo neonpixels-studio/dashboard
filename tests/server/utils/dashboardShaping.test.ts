@@ -1349,6 +1349,15 @@ describe("windowedTotalAcrossApps", () => {
     expect(total(rows, 7, ["basin", "markpost"])).toBe(28);
   });
 
+  it("ignores rows dated after today", () => {
+    const tomorrow = sessionsRow({
+      period: "daily",
+      value: 100,
+      capturedAt: new Date("2026-09-21T00:00:00Z"),
+    });
+    expect(total([dailySessions(0, 5), tomorrow], 7)).toBe(5);
+  });
+
   it("ignores other metrics and periods", () => {
     const rows = [
       dailySessions(0, 5),

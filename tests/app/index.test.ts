@@ -530,7 +530,9 @@ describe("index.vue range selector", () => {
     const pressed = wrapper
       .findAll(".range-option")
       .filter((option) => option.attributes("aria-pressed") === "true");
-    expect(pressed.map((option) => option.text())).toEqual(["60D"]);
+    expect(pressed.map((option) => option.text())).toEqual([
+      "60D (last 60 days)",
+    ]);
 
     await wrapper.findAll(".range-option")[0]!.trigger("click");
     expect(mockSetRange).toHaveBeenCalledWith(7);

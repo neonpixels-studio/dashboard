@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SERIES_WINDOW_DAYS } from "../../server/utils/dashboardQueries";
 import {
   DEFAULT_OVERVIEW_RANGE,
   OVERVIEW_RANGE_OPTIONS,
@@ -9,6 +10,12 @@ describe("parseOverviewRange", () => {
   it("offers exactly 7, 30 and 60 days, defaulting to 30", () => {
     expect([...OVERVIEW_RANGE_OPTIONS]).toEqual([7, 30, 60]);
     expect(DEFAULT_OVERVIEW_RANGE).toBe(30);
+  });
+
+  it("never offers a range wider than the series query reads", () => {
+    expect(Math.max(...OVERVIEW_RANGE_OPTIONS)).toBeLessThanOrEqual(
+      SERIES_WINDOW_DAYS,
+    );
   });
 
   it.each([

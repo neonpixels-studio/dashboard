@@ -6,10 +6,9 @@
         class="range-option"
         :class="{ active: days === modelValue }"
         :aria-pressed="days === modelValue"
-        :aria-label="`Last ${days} days`"
         @click="emit('update:modelValue', days)"
       >
-        {{ days }}D
+        {{ days }}D<span class="sr-only"> (last {{ days }} days)</span>
       </button>
     </li>
   </ul>

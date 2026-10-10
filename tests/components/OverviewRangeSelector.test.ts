@@ -11,7 +11,11 @@ describe("OverviewRangeSelector", () => {
     const labels = mountSelector(30)
       .findAll(".range-option")
       .map((option) => option.text());
-    expect(labels).toEqual(["7D", "30D", "60D"]);
+    expect(labels).toEqual([
+      "7D (last 7 days)",
+      "30D (last 30 days)",
+      "60D (last 60 days)",
+    ]);
   });
 
   it.each([7, 30, 60] as const)("marks only %i days as pressed", (selected) => {
@@ -19,8 +23,8 @@ describe("OverviewRangeSelector", () => {
     const pressed = options.filter(
       (option) => option.attributes("aria-pressed") === "true",
     );
-    expect(pressed.map((option) => option.attributes("aria-label"))).toEqual([
-      `Last ${selected} days`,
+    expect(pressed.map((option) => option.text())).toEqual([
+      `${selected}D (last ${selected} days)`,
     ]);
     expect(options.filter((option) => option.classes("active"))).toHaveLength(
       1,

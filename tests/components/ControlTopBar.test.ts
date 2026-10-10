@@ -66,7 +66,9 @@ describe("ControlTopBar", () => {
     const pressed = wrapper
       .findAll(".range-option")
       .filter((option) => option.attributes("aria-pressed") === "true");
-    expect(pressed.map((option) => option.text())).toEqual(["7D"]);
+    expect(pressed.map((option) => option.text())).toEqual([
+      "7D (last 7 days)",
+    ]);
   });
 
   it("re-emits a selected range as update:range", async () => {
