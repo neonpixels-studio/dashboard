@@ -51,9 +51,13 @@ export interface ClerkUserSummary {
 // many rows were actually paged in. They differ when the scan hit its page
 // cap (or users changed mid-scan), and mapping.ts treats any mismatch as an
 // incomplete scan — scan-derived metrics are then omitted, not extrapolated.
+// `consistent` is false when `totalCount` changed between pages: with
+// offset paging a mid-scan deletion shifts later rows left, silently
+// skipping a live user while the shrunken total still matches the row count.
 export interface ClerkUserScan {
   users: ClerkUserSummary[];
   totalCount: number;
+  consistent: boolean;
 }
 
 export type ScanClerkUsers = () => Promise<ClerkUserScan>;

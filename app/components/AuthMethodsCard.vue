@@ -1,5 +1,5 @@
 <template>
-  <div class="card methods-card">
+  <div class="card">
     <PanelHead title="Sign-in method" />
     <div class="method-bars">
       <BarMeter
@@ -21,12 +21,6 @@ defineProps<{ methods: AuthMethodShare[]; color: string }>();
 </script>
 
 <style scoped>
-.methods-card {
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
 .method-bars {
   display: flex;
   flex-direction: column;

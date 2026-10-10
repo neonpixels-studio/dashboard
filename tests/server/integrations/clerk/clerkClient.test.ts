@@ -174,6 +174,31 @@ describe("createClerkUserScanner", () => {
     expect(scan.totalCount).toBe(10_000);
   });
 
+  it("flags the scan inconsistent when the total shifts between pages (mid-scan deletion)", async () => {
+    const fullPage = Array.from({ length: 500 }, () => buildUser());
+    const totals = [501, 500];
+    const getUserList = vi.fn(async ({ offset }: { offset: number }) => ({
+      data: offset === 0 ? fullPage : [buildUser()],
+      totalCount: totals[offset / 500]!,
+    }));
+    const client = {
+      users: { getUserList } as unknown as ClerkClient["users"],
+    };
+
+    const scan = await createClerkUserScanner("sk_test_unused", client)();
+
+    expect(scan.users).toHaveLength(501);
+    expect(scan.consistent).toBe(false);
+  });
+
+  it("reports a stable scan as consistent", async () => {
+    const { client } = pagedClient([[buildUser()]], 1);
+
+    const scan = await createClerkUserScanner("sk_test_unused", client)();
+
+    expect(scan.consistent).toBe(true);
+  });
+
   it("stops on an empty page even if the reported total is larger", async () => {
     const { client, getUserList } = pagedClient([[]], 50);
 

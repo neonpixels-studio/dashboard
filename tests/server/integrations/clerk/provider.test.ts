@@ -47,10 +47,18 @@ function buildGetClerkUserCount(
   );
 }
 
-const EMPTY_SCAN: ClerkUserScan = { users: [], totalCount: 0 };
+const EMPTY_SCAN: ClerkUserScan = {
+  users: [],
+  totalCount: 0,
+  consistent: true,
+};
 // Clerk counts users the scan never saw (page cap hit) — scan-derived
 // metrics must be omitted, not computed from the partial sample.
-const INCOMPLETE_SCAN: ClerkUserScan = { users: [], totalCount: 5 };
+const INCOMPLETE_SCAN: ClerkUserScan = {
+  users: [],
+  totalCount: 5,
+  consistent: true,
+};
 
 function buildScanClerkUsers(scan: ClerkUserScan = EMPTY_SCAN): ScanClerkUsers {
   return vi.fn(async () => scan);
@@ -335,6 +343,7 @@ describe("fetchClerkMetrics", () => {
       const { metrics } = await fetchWithScan({
         users: SCANNED_USERS,
         totalCount: 3,
+        consistent: true,
       });
 
       expect(metricValue(metrics, "verified_users", "current")).toBe(2);
@@ -360,6 +369,7 @@ describe("fetchClerkMetrics", () => {
       const { metrics } = await fetchWithScan({
         users: SCANNED_USERS,
         totalCount: 3,
+        consistent: true,
       });
 
       const usersStamp = metrics.find(
@@ -375,6 +385,17 @@ describe("fetchClerkMetrics", () => {
       const { metrics } = await fetchWithScan({
         users: SCANNED_USERS,
         totalCount: 4_000,
+        consistent: true,
+      });
+
+      expect(metrics.map((row) => row.metric)).toEqual(["users", "new_users"]);
+    });
+
+    it("omits scan-derived metrics when the scan saw a shifting total, even if counts line up", async () => {
+      const { metrics } = await fetchWithScan({
+        users: SCANNED_USERS,
+        totalCount: 3,
+        consistent: false,
       });
 
       expect(metrics.map((row) => row.metric)).toEqual(["users", "new_users"]);

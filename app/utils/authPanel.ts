@@ -115,10 +115,26 @@ function buildMethodShares(
     }));
 }
 
-function buildSignups(detail: AppDetailResponse): AuthSignups | null {
+const UTC_DATE_LENGTH = "YYYY-MM-DD".length;
+
+function utcDate(isoTimestamp: string): string {
+  return isoTimestamp.slice(0, UTC_DATE_LENGTH);
+}
+
+// Same staleness rule as fromSameSync: a series whose last day isn't the
+// day of the current `users` sync came from an older scan.
+function buildSignups(
+  detail: AppDetailResponse,
+  users: CurrentMetric,
+): AuthSignups | null {
   const series = findSeries(detail.series, METRIC_SIGNUPS, PERIOD_DAILY);
   const points = series?.points.slice(-SIGNUPS_WINDOW_POINTS) ?? [];
-  if (points.length < MIN_SIGNUP_POINTS) {
+  const lastPoint = points.at(-1);
+  if (
+    points.length < MIN_SIGNUP_POINTS ||
+    !lastPoint ||
+    utcDate(lastPoint.capturedAt) !== utcDate(users.capturedAt)
+  ) {
     return null;
   }
   const best = points.reduce((leader, point) =>
@@ -183,7 +199,7 @@ export function buildAuthPanelData(
       fromSameSync(findMetric(metrics, METRIC_ACTIVE_USERS, PERIOD_7D), users),
     ),
     convertedToPaid: buildConvertedToPaid(metrics, users),
-    signups: buildSignups(detail),
+    signups: buildSignups(detail, users),
     methods: buildMethodShares(metrics, users),
     environment: clerkEnvironment(detail),
     clerkUsersUrl: detail.clerkUsersUrl,

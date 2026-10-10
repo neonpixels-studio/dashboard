@@ -35,12 +35,12 @@ export function assertNonNegativeCount(count: number, label: string): number {
 
 /**
  * A scan is only trustworthy when it saw every user Clerk counts. Anything
- * else (page cap hit, users added mid-scan) yields no scan-derived metrics:
+ * else (page cap hit, users added or removed mid-scan) yields no scan-derived metrics:
  * an omitted number is honest, a number extrapolated from a partial sample
  * is not.
  */
 export function isCompleteScan(scan: ClerkUserScan): boolean {
-  return scan.users.length === scan.totalCount;
+  return scan.consistent && scan.users.length === scan.totalCount;
 }
 
 export function countVerifiedEmailUsers(users: ClerkUserSummary[]): number {

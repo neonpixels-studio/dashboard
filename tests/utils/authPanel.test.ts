@@ -14,9 +14,11 @@ function metric(
   return { metric: name, period, value, capturedAt };
 }
 
+// Consecutive UTC days ending on 2026-09-20 (the SYNC day).
 function days(counts: number[]): MetricPoint[] {
+  const firstDay = 20 - (counts.length - 1);
   return counts.map((value, index) => ({
-    capturedAt: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00.000Z`,
+    capturedAt: `2026-09-${String(firstDay + index).padStart(2, "0")}T00:00:00.000Z`,
     value,
   }));
 }
@@ -62,7 +64,7 @@ describe("buildAuthPanelData", () => {
       clerkUsersUrl: "https://dashboard.clerk.com/~/users",
     });
     expect(data?.signups).toMatchObject({
-      bestDayLabel: "12 SEP",
+      bestDayLabel: "19 SEP",
       bestDayCount: 9,
     });
   });
@@ -116,6 +118,26 @@ describe("buildAuthPanelData", () => {
     expect(data?.verifiedEmail).toBeNull();
     expect(data?.activeLast7d).toBeNull();
     expect(data?.methods).toEqual([]);
+  });
+
+  it("drops a signups series left over from an older sync than the users total", () => {
+    const data = buildAuthPanelData(
+      appDetailFixture({
+        metrics: [metric("users", "current", 9_000)],
+        series: [
+          {
+            metric: "signups",
+            period: "daily",
+            points: [
+              { capturedAt: "2026-07-31T00:00:00.000Z", value: 4 },
+              { capturedAt: "2026-08-01T00:00:00.000Z", value: 6 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(data?.signups).toBeNull();
   });
 
   it("omits converted-to-paid when subscribers exceed users (ratio not derivable)", () => {

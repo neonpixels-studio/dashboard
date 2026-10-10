@@ -1,5 +1,5 @@
 <template>
-  <div class="card signups-card">
+  <div class="card">
     <PanelHead title="Signups" meta="DAILY · 30D" />
     <SparkLine
       :path="path"
@@ -40,12 +40,6 @@ const axisLabels = computed(() => buildAxisLabels(props.signups.points));
 </script>
 
 <style scoped>
-.signups-card {
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
 .card-foot {
   display: flex;
   align-items: baseline;

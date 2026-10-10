@@ -73,10 +73,11 @@ describe("assertNonNegativeCount", () => {
 
 describe("isCompleteScan", () => {
   it("is true only when every counted user was scanned", () => {
-    expect(isCompleteScan({ users: [user(), user()], totalCount: 2 })).toBe(
-      true,
-    );
-    expect(isCompleteScan({ users: [user()], totalCount: 2 })).toBe(false);
+    const scan = { users: [user(), user()], totalCount: 2, consistent: true };
+
+    expect(isCompleteScan(scan)).toBe(true);
+    expect(isCompleteScan({ ...scan, users: [user()] })).toBe(false);
+    expect(isCompleteScan({ ...scan, consistent: false })).toBe(false);
   });
 });
 

@@ -18,7 +18,7 @@
       </div>
 
       <div class="auth-grid">
-        <div class="card auth-card">
+        <div class="card">
           <PanelHead title="Total users" />
           <div class="big-value-row">
             <span class="display-num big-value">{{
@@ -103,11 +103,11 @@ const statItems = computed(() => {
   display: flex;
   gap: 16px;
 }
-.auth-grid > * {
+/* Also styles the child cards' root elements (AuthSignupsCard,
+   AuthMethodsCard): one shared card layout instead of three copies. */
+.auth-grid > .card {
   flex: 1 1 0;
   min-width: 0;
-}
-.auth-card {
   padding: 20px 22px;
   display: flex;
   flex-direction: column;

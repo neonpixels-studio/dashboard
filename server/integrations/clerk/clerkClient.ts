@@ -115,6 +115,21 @@ export function summarizeClerkUser(user: User): ClerkUserSummary {
   };
 }
 
+async function fetchUserPage(clerkClient: ClerkUsersClient, page: number) {
+  return clerkClient.users.getUserList({
+    limit: USER_SCAN_PAGE_SIZE,
+    offset: page * USER_SCAN_PAGE_SIZE,
+    orderBy: "+created_at",
+  });
+}
+
+function isScanFinished(
+  scannedCount: number,
+  response: { data: unknown[]; totalCount: number },
+): boolean {
+  return scannedCount >= response.totalCount || response.data.length === 0;
+}
+
 /**
  * Builds the real, network-touching `ScanClerkUsers`: pages through the
  * user list (up to USER_SCAN_MAX_PAGES) and reduces every row to a
@@ -127,19 +142,19 @@ export function createClerkUserScanner(
 ): ScanClerkUsers {
   return async (): Promise<ClerkUserScan> => {
     const users: ClerkUserSummary[] = [];
-    let totalCount = 0;
+    const totalCounts = new Set<number>();
     for (let page = 0; page < USER_SCAN_MAX_PAGES; page += 1) {
-      const response = await clerkClient.users.getUserList({
-        limit: USER_SCAN_PAGE_SIZE,
-        offset: page * USER_SCAN_PAGE_SIZE,
-        orderBy: "+created_at",
-      });
-      totalCount = response.totalCount;
+      const response = await fetchUserPage(clerkClient, page);
+      totalCounts.add(response.totalCount);
       users.push(...response.data.map(summarizeClerkUser));
-      if (users.length >= totalCount || response.data.length === 0) {
+      if (isScanFinished(users.length, response)) {
         break;
       }
     }
-    return { users, totalCount };
+    return {
+      users,
+      totalCount: [...totalCounts].at(-1) ?? 0,
+      consistent: totalCounts.size <= 1,
+    };
   };
 }
