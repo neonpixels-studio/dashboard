@@ -137,7 +137,9 @@ describe("AppDetailMarketing", () => {
 
   it("omits the traffic sources list when there is no channel split", () => {
     const wrapper = mountDetail("grimicorn", { detail: appDetailFixture() });
-    expect(wrapper.findComponent(TrafficPanel).props("lists")).toEqual([]);
+    const panel = wrapper.findComponent(TrafficPanel);
+    expect(panel.props("lists")).toEqual([]);
+    expect(panel.props("path")).toBe("");
   });
 
   it("shows real per-integration sync chips in the sources footer", () => {
@@ -155,7 +157,7 @@ describe("AppDetailMarketing", () => {
   });
 
   it("matches its tile-grid snapshot", () => {
-    // Snapshotting the full component would embed the hardcoded SparkLine
+    // Snapshotting the full component would embed the generated SparkLine
     // bezier paths (hundreds of unreadable coordinates) with no extra
     // coverage beyond the explicit assertions above; the tile grid is the
     // largest subtree that stays human-reviewable in a diff.
