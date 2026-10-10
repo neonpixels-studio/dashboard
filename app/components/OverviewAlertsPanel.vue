@@ -3,7 +3,7 @@
     <div class="panel-head">
       <AppIcon name="triangle" :size="12" :stroke-width="1.5" />
       <h2 id="alerts-title" class="panel-title">ALERTS</h2>
-      <span v-if="alerts.length" class="panel-count">{{ alerts.length }}</span>
+      <span v-if="showCount" class="panel-count">{{ alerts.length }}</span>
     </div>
 
     <SkeletonBlock v-if="pending && !alerts.length" height="40px" />
@@ -16,26 +16,16 @@
       All clear. No sync failures or stale vendors.
     </p>
     <ul v-else class="alert-list">
-      <li v-for="alert in rows" :key="alert.id" class="alert-row">
-        <span class="alert-property">{{ nameFor(alert.slug) }}</span>
-        <span class="alert-source">{{ alert.source }}</span>
-        <span class="alert-message">{{ alert.message }}</span>
-        <time
-          v-if="alert.timeLabel"
-          class="alert-time"
-          :datetime="alert.occurredAt ?? undefined"
-        >
-          {{ alert.timeLabel }}
-        </time>
-        <NuxtLink :to="alert.href" class="alert-link">View</NuxtLink>
-      </li>
+      <OverviewAlertRow
+        v-for="alert in alerts"
+        :key="alert.id"
+        :alert="alert"
+      />
     </ul>
   </section>
 </template>
 
 <script setup lang="ts">
-import { findRollupSourceBySlug } from "~/config/apps";
-import { formatAlertTime } from "~/utils/alertFormat";
 import type { OverviewAlert } from "#shared/types/alerts";
 
 // The "/" overview Alerts panel (and the top nav's #alerts target). Renders
@@ -49,18 +39,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ retry: [] }>();
 
-// Only rows whose timestamp actually formats get a <time>, so an unparseable
-// value never renders an empty element.
-const rows = computed(() =>
-  props.alerts.map((alert) => ({
-    ...alert,
-    timeLabel: formatAlertTime(alert.occurredAt),
-  })),
-);
-
-function nameFor(slug: string): string {
-  return findRollupSourceBySlug(slug)?.name ?? slug;
-}
+const showCount = computed(() => props.alerts.length > 0 && !props.hasError);
 </script>
 
 <style scoped>
@@ -97,43 +76,5 @@ function nameFor(slug: string): string {
   list-style: none;
   display: flex;
   flex-direction: column;
-}
-.alert-row {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  padding: 8px 0;
-  font-size: 12px;
-  border-top: 1px solid var(--line);
-}
-.alert-row:first-child {
-  border-top: 0;
-}
-.alert-property {
-  font-weight: 600;
-}
-.alert-source {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-.alert-message {
-  flex-grow: 1;
-  min-width: 0;
-  color: var(--err);
-  overflow-wrap: anywhere;
-}
-.alert-time {
-  font-size: 10px;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-.alert-link {
-  font-size: 11px;
-  color: var(--ink-2);
-}
-.alert-link:hover {
-  color: var(--ink);
 }
 </style>

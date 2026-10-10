@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import OverviewAlertsPanel from "../../app/components/OverviewAlertsPanel.vue";
 import AppIcon from "../../app/components/AppIcon.vue";
+import OverviewAlertRow from "../../app/components/OverviewAlertRow.vue";
 import SkeletonBlock from "../../app/components/SkeletonBlock.vue";
 import DataErrorState from "../../app/components/DataErrorState.vue";
 import type { OverviewAlert } from "../../shared/types/alerts";
@@ -29,7 +30,7 @@ function mountPanel(props: Record<string, unknown> = {}) {
   return mount(OverviewAlertsPanel, {
     props: { alerts: ALERTS, pending: false, hasError: false, ...props },
     global: {
-      components: { AppIcon, SkeletonBlock, DataErrorState },
+      components: { AppIcon, SkeletonBlock, DataErrorState, OverviewAlertRow },
       stubs: {
         NuxtLink: { props: ["to"], template: "<a :href='to'><slot /></a>" },
       },
@@ -89,6 +90,22 @@ describe("OverviewAlertsPanel", () => {
     expect(wrapper.find(".alerts-clear").exists()).toBe(false);
     await wrapper.find(".retry-btn").trigger("click");
     expect(wrapper.emitted("retry")).toHaveLength(1);
+  });
+
+  it("shows the error state over previously loaded alerts, with no stale count", () => {
+    const wrapper = mountPanel({ hasError: true });
+
+    expect(wrapper.find(".alert-list").exists()).toBe(false);
+    expect(wrapper.find(".panel-count").exists()).toBe(false);
+    expect(wrapper.find(".retry-btn").exists()).toBe(true);
+  });
+
+  it("gives each link a distinguishing accessible name", () => {
+    const links = mountPanel().findAll(".alert-link");
+
+    expect(links[0]!.attributes("aria-label")).toBe(
+      "View basin.fm stripe alert",
+    );
   });
 
   it("matches its snapshot with alerts", () => {

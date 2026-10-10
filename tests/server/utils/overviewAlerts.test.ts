@@ -153,7 +153,7 @@ describe("buildSyncAlerts", () => {
           vendor: "c",
           ok: false,
           lastAttemptedAt: null,
-          lastRunAt: new Date(NOW.getTime() - 3 * 3_600_000),
+          lastRunAt: hoursAgo(3),
         }),
         row({
           vendor: "untimed",

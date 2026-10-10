@@ -109,8 +109,9 @@ export async function findIntegrationConfig(
 }
 
 // Health of every enabled (slug, vendor) row, for the stale-vendor alert (see
-// staleVendorAlert.ts) and the overview Alerts panel (overviewAlerts.ts). Inner join so a disabled or removed integration, whose
-// sync_status row is left behind, never alerts.
+// staleVendorAlert.ts) and the overview Alerts panel (overviewAlerts.ts).
+// Inner join so a disabled or removed integration, whose sync_status row is
+// left behind, never alerts.
 // integration_config.vendor is the integration_vendor enum and
 // sync_status.vendor is free text, and Postgres has no enum = text operator,
 // so the enum side is cast to text (not text to enum, which would throw on a

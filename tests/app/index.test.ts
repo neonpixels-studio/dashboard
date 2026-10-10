@@ -20,6 +20,7 @@ import PropertyCardMetricsSkeleton from "../../app/components/PropertyCardMetric
 import RollupMrrTile from "../../app/components/RollupMrrTile.vue";
 import RollupStatTile from "../../app/components/RollupStatTile.vue";
 import OverviewAlertsPanel from "../../app/components/OverviewAlertsPanel.vue";
+import OverviewAlertRow from "../../app/components/OverviewAlertRow.vue";
 import RollupIssuesTile from "../../app/components/RollupIssuesTile.vue";
 import RollupValueRow from "../../app/components/RollupValueRow.vue";
 import type {
@@ -65,6 +66,7 @@ const GLOBAL_COMPONENTS = {
   PropertySessionsChart,
   SessionsByPropertyPanel,
   OverviewAlertsPanel,
+  OverviewAlertRow,
   AxisRow,
   PropertyCard,
   PropertyCardMetrics,

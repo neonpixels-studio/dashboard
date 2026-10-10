@@ -24,9 +24,9 @@ exports[`OverviewAlertsPanel > matches its snapshot with alerts 1`] = `
     <h2 data-v-ce3effab="" id="alerts-title" class="panel-title">ALERTS</h2><span data-v-ce3effab="" class="panel-count">2</span>
   </div>
   <ul data-v-ce3effab="" class="alert-list">
-    <li data-v-ce3effab="" class="alert-row"><span data-v-ce3effab="" class="alert-property">basin.fm</span><span data-v-ce3effab="" class="alert-source">stripe</span><span data-v-ce3effab="" class="alert-message">stripe: 401 unauthorized</span><time data-v-ce3effab="" class="alert-time" datetime="2026-10-10T14:05:00.000Z">10 OCT 2026 · 14:05 UTC</time><a data-v-ce3effab="" href="/apps/basin" class="alert-link">View</a></li>
-    <li data-v-ce3effab="" class="alert-row"><span data-v-ce3effab="" class="alert-property">markpost.io</span><span data-v-ce3effab="" class="alert-source">ga4</span><span data-v-ce3effab="" class="alert-message">No successful sync in 8h</span>
-      <!--v-if--><a data-v-ce3effab="" href="/apps/markpost" class="alert-link">View</a>
+    <li data-v-4a2a495e="" data-v-ce3effab="" class="alert-row"><span data-v-4a2a495e="" class="alert-property">basin.fm</span><span data-v-4a2a495e="" class="alert-source">stripe</span><span data-v-4a2a495e="" class="alert-message">stripe: 401 unauthorized</span><time data-v-4a2a495e="" class="alert-time" datetime="2026-10-10T14:05:00.000Z">10 OCT 2026 · 14:05 UTC</time><a data-v-4a2a495e="" href="/apps/basin" class="alert-link" aria-label="View basin.fm stripe alert">View</a></li>
+    <li data-v-4a2a495e="" data-v-ce3effab="" class="alert-row"><span data-v-4a2a495e="" class="alert-property">markpost.io</span><span data-v-4a2a495e="" class="alert-source">ga4</span><span data-v-4a2a495e="" class="alert-message">No successful sync in 8h</span>
+      <!--v-if--><a data-v-4a2a495e="" href="/apps/markpost" class="alert-link" aria-label="View markpost.io ga4 alert">View</a>
     </li>
   </ul>
 </section>"
