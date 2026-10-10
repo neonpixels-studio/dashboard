@@ -39,7 +39,7 @@ describe("devtoProvider", () => {
       .fn()
       .mockResolvedValueOnce(
         jsonResponse([
-          { id: 1, slug: "a-post", published_at: "2026-09-01T12:00:00Z" },
+          { id: 1, slug: "a-post-2j2k", published_at: "2026-09-01T12:00:00Z" },
         ]),
       )
       .mockResolvedValue(jsonResponse([]));

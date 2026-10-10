@@ -1068,6 +1068,31 @@ describe("syndicationMatrixForApp", () => {
     expect(syndicationMatrixForApp([])).toEqual([]);
   });
 
+  it("groups the same post across platforms whose slugs differ only in hyphens, titled by the most readable variant", () => {
+    const rows = [
+      syndicationRow({
+        postRef: "mapgetorinsert-stop-writing-the-hasgetset-dance",
+        platform: "devto",
+      }),
+      syndicationRow({
+        postRef: "map-getorinsert-stop-writing-the-has-get-set-dance",
+        platform: "zyvop",
+      }),
+      syndicationRow({ postRef: "other-post", platform: "devto" }),
+    ];
+
+    const matrix = syndicationMatrixForApp(rows);
+
+    expect(matrix.map((row) => row.postRef)).toEqual([
+      "map-getorinsert-stop-writing-the-has-get-set-dance",
+      "other-post",
+    ]);
+    expect(matrix[0]!.cells.map((cell) => cell.platform)).toEqual([
+      "devto",
+      "zyvop",
+    ]);
+  });
+
   it("groups multiple platform rows for the same post into one matrix row", () => {
     const rows = [
       syndicationRow({

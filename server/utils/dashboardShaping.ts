@@ -832,20 +832,36 @@ export function latestSyncedAt(syncRows: SyncStatusRow[]): string | null {
   return toIso(mostRecent);
 }
 
+// Each platform slugifies the post title with its own punctuation rules
+// ("Map.getOrInsert" is "map-getorinsert" on ZyVOP but "mapgetorinsert" on
+// DEV.to), so the same post only lines up once hyphens are ignored.
+function matrixGroupKey(postRef: string): string {
+  return postRef.replaceAll("-", "");
+}
+
+// The variant with the most hyphens keeps the most word breaks, so it reads
+// best as the row title.
+function mostReadablePostRef(rows: SyndicationPostRow[]): string {
+  return rows
+    .map((row) => row.postRef)
+    .reduce((best, postRef) => (postRef.length > best.length ? postRef : best));
+}
+
 // Groups an app's syndication_post rows into one matrix row per local post,
 // each carrying its per-platform cross-post status.
 export function syndicationMatrixForApp(
   posts: SyndicationPostRow[],
 ): SyndicationMatrixRow[] {
-  const byPostRef = new Map<string, SyndicationPostRow[]>();
+  const byGroupKey = new Map<string, SyndicationPostRow[]>();
   for (const post of posts) {
-    const existing = byPostRef.get(post.postRef) ?? [];
+    const groupKey = matrixGroupKey(post.postRef);
+    const existing = byGroupKey.get(groupKey) ?? [];
     existing.push(post);
-    byPostRef.set(post.postRef, existing);
+    byGroupKey.set(groupKey, existing);
   }
 
-  return [...byPostRef.entries()].map(([postRef, rows]) => ({
-    postRef,
+  return [...byGroupKey.values()].map((rows) => ({
+    postRef: mostReadablePostRef(rows),
     cells: rows.map((row) => ({
       platform: row.platform,
       status: row.status,
