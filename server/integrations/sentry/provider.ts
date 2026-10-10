@@ -13,6 +13,7 @@ import type {
 import { createSentryIssueSearcher } from "./sentryClient";
 import { countAllSentryIssues } from "./issueCounts";
 import type { SearchSentryIssues } from "./types";
+import { readIntegrationEnv } from "../integrationEnv";
 
 const SENTRY_VENDOR = "sentry";
 // Sentry's own search query syntax — see mapping.ts's sentryStatusChip for
@@ -38,7 +39,7 @@ function resolveProjectSlug(config: IntegrationConfig): string | null {
     return externalId;
   }
   const envVarName = `NUXT_SENTRY_PROJECT_${config.slug.toUpperCase()}`;
-  const fromEnv = process.env[envVarName]?.trim();
+  const fromEnv = readIntegrationEnv(envVarName)?.trim();
   return fromEnv || null;
 }
 
@@ -120,7 +121,7 @@ export const sentryProvider: IntegrationProvider = {
     // process.env like Ga4's NUXT_GA4_SA_CLIENT_EMAIL read, rather than
     // through config.secret's secretRef machinery, which is reserved for the
     // one actual credential (the auth token).
-    const orgSlug = process.env.NUXT_SENTRY_ORG;
+    const orgSlug = readIntegrationEnv("NUXT_SENTRY_ORG");
     if (!orgSlug) {
       throw new Error(
         `Sentry provider for "${config.slug}" has no NUXT_SENTRY_ORG configured.`,

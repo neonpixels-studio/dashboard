@@ -5,6 +5,7 @@ import {
   IntegrationSecretError,
 } from "../utils/integrationSecrets";
 import type { IntegrationConfig, IntegrationConfigRow } from "./types";
+import { readIntegrationEnv } from "./integrationEnv";
 
 // Thrown for a malformed/unsafe/disabled *row*, as opposed to
 // IntegrationSecretError, which server/utils/integrationSecrets.ts throws
@@ -75,22 +76,10 @@ function assertSecretRefIsSafe(
 // uses `secretRef` never touches runtimeConfig — only the encryptedSecret
 // branch actually needs the key, so only that branch calls it.
 //
-// Reads process.env directly rather than useRuntimeConfig() (unlike every
-// other server/ module that touches config) because `secretRef` is a
-// dynamic, row-supplied key name — Nuxt's runtimeConfig is a static schema
-// declared in nuxt.config.ts, so there is no key to look up until the row is
-// read. This is a deliberate, narrow exception to that convention, and it
-// carries a known limitation: per nuxt.config.ts's own comment, the Netlify
-// preset only bakes a `NUXT_*` value into the deployed function when it's
-// named inline in `runtimeConfig` at build time — a bare `process.env` read
-// at request time (this function) will not see it. Per README.md's
-// "Integrations" section, each vendor's `runtimeConfig` entry is added in
-// that vendor's own provider issue; until a given vendor has one, a row
-// using `secretRef` for it will resolve correctly in local dev/tests (where
-// dotenvx populates real process.env) but not once deployed. Tracked as a
-// follow-up rather than fixed here, since wiring specific vendor env vars
-// into runtimeConfig now would mean implementing vendor scaffolding this
-// issue explicitly excludes.
+// Reads by a row-supplied key name through readIntegrationEnv rather than a
+// static useRuntimeConfig() key, since there is no key to look up until the
+// row is read. readIntegrationEnv covers the deployed case, where only the
+// build-time runtimeConfig defaults exist.
 function resolveSecret(
   row: IntegrationConfigRow,
   loadDecryptionKey: () => Buffer,
@@ -107,7 +96,7 @@ function resolveSecret(
 
   if (row.secretRef) {
     assertSecretRefIsSafe(row, row.secretRef);
-    const secretFromEnv = process.env[row.secretRef];
+    const secretFromEnv = readIntegrationEnv(row.secretRef);
     if (!secretFromEnv) {
       throw new IntegrationConfigError(
         `integration_config ${row.slug}:${row.vendor} references env var "${row.secretRef}", which is not set.`,

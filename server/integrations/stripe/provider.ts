@@ -17,6 +17,7 @@ import {
   parseProductIds,
 } from "./mrr";
 import type { ListActiveSubscriptions } from "./types";
+import { readIntegrationEnv } from "../integrationEnv";
 
 const STRIPE_VENDOR = "stripe";
 
@@ -36,7 +37,7 @@ function resolveProductIdsSource(config: IntegrationConfig): string | null {
     return externalId;
   }
   const envVarName = `NUXT_STRIPE_PRODUCT_ID_${config.slug.toUpperCase()}`;
-  return process.env[envVarName] ?? null;
+  return readIntegrationEnv(envVarName) ?? null;
 }
 
 /**

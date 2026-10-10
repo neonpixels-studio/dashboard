@@ -17,6 +17,7 @@ import {
   toDailySessionPoints,
 } from "./mapping";
 import type { RunGa4Report } from "./types";
+import { readIntegrationEnv } from "../integrationEnv";
 
 const GA4_VENDOR = "ga4";
 // GA4's own relative-date syntax, resolved server-side — one shared,
@@ -65,7 +66,7 @@ function resolvePropertyId(config: IntegrationConfig): string | null {
   // NUXT_GA4_PROPERTY_ID_* var present-but-empty by default, and an untrimmed
   // whitespace value would be truthy and reach GA4 as "properties/   "
   // instead of hitting the unconfigured-app branch.
-  const fromEnv = process.env[envVarName]?.trim();
+  const fromEnv = readIntegrationEnv(envVarName)?.trim();
   return fromEnv || null;
 }
 
@@ -184,7 +185,7 @@ export const ga4Provider: IntegrationProvider = {
     // process.env like Stripe's resolveProductIdsSource, rather than through
     // config.secret's secretRef machinery, which is reserved for the one
     // actual credential (the private key).
-    const clientEmail = process.env.NUXT_GA4_SA_CLIENT_EMAIL;
+    const clientEmail = readIntegrationEnv("NUXT_GA4_SA_CLIENT_EMAIL");
     if (!clientEmail) {
       throw new Error(
         `GA4 provider for "${config.slug}" has no NUXT_GA4_SA_CLIENT_EMAIL configured.`,

@@ -111,15 +111,15 @@ Two layers of secrets:
 
 `NUXT_INTEGRATION_ENCRYPTION_KEY`, the Stripe vars, the GA4 vars, the Sentry
 vars, and the per-app Clerk secret keys are wired into `runtimeConfig` today
-(see nuxt.config.ts) — declared there so the Netlify preset forwards them
-into the deployed function's `process.env`, even though the code that
-actually reads them (`server/integrations/config.ts`'s `resolveSecret`,
-`server/integrations/stripe/provider.ts`'s `resolveProductIdsSource`,
-`server/integrations/ga4/provider.ts`'s `resolvePropertyId` and its direct
-`NUXT_GA4_SA_CLIENT_EMAIL` read, `server/integrations/sentry/provider.ts`'s
-`resolveProjectSlug` and its direct `NUXT_SENTRY_ORG` read) does a plain
-`process.env` lookup rather than `useRuntimeConfig()`, since each resolves a
-row/app-specific key name at runtime. The remaining vendor vars below are
+(see nuxt.config.ts). The code that reads them (`server/integrations/config.ts`'s
+`resolveSecret` and each provider's `resolve*` default) looks the name up at
+runtime, since each row/app picks its own key name, through
+`server/integrations/integrationEnv.ts`'s `readIntegrationEnv`. That checks
+`process.env` first (local dev, tests) and falls back to the build-time
+`runtimeConfig` value, because dotenvx only runs at build and the deployed
+Netlify function's `process.env` never holds these. The fallback relies on
+Nuxt's naming rule (`NUXT_STRIPE_SECRET_KEY` <-> `stripeSecretKey`), so a new
+integration var needs a matching `runtimeConfig` entry. The remaining vendor vars below are
 documented here and in `.env.example` so they're ready to set, but each
 one's `runtimeConfig` entry and actual API client land with that vendor's
 provider issue (blog-platform sync — separate issue).

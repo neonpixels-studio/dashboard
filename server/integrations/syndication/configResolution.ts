@@ -1,4 +1,5 @@
 import type { IntegrationConfig } from "../types";
+import { readIntegrationEnv } from "../integrationEnv";
 
 // Shared "row overrides shared env default" resolver for THIS package:
 // Hashnode's publication id and Medium's username both follow the same
@@ -20,6 +21,6 @@ export function resolveExternalIdOrEnvVar(
   if (externalId) {
     return externalId;
   }
-  const fromEnv = process.env[envVarName]?.trim();
+  const fromEnv = readIntegrationEnv(envVarName)?.trim();
   return fromEnv || null;
 }

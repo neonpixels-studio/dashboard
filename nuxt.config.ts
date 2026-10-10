@@ -56,14 +56,12 @@ export default defineNuxtConfig({
     // integration_config table; see .env.example for how to generate one.
     integrationEncryptionKey: process.env.NUXT_INTEGRATION_ENCRYPTION_KEY || "",
     // The Stripe provider's shared studio-wide secret key
-    // (server/integrations/stripe). Not read via `useRuntimeConfig()`
-    // anywhere — integration_config rows resolve it dynamically by
-    // `secret_ref` (server/integrations/config.ts's resolveSecret, which
-    // reads `process.env` directly since `secretRef` is a row-supplied key
-    // name). This entry exists only so the Netlify preset forwards
-    // NUXT_STRIPE_SECRET_KEY into the deployed function's process.env at
-    // all; see resolveSecret's comment for why an env var absent from
-    // runtimeConfig resolves fine locally but not once deployed.
+    // (server/integrations/stripe). integration_config rows resolve it
+    // dynamically by `secret_ref` through
+    // server/integrations/integrationEnv.ts's readIntegrationEnv, which falls
+    // back to this baked-in value because the deployed function's
+    // process.env never holds it. Every integration key below follows Nuxt's
+    // NUXT_FOO_BAR <-> fooBar naming so that fallback can find it.
     stripeSecretKey: process.env.NUXT_STRIPE_SECRET_KEY || "",
     // Same reasoning as stripeSecretKey above, one per product-template app
     // (server/integrations/stripe/provider.ts's resolveProductIdsSource):
@@ -86,8 +84,8 @@ export default defineNuxtConfig({
     // config.ts's resolveSecret (integration_config.secret_ref ->
     // process.env), and the client email via a plain process.env read in
     // server/integrations/ga4/provider.ts, neither via useRuntimeConfig().
-    ga4ServiceAccountClientEmail: process.env.NUXT_GA4_SA_CLIENT_EMAIL || "",
-    ga4ServiceAccountPrivateKey: process.env.NUXT_GA4_SA_PRIVATE_KEY || "",
+    ga4SaClientEmail: process.env.NUXT_GA4_SA_CLIENT_EMAIL || "",
+    ga4SaPrivateKey: process.env.NUXT_GA4_SA_PRIVATE_KEY || "",
     // One per property (server/integrations/ga4/provider.ts's
     // resolvePropertyId) — the deploy-time default; an integration_config
     // row's external_id overrides it per app, same precedent as Stripe's
@@ -102,7 +100,7 @@ export default defineNuxtConfig({
     // The Sentry provider's shared studio-wide auth token + org slug
     // (server/integrations/sentry). Same reasoning as the Stripe/GA4 entries
     // above: declared here purely so the Netlify preset forwards these into
-    // the deployed function's process.env — the auth token still resolves
+    // the deployed function (via readIntegrationEnv's runtimeConfig fallback) — the auth token still resolves
     // via config.ts's resolveSecret (integration_config.secret_ref ->
     // process.env), and the org slug via a plain process.env read in
     // server/integrations/sentry/provider.ts, neither via
@@ -124,7 +122,7 @@ export default defineNuxtConfig({
     // own Clerk instance (separate from this dashboard's own auth, configured
     // via the Clerk Nuxt module above). Same reasoning as the Stripe/GA4
     // entries above: declared here purely so the Netlify preset forwards
-    // each into the deployed function's process.env; an integration_config
+    // each into the deployed function (via readIntegrationEnv's runtimeConfig fallback); an integration_config
     // row's secret_ref still resolves the actual value
     // (server/integrations/config.ts's resolveSecret reads process.env
     // directly), not useRuntimeConfig().
@@ -134,7 +132,7 @@ export default defineNuxtConfig({
     // The blog-syndication providers' shared studio-wide credentials
     // (server/integrations/syndication) — same reasoning as the Stripe/GA4
     // entries above: declared here purely so the Netlify preset forwards
-    // these into the deployed function's process.env. There is only one
+    // these into the deployed function (via readIntegrationEnv's runtimeConfig fallback). There is only one
     // writing-template app (danholloran; see app/config/apps.ts's
     // `template: "writing"`), so — unlike Stripe's per-app product ids or
     // GA4's per-property ids — none of these need a per-slug suffix.

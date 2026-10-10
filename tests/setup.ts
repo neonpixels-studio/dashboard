@@ -41,6 +41,9 @@ Object.assign(globalThis, {
 Object.assign(globalThis, {
   defineNuxtRouteMiddleware: (handler: unknown) => handler,
   defineEventHandler: (handler: unknown) => handler,
+  // Empty by default so readIntegrationEnv's runtimeConfig fallback finds
+  // nothing; tests that need config values stub their own.
+  useRuntimeConfig: () => ({}),
   // H3's createError, as a real Error carrying the status fields so tests can
   // assert on `statusCode` via rejects.toMatchObject.
   createError: ({
