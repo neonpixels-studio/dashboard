@@ -459,12 +459,14 @@ describe("fetchMediumSyndication", () => {
         postRef: "shipping-a-nuxt-dashboard",
         status: "synced",
         syncedAt: new Date(1798108800000),
+        views: null,
       },
       {
         platform: "medium",
         postRef: "landscape-photography-in-iceland",
         status: "synced",
         syncedAt: new Date(1786786500000),
+        views: null,
       },
     ]);
   });

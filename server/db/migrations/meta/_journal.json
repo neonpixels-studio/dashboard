@@ -64,6 +64,13 @@
       "when": 1791599611495,
       "tag": "0008_add_zyvop_vendor",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791600274237,
+      "tag": "0009_add_syndication_post_views",
+      "breakpoints": true
     }
   ]
 }

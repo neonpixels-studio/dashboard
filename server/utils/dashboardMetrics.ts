@@ -21,6 +21,9 @@ export const METRIC_NEW_USERS = "new_users";
 // every other metric; a studio-wide/cross-platform rollup (the writing
 // template's "POSTS" card) is that consumer's concern, not this provider's.
 export const METRIC_POSTS = "posts";
+// Lifetime views summed across one platform's posts, reported alongside
+// `posts` only by platforms that expose per-post views (not Medium).
+export const METRIC_VIEWS = "views";
 
 // Canonical `metric_snapshot.period` values (schema: "e.g. \"30d\", \"current\"").
 // A metric name alone doesn't identify a series — the schema allows the same

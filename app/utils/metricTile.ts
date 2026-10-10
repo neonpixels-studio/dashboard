@@ -33,6 +33,7 @@ export const METRIC_OPEN_ISSUES = "open_issues";
 export const METRIC_USERS = "users";
 export const METRIC_NEW_USERS = "new_users";
 export const METRIC_POSTS = "posts";
+export const METRIC_VIEWS = "views";
 
 export const PERIOD_CURRENT = "current";
 export const PERIOD_30D = "30d";

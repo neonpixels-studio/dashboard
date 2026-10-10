@@ -43,6 +43,12 @@ const LOADED_DETAIL = appDetailFixture({
       value: 41,
       capturedAt: "2026-09-19T00:00:00.000Z",
     },
+    {
+      metric: "views",
+      period: "current",
+      value: 9876,
+      capturedAt: "2026-09-19T00:00:00.000Z",
+    },
   ],
   syndication: [
     {
@@ -52,22 +58,27 @@ const LOADED_DETAIL = appDetailFixture({
           platform: "medium",
           status: "synced",
           syncedAt: "2026-09-19T00:00:00.000Z",
+          views: null,
         },
         {
           platform: "hashnode",
           status: "synced",
           syncedAt: "2026-09-19T00:00:00.000Z",
+          views: 4321,
         },
         {
           platform: "zyvop",
           status: "failed",
           syncedAt: "2026-09-18T00:00:00.000Z",
+          views: 0,
         },
       ],
     },
     {
       postRef: "missouri-ozarks",
-      cells: [{ platform: "medium", status: "pending", syncedAt: null }],
+      cells: [
+        { platform: "medium", status: "pending", syncedAt: null, views: null },
+      ],
     },
   ],
   trafficBreakdown: [{ channel: "direct", pct: 38 }],
@@ -109,22 +120,26 @@ describe("AppDetailWriting", () => {
     ).toEqual(["REACH", "TRAFFIC"]);
   });
 
-  it("renders sessions, posts, platforms-live, and cross-post-failures tiles from real data", () => {
+  it("renders sessions, posts, views, and platforms-live tiles from real data", () => {
     const wrapper = mountDetail({ detail: LOADED_DETAIL });
     const tiles = wrapper.findAllComponents(MetricTile);
     expect(tiles.map((tile) => tile.props("label"))).toEqual([
       "SESSIONS",
       "POSTS",
+      "VIEWS",
       "PLATFORMS LIVE",
-      "CROSS-POST FAILURES",
     ]);
     expect(tiles[0]!.props("value")).toBe("6,104");
     expect(tiles[1]!.props("value")).toBe("41");
+    expect(tiles[2]!.props("value")).toBe("9,876");
     // medium and hashnode each have a synced cell — 2 live platforms.
-    expect(tiles[2]!.props("value")).toBe("2");
+    expect(tiles[3]!.props("value")).toBe("2");
+  });
+
+  it("shows the failed cross-post count in the syndication panel head", () => {
+    const wrapper = mountDetail({ detail: LOADED_DETAIL });
     // one failed cell (zyvop on the first post).
-    expect(tiles[3]!.props("value")).toBe("1");
-    expect(tiles[3]!.props("tone")).toBe("warn");
+    expect(wrapper.find(".failed-count").text()).toBe("1 FAILED CROSS-POST");
   });
 
   it("never renders a retry button — no retry endpoint exists yet for it to call", () => {
@@ -135,7 +150,7 @@ describe("AppDetailWriting", () => {
     ).toBe(false);
   });
 
-  it("shows an all-synced, untoned tile when nothing has failed", () => {
+  it("hides the failed label and shows an unsynced views tile when nothing has failed or reported views", () => {
     const detail = appDetailFixture({
       syndication: [
         {
@@ -145,18 +160,19 @@ describe("AppDetailWriting", () => {
               platform: "medium",
               status: "synced",
               syncedAt: "2026-09-19T00:00:00.000Z",
+              views: null,
             },
           ],
         },
       ],
     });
     const wrapper = mountDetail({ detail });
-    const failuresTile = wrapper
+    expect(wrapper.find(".failed-count").exists()).toBe(false);
+
+    const viewsTile = wrapper
       .findAllComponents(MetricTile)
-      .find((tile) => tile.props("label") === "CROSS-POST FAILURES")!;
-    expect(failuresTile.props("value")).toBe("0");
-    expect(failuresTile.props("sub")).toBe("All synced");
-    expect(failuresTile.props("tone")).toBeUndefined();
+      .find((tile) => tile.props("label") === "VIEWS")!;
+    expect(viewsTile.props("value")).toBe("—");
 
     const platformsTile = wrapper
       .findAllComponents(MetricTile)
@@ -176,7 +192,7 @@ describe("AppDetailWriting", () => {
       .findComponent(SyndicationPostMatrix)
       .props("posts") as {
       title: string;
-      cells: { label: string; tone: string }[];
+      cells: { label: string; tone: string; views: string | null }[];
     }[];
     expect(posts).toHaveLength(2);
     expect(posts[0]!.title).toBe("shipping-a-nuxt-site");
@@ -185,6 +201,11 @@ describe("AppDetailWriting", () => {
       "live",
       "live",
       "failed",
+    ]);
+    expect(posts[0]!.cells.map((cell) => cell.views)).toEqual([
+      "4,321 views",
+      null,
+      "0 views",
     ]);
 
     expect(posts[1]!.title).toBe("missouri-ozarks");

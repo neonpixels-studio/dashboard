@@ -93,7 +93,7 @@ describe("zyvopProvider", () => {
 });
 
 describe("fetchZyvopSyndication", () => {
-  it("normalizes posts into suffix-stripped syndication_post rows plus a posts count metric", async () => {
+  it("normalizes posts into suffix-stripped syndication_post rows with views, plus posts and summed views metrics", async () => {
     const posts = await loadFixture<ZyvopPost[]>(
       "syndication",
       "zyvop-two-posts",
@@ -111,6 +111,12 @@ describe("fetchZyvopSyndication", () => {
         value: 2,
         period: "current",
       }),
+      expect.objectContaining({
+        vendor: "zyvop",
+        metric: "views",
+        value: 13,
+        period: "current",
+      }),
     ]);
     expect(result.syndicationPosts).toEqual([
       {
@@ -118,6 +124,7 @@ describe("fetchZyvopSyndication", () => {
         postRef: "map-getorinsert-stop-writing-the-has-get-set-dance",
         status: "synced",
         syncedAt: new Date("2026-10-09T10:13:07.261Z"),
+        views: 3,
       },
       {
         platform: "zyvop",
@@ -125,6 +132,7 @@ describe("fetchZyvopSyndication", () => {
           "astro-live-content-collections-fresh-cms-data-without-a-rebuild",
         status: "synced",
         syncedAt: new Date("2026-10-06T10:13:01.440Z"),
+        views: 10,
       },
     ]);
   });

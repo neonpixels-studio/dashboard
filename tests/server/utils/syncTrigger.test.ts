@@ -4,7 +4,7 @@ import type { H3Event } from "h3";
 const mockGetHeader = vi.fn();
 vi.mock("h3", () => ({ getHeader: mockGetHeader }));
 
-const { requireSyncTriggerSecret } =
+const { requireBearerSecret, requireSyncTriggerSecret } =
   await import("../../../server/utils/syncTrigger");
 
 function eventWithAuthHeader(header: string | undefined): H3Event {
@@ -85,6 +85,33 @@ describe("requireSyncTriggerSecret", () => {
     const event = eventWithAuthHeader("Bearer short");
 
     expect(() => requireSyncTriggerSecret(event)).toThrow(
+      expect.objectContaining({ statusCode: 401 }),
+    );
+  });
+});
+
+describe("requireBearerSecret", () => {
+  it("passes when the presented token matches the secret it was given", () => {
+    const event = eventWithAuthHeader("Bearer ingest-secret");
+
+    expect(() => requireBearerSecret(event, "ingest-secret")).not.toThrow();
+  });
+
+  it("throws 401 when the token matches a different route's secret", () => {
+    const event = eventWithAuthHeader("Bearer sync-secret");
+
+    expect(() => requireBearerSecret(event, "ingest-secret")).toThrow(
+      expect.objectContaining({ statusCode: 401 }),
+    );
+  });
+
+  it("fails closed when the configured secret is empty or undefined", () => {
+    const event = eventWithAuthHeader("Bearer anything");
+
+    expect(() => requireBearerSecret(event, "")).toThrow(
+      expect.objectContaining({ statusCode: 401 }),
+    );
+    expect(() => requireBearerSecret(event, undefined)).toThrow(
       expect.objectContaining({ statusCode: 401 }),
     );
   });

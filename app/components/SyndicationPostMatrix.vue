@@ -12,6 +12,7 @@
         <span class="col-post">{{ post.title }}</span>
         <span v-for="(cell, index) in post.cells" :key="index" class="col-cell">
           <span class="cell-pill" :class="cell.tone">{{ cell.label }}</span>
+          <span v-if="cell.views" class="cell-views">{{ cell.views }}</span>
         </span>
       </li>
     </ul>
@@ -23,7 +24,11 @@ defineProps<{
   platforms: string[];
   posts: {
     title: string;
-    cells: { label: string; tone: "live" | "failed" | "queued" | "off" }[];
+    cells: {
+      label: string;
+      tone: "live" | "failed" | "queued" | "off";
+      views: string | null;
+    }[];
   }[];
 }>();
 </script>
@@ -52,7 +57,9 @@ defineProps<{
 .col-cell {
   width: 96px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
 }
 .matrix-head .col-cell {
   display: block;
@@ -83,6 +90,11 @@ defineProps<{
   border-radius: var(--r-sm);
   font-size: 9px;
   font-weight: 700;
+  white-space: nowrap;
+}
+.cell-views {
+  font-size: 10px;
+  color: var(--ink-3);
   white-space: nowrap;
 }
 .cell-pill.live {

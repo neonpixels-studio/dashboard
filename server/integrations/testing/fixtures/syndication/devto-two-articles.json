@@ -2,11 +2,13 @@
   {
     "id": 501,
     "slug": "shipping-a-nuxt-dashboard",
-    "published_at": "2026-09-01T12:05:00Z"
+    "published_at": "2026-09-01T12:05:00Z",
+    "page_views_count": 42
   },
   {
     "id": 502,
     "slug": "landscape-photography-in-iceland",
-    "published_at": "2026-08-15T09:35:00Z"
+    "published_at": "2026-08-15T09:35:00Z",
+    "page_views_count": 7
   }
 ]

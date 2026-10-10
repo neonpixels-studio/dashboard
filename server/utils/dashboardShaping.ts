@@ -850,6 +850,7 @@ export function syndicationMatrixForApp(
       platform: row.platform,
       status: row.status,
       syncedAt: toIsoOrNull(row.syncedAt),
+      views: row.views,
     })),
   }));
 }

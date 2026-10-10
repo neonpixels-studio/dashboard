@@ -27,5 +27,9 @@ export function toSyndicationSourcePost(
       `DEV.to article ${article.id} has an unparseable published_at value: "${article.published_at}".`,
   );
 
-  return { postRef: article.slug, publishedAt };
+  return {
+    postRef: article.slug,
+    publishedAt,
+    views: article.page_views_count,
+  };
 }

@@ -21,6 +21,9 @@
       <div class="panel-head">
         <span class="panel-title">Syndication</span>
         <span class="panel-meta">{{ platformsMeta }}</span>
+        <span v-if="failedCount > 0" class="panel-meta failed-count">
+          {{ crossPostFailuresLabel(failedCount) }}
+        </span>
         <span class="grow"></span>
       </div>
       <!-- @todo: a "Retry failed" action belongs here once a real retry
@@ -56,6 +59,7 @@ import {
   buildMetricTileData,
   METRIC_POSTS,
   METRIC_SESSIONS,
+  METRIC_VIEWS,
   PERIOD_30D,
   PERIOD_CURRENT,
   type MetricTileData,
@@ -83,11 +87,10 @@ const platformsMeta = computed(() =>
     : "NO PLATFORMS SYNCED YET",
 );
 
-function crossPostFailuresSub(failedCount: number): string {
-  if (failedCount === 0) {
-    return "All synced";
-  }
-  return `${failedCount} failed cross-post${failedCount === 1 ? "" : "s"}`;
+// Shown only when non-zero: every provider today is read-only and only ever
+// writes "synced", so a permanent "0 failures" tile would be dead weight.
+function crossPostFailuresLabel(count: number): string {
+  return `${count} FAILED CROSS-POST${count === 1 ? "" : "S"}`;
 }
 
 const failedCount = computed(() =>
@@ -104,6 +107,7 @@ const tiles = computed<MetricTileData[]>(() => {
   return [
     buildMetricTileData(METRIC_SESSIONS, PERIOD_30D, metrics, series),
     buildMetricTileData(METRIC_POSTS, PERIOD_CURRENT, metrics, series),
+    buildMetricTileData(METRIC_VIEWS, PERIOD_CURRENT, metrics, series),
     {
       label: "PLATFORMS LIVE",
       value: String(liveCount.value),
@@ -113,14 +117,6 @@ const tiles = computed<MetricTileData[]>(() => {
       // one real syndication_post row, not integration_config's enabled set
       // (that catalog isn't on AppDetailResponse at all; see syncSource.ts).
       sub: `${platforms.value.length} platform${platforms.value.length === 1 ? "" : "s"} posted to`,
-    },
-    {
-      label: "CROSS-POST FAILURES",
-      value: String(failedCount.value),
-      delta: NO_VALUE_LABEL,
-      deltaTone: "muted",
-      sub: crossPostFailuresSub(failedCount.value),
-      tone: failedCount.value > 0 ? "warn" : undefined,
     },
   ];
 });
@@ -139,6 +135,9 @@ const { trafficPanelData, sourceChips } = useAppDetailPanels(
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.panel-meta.failed-count {
+  color: var(--warn);
 }
 .panel-head {
   display: flex;

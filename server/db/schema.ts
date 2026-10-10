@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   numeric,
   pgEnum,
   pgTable,
@@ -221,6 +222,9 @@ export const syndicationPost = pgTable(
     postRef: text("post_ref").notNull(),
     status: syndicationStatus("status").notNull(),
     syncedAt: timestamp("synced_at", { withTimezone: true }),
+    // Lifetime view count as of the last sync. Null when the platform doesn't
+    // report per-post views (Medium via RapidAPI), never a fabricated zero.
+    views: integer("views"),
   },
   (table) => [
     uniqueIndex("syndication_post_slug_platform_post_ref_idx").on(

@@ -185,12 +185,14 @@ describe("fetchHashnodeSyndication", () => {
         postRef: "shipping-a-nuxt-dashboard",
         status: "synced",
         syncedAt: new Date("2026-09-01T12:00:00.000Z"),
+        views: null,
       },
       {
         platform: "hashnode",
         postRef: "landscape-photography-in-iceland",
         status: "synced",
         syncedAt: new Date("2026-08-15T09:30:00.000Z"),
+        views: null,
       },
     ]);
     expect(result.trafficBreakdown).toEqual([]);

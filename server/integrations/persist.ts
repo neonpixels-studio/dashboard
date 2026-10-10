@@ -87,6 +87,27 @@ export function listEnabledIntegrationConfigs(
     );
 }
 
+// One (slug, vendor) row regardless of `enabled`, for push-based sources like
+// POST /api/ingest/hashnode whose row stays disabled so the orchestrator
+// never polls it.
+export async function findIntegrationConfig(
+  db: DrizzleDb,
+  slug: string,
+  vendor: IntegrationConfigRow["vendor"],
+): Promise<IntegrationConfigRow | null> {
+  const [row] = await db
+    .select(getTableColumns(integrationConfig))
+    .from(integrationConfig)
+    .where(
+      and(
+        eq(integrationConfig.slug, slug),
+        eq(integrationConfig.vendor, vendor),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 // Health of every enabled (slug, vendor) row, for the stale-vendor alert (see
 // staleVendorAlert.ts). Inner join so a disabled or removed integration, whose
 // sync_status row is left behind, never alerts.
@@ -199,6 +220,7 @@ export function persistProviderResult(
               set: {
                 status: sql`excluded.status`,
                 syncedAt: sql`excluded.synced_at`,
+                views: sql`excluded.views`,
               },
             }),
         ]

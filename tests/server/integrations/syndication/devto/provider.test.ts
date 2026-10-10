@@ -81,7 +81,7 @@ describe("devtoProvider", () => {
 });
 
 describe("fetchDevtoSyndication", () => {
-  it("normalizes a page of articles into syndication_post rows plus a posts count metric", async () => {
+  it("normalizes a page of articles into syndication_post rows with views, plus posts and summed views metrics", async () => {
     const articles = await loadFixture<DevtoArticle[]>(
       "syndication",
       "devto-two-articles",
@@ -99,6 +99,12 @@ describe("fetchDevtoSyndication", () => {
         value: 2,
         period: "current",
       }),
+      expect.objectContaining({
+        vendor: "devto",
+        metric: "views",
+        value: 49,
+        period: "current",
+      }),
     ]);
     expect(result.syndicationPosts).toEqual([
       {
@@ -106,12 +112,14 @@ describe("fetchDevtoSyndication", () => {
         postRef: "shipping-a-nuxt-dashboard",
         status: "synced",
         syncedAt: new Date("2026-09-01T12:05:00Z"),
+        views: 42,
       },
       {
         platform: "devto",
         postRef: "landscape-photography-in-iceland",
         status: "synced",
         syncedAt: new Date("2026-08-15T09:35:00Z"),
+        views: 7,
       },
     ]);
   });

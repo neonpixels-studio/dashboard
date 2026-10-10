@@ -13,16 +13,18 @@ describe("toPostRef (zyvop)", () => {
 });
 
 describe("toSyndicationSourcePost (zyvop)", () => {
-  it("maps a ZyVOP post's slug and publishedAt into a SyndicationSourcePost", () => {
+  it("maps a ZyVOP post's slug, publishedAt and views into a SyndicationSourcePost", () => {
     const post = toSyndicationSourcePost({
       id: "c4a1ea6f-e480-46ce-91bd-388d319b6e8b",
       slug: "shipping-a-nuxt-dashboard-b0wvr",
       publishedAt: "2026-10-09T10:13:07.261Z",
+      views: 3,
     });
 
     expect(post).toEqual({
       postRef: "shipping-a-nuxt-dashboard",
       publishedAt: new Date("2026-10-09T10:13:07.261Z"),
+      views: 3,
     });
   });
 
@@ -32,6 +34,7 @@ describe("toSyndicationSourcePost (zyvop)", () => {
         id: "broken",
         slug: "broken-post-aaaaa",
         publishedAt: "",
+        views: 0,
       }),
     ).toThrow(/unparseable publishedAt/);
   });

@@ -87,6 +87,7 @@ export interface SyndicationMatrixCell {
   platform: string;
   status: "synced" | "pending" | "failed";
   syncedAt: string | null;
+  views: number | null;
 }
 
 // One row of the syndication matrix: a single local post and its status on

@@ -6,6 +6,8 @@ export interface DevtoArticle {
   id: number;
   slug: string;
   published_at: string;
+  // Lifetime views. Only present on the authenticated /articles/me/* endpoints.
+  page_views_count: number;
 }
 
 // The seam devtoProvider.ts's core logic is tested against instead of a real

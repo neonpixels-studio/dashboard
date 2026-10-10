@@ -22,5 +22,5 @@ export function toSyndicationSourcePost(
       `ZyVOP post ${post.id} has an unparseable publishedAt value: "${post.publishedAt}".`,
   );
 
-  return { postRef: toPostRef(post.slug), publishedAt };
+  return { postRef: toPostRef(post.slug), publishedAt, views: post.views };
 }

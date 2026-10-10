@@ -43,7 +43,18 @@ function secretsMatch(presented: string, configured: string): boolean {
  * "no auth required."
  */
 export function requireSyncTriggerSecret(event: H3Event): void {
-  const configuredSecret = useRuntimeConfig().syncTriggerSecret;
+  requireBearerSecret(event, useRuntimeConfig().syncTriggerSecret);
+}
+
+/**
+ * The same fail-closed Bearer check, for any service-to-service route with
+ * its own shared secret (e.g. POST /api/ingest/hashnode's
+ * `NUXT_HASHNODE_INGEST_SECRET`).
+ */
+export function requireBearerSecret(
+  event: H3Event,
+  configuredSecret: string | undefined,
+): void {
   const presentedSecret = readPresentedSecret(event);
   const isAuthorized =
     !!configuredSecret &&

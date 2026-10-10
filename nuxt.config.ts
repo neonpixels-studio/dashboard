@@ -77,6 +77,7 @@ export default defineNuxtConfig({
     // rather than a row- or app-scoped key name, matching disableSignups'
     // pattern in server/utils/auth.ts.
     syncTriggerSecret: process.env.NUXT_SYNC_TRIGGER_SECRET || "",
+    hashnodeIngestSecret: process.env.NUXT_HASHNODE_INGEST_SECRET || "",
     // The GA4 provider's shared studio-wide service account credentials
     // (server/integrations/ga4). Same reasoning as the Stripe entries above:
     // declared here purely so the Netlify preset forwards these into the

@@ -22,6 +22,8 @@ export interface SyndicationSourcePost {
   // outcome, not a crash.
   postRef: string;
   publishedAt: Date;
+  // Lifetime views. Omitted by platforms that don't report them (Medium).
+  views?: number;
 }
 
 /**

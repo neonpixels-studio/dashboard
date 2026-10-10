@@ -1,4 +1,8 @@
-import { METRIC_POSTS, PERIOD_CURRENT } from "../../utils/dashboardMetrics";
+import {
+  METRIC_POSTS,
+  METRIC_VIEWS,
+  PERIOD_CURRENT,
+} from "../../utils/dashboardMetrics";
 import type { ProviderResult } from "../types";
 import type { SyndicationSourcePost } from "./types";
 
@@ -35,23 +39,43 @@ export function buildSyndicationResult(
   postsCount: number = posts.length,
 ): ProviderResult {
   const capturedAt = new Date();
+  const postsMetric = {
+    vendor: platform,
+    metric: METRIC_POSTS,
+    value: postsCount,
+    period: PERIOD_CURRENT,
+    capturedAt,
+  };
+  const totalViews = sumReportedViews(posts);
 
   return {
-    metrics: [
-      {
-        vendor: platform,
-        metric: METRIC_POSTS,
-        value: postsCount,
-        period: PERIOD_CURRENT,
-        capturedAt,
-      },
-    ],
+    metrics:
+      totalViews === null
+        ? [postsMetric]
+        : [
+            postsMetric,
+            { ...postsMetric, metric: METRIC_VIEWS, value: totalViews },
+          ],
     trafficBreakdown: [],
     syndicationPosts: posts.map((post) => ({
       platform,
       postRef: post.postRef,
       status: SYNDICATION_STATUS_SYNCED,
       syncedAt: post.publishedAt,
+      views: post.views ?? null,
     })),
   };
+}
+
+// Null when no post carries a view count, so a platform that doesn't report
+// views (Medium) gets no `views` metric at all rather than a fabricated zero.
+// A platform with zero posts also gets none; its `posts` metric already says 0.
+function sumReportedViews(posts: SyndicationSourcePost[]): number | null {
+  const reported = posts
+    .map((post) => post.views)
+    .filter((views): views is number => views !== undefined);
+  if (!reported.length) {
+    return null;
+  }
+  return reported.reduce((total, views) => total + views, 0);
 }

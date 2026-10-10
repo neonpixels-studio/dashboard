@@ -1,23 +1,26 @@
 // Turns real syndication_post rows (AppDetailResponse.syndication) into
 // SyndicationPostMatrix's props, plus the two writing-template metric tiles
-// derived from the same data (issue #20). `syndication_post` has no title or
-// view-count column — SyndicationPostMatrix's `posts[].title` renders the
-// row's own `postRef` (the only identifier the schema stores) and no longer
-// takes a `views` prop at all (see SyndicationPostMatrix.vue's diff);
-// fabricating a view count would violate the same "never render invented
-// data" rule the rest of this API follows.
+// derived from the same data (issue #20). `syndication_post` has no title
+// column, so SyndicationPostMatrix's `posts[].title` renders the row's own
+// `postRef`. Per-platform views render only where the platform reported them
+// (null for Medium), never as an invented zero.
 import type { SyndicationMatrixRow } from "#shared/types/dashboard";
+import { formatCount } from "./rollupFormat";
 
 export type SyndicationCellTone = "live" | "failed" | "queued" | "off";
 
-interface CellView {
+interface StatusView {
   label: string;
   tone: SyndicationCellTone;
 }
 
+interface CellView extends StatusView {
+  views: string | null;
+}
+
 const STATUS_VIEWS: Record<
   SyndicationMatrixRow["cells"][number]["status"],
-  CellView
+  StatusView
 > = {
   synced: { label: "✓ LIVE", tone: "live" },
   pending: { label: "• QUEUED", tone: "queued" },
@@ -28,7 +31,15 @@ const STATUS_VIEWS: Record<
 // at all (syndicationMatrixForApp only ever groups the rows a post DOES
 // have) — distinct from a "failed" attempt, so it gets its own tone rather
 // than being folded into one of the three real statuses.
-const NOT_POSTED_VIEW: CellView = { label: "— NOT POSTED", tone: "off" };
+const NOT_POSTED_VIEW: CellView = {
+  label: "— NOT POSTED",
+  tone: "off",
+  views: null,
+};
+
+function formatViews(views: number | null): string | null {
+  return views === null ? null : `${formatCount(views)} views`;
+}
 
 // Flattens every row's cells into one list — the shared starting point for
 // every function below that needs to look across all posts at once, so none
@@ -64,9 +75,11 @@ export function syndicationMatrixPosts(
       // but that's only a compile-time guarantee — a raw DB row could still
       // carry a value the enum grows to include later. Fall back to the
       // same "not posted" view rather than rendering an undefined label.
-      return cell
-        ? (STATUS_VIEWS[cell.status] ?? NOT_POSTED_VIEW)
-        : NOT_POSTED_VIEW;
+      const statusView = cell ? STATUS_VIEWS[cell.status] : undefined;
+      if (!cell || !statusView) {
+        return NOT_POSTED_VIEW;
+      }
+      return { ...statusView, views: formatViews(cell.views) };
     }),
   }));
 }

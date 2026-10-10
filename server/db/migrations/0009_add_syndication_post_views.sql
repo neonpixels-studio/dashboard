@@ -1,0 +1,1 @@
+ALTER TABLE "syndication_post" ADD COLUMN "views" integer;

@@ -15,17 +15,21 @@ const ROWS: SyndicationMatrixRow[] = [
         platform: "medium",
         status: "synced",
         syncedAt: "2026-09-19T00:00:00.000Z",
+        views: 1234,
       },
       {
         platform: "zyvop",
         status: "failed",
         syncedAt: "2026-09-18T00:00:00.000Z",
+        views: null,
       },
     ],
   },
   {
     postRef: "missouri-ozarks",
-    cells: [{ platform: "hashnode", status: "pending", syncedAt: null }],
+    cells: [
+      { platform: "hashnode", status: "pending", syncedAt: null, views: 0 },
+    ],
   },
 ];
 
@@ -47,15 +51,17 @@ describe("syndicationMatrixPosts", () => {
     expect(posts).toHaveLength(2);
     expect(posts[0]!.title).toBe("shipping-a-nuxt-site");
     expect(posts[0]!.cells).toEqual([
-      { label: "— NOT POSTED", tone: "off" }, // hashnode
-      { label: "✓ LIVE", tone: "live" }, // medium
-      { label: "✗ FAILED", tone: "failed" }, // zyvop
+      { label: "— NOT POSTED", tone: "off", views: null }, // hashnode
+      { label: "✓ LIVE", tone: "live", views: "1,234 views" }, // medium
+      // A platform that doesn't report views gets no views line, not "0".
+      { label: "✗ FAILED", tone: "failed", views: null }, // zyvop
     ]);
 
     expect(posts[1]!.cells).toEqual([
-      { label: "• QUEUED", tone: "queued" }, // hashnode
-      { label: "— NOT POSTED", tone: "off" }, // medium
-      { label: "— NOT POSTED", tone: "off" }, // zyvop
+      // A reported zero is real data and still renders.
+      { label: "• QUEUED", tone: "queued", views: "0 views" }, // hashnode
+      { label: "— NOT POSTED", tone: "off", views: null }, // medium
+      { label: "— NOT POSTED", tone: "off", views: null }, // zyvop
     ]);
   });
 
@@ -65,12 +71,21 @@ describe("syndicationMatrixPosts", () => {
     // API response would arrive.
     const rowWithUnknownStatus = {
       postRef: "future-status",
-      cells: [{ platform: "medium", status: "archived", syncedAt: null }],
+      cells: [
+        {
+          platform: "medium",
+          status: "archived",
+          syncedAt: null,
+          views: 5,
+        },
+      ],
     } as unknown as SyndicationMatrixRow;
 
     const posts = syndicationMatrixPosts([rowWithUnknownStatus], ["medium"]);
 
-    expect(posts[0]!.cells).toEqual([{ label: "— NOT POSTED", tone: "off" }]);
+    expect(posts[0]!.cells).toEqual([
+      { label: "— NOT POSTED", tone: "off", views: null },
+    ]);
   });
 });
 

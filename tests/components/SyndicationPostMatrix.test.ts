@@ -8,19 +8,19 @@ const posts = [
   {
     title: "Shipping a Nuxt site with an agent that never sleeps",
     cells: [
-      { label: "✓ LIVE", tone: "live" as const },
-      { label: "✓ LIVE", tone: "live" as const },
-      { label: "✓ LIVE", tone: "live" as const },
-      { label: "✗ FAILED", tone: "failed" as const },
+      { label: "✓ LIVE", tone: "live" as const, views: "1,204 views" },
+      { label: "✓ LIVE", tone: "live" as const, views: null },
+      { label: "✓ LIVE", tone: "live" as const, views: "88 views" },
+      { label: "✗ FAILED", tone: "failed" as const, views: null },
     ],
   },
   {
     title: "Three days in the Missouri Ozarks",
     cells: [
-      { label: "✓ LIVE", tone: "live" as const },
-      { label: "— NOT POSTED", tone: "off" as const },
-      { label: "— NOT POSTED", tone: "off" as const },
-      { label: "• QUEUED", tone: "queued" as const },
+      { label: "✓ LIVE", tone: "live" as const, views: "3 views" },
+      { label: "— NOT POSTED", tone: "off" as const, views: null },
+      { label: "— NOT POSTED", tone: "off" as const, views: null },
+      { label: "• QUEUED", tone: "queued" as const, views: null },
     ],
   },
 ];
@@ -43,7 +43,20 @@ describe("SyndicationPostMatrix", () => {
     const rows = wrapper.findAll(".matrix-row");
     expect(rows).toHaveLength(2);
     expect(rows[0].find(".col-post").text()).toBe(posts[0].title);
-    expect(rows[0].find(".col-views").exists()).toBe(false);
+  });
+
+  it("renders a views line only for cells whose platform reported views", () => {
+    const wrapper = mount(SyndicationPostMatrix, {
+      props: { platforms, posts },
+    });
+    const cells = wrapper.findAll(".matrix-row")[0].findAll(".col-cell");
+    expect(cells.map((cell) => cell.find(".cell-views").exists())).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ]);
+    expect(cells[0].find(".cell-views").text()).toBe("1,204 views");
   });
 
   it("tones each platform cell pill from the post's own cell status", () => {

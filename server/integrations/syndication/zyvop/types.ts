@@ -6,6 +6,7 @@ export interface ZyvopPost {
   id: string;
   slug: string;
   publishedAt: string;
+  views: number;
 }
 
 // The seam provider.ts's core logic is tested against instead of a real

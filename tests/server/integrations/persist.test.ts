@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getTableColumns, SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import {
+  findIntegrationConfig,
   listEnabledIntegrationConfigs,
   listSyncHealthRows,
   persistProviderResult,
@@ -162,6 +163,44 @@ describe("listEnabledIntegrationConfigs", () => {
   });
 });
 
+describe("findIntegrationConfig", () => {
+  function createLookupDb(rows: IntegrationConfigRow[]) {
+    const limit = vi.fn().mockResolvedValue(rows);
+    const where = vi.fn().mockReturnValue({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+    return { db: { select } as unknown as FakeDb, where, limit };
+  }
+
+  it("filters on slug and vendor only, so a disabled push-based row is still found", async () => {
+    const row = configRow({
+      slug: "danholloran",
+      vendor: "hashnode",
+      enabled: false,
+    });
+    const { db, where, limit } = createLookupDb([row]);
+
+    await expect(
+      findIntegrationConfig(db, "danholloran", "hashnode"),
+    ).resolves.toBe(row);
+
+    const [whereArg] = where.mock.calls[0] as [SQL];
+    expect(renderSql(whereArg)).toBe(
+      '("integration_config"."slug" = $1 and "integration_config"."vendor" = $2)',
+    );
+    expect(renderSqlParams(whereArg)).toEqual(["danholloran", "hashnode"]);
+    expect(limit).toHaveBeenCalledWith(1);
+  });
+
+  it("returns null when no row matches", async () => {
+    const { db } = createLookupDb([]);
+
+    await expect(
+      findIntegrationConfig(db, "danholloran", "hashnode"),
+    ).resolves.toBeNull();
+  });
+});
+
 describe("persistProviderResult", () => {
   const EMPTY_RESULT: ProviderResult = {
     metrics: [],
@@ -298,6 +337,10 @@ describe("persistProviderResult", () => {
     expect(conflictArgs.set.syncedAt).toBeInstanceOf(SQL);
     expect(conflictArgs.set.syncedAt.queryChunks[0].value).toEqual([
       "excluded.synced_at",
+    ]);
+    expect(conflictArgs.set.views).toBeInstanceOf(SQL);
+    expect(conflictArgs.set.views.queryChunks[0].value).toEqual([
+      "excluded.views",
     ]);
   });
 

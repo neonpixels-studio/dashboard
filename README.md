@@ -226,15 +226,23 @@ suffix, since there's only one writing-template app today).
   Personal Access Token (`NUXT_HASHNODE_TOKEN`). Publication ID is on the
   blog's dashboard → Settings → General (`NUXT_HASHNODE_PUBLICATION_ID`); an
   `integration_config` row's `external_id`, once set, overrides it, same
-  precedent as Stripe's product IDs / GA4's property IDs.
+  precedent as Stripe's product IDs / GA4's property IDs. **Currently
+  unused:** the GraphQL API went paid (2026-05) and the blog sits behind a
+  Cloudflare challenge, so the `hashnode` row stays `enabled = false` and a
+  logged-in browser on the Mac Mini (the `hashnode-stats` Cowork skill) pushes
+  posts and views to `POST /api/ingest/hashnode` instead, with
+  `Authorization: Bearer $NUXT_HASHNODE_INGEST_SECRET` and a body of
+  `{ "app": "danholloran", "posts": [{ "slug", "publishedAt", "views" }] }`.
+  `posts` must be the full list. The row must exist (it can stay disabled).
 - **DEV.to** — <https://dev.to/settings/extensions> → DEV API Keys → Generate
   API Key (`NUXT_DEVTO_API_KEY`). No separate publication id: the key alone
-  identifies the account.
+  identifies the account. Per-article views come from `page_views_count`.
 - **ZyVOP** — <https://zyvop.com> → Settings → Integrations → ZyVOP API, CLI
   & MCP → generate a personal developer token (`NUXT_ZYVOP_TOKEN`, starts
   with `zv_`). ZyVOP has no read REST endpoint, so the provider calls the
   `zyvop_list_posts` tool on its hosted MCP server (<https://zyvop.com/mcp>)
-  as plain JSON-RPC. The token alone identifies the author.
+  as plain JSON-RPC. The token alone identifies the author. Each listed post
+  carries its own `views`.
 - **Medium** — Medium retired its own publish API and has no supported read
   endpoint either, so this reads via RapidAPI's unofficial "medium2" API
   (aka mediumapi.com — <https://docs.mediumapi.com/>), a **paid** add-on.

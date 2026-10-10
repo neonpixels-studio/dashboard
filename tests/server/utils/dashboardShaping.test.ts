@@ -100,6 +100,7 @@ function syndicationRow(
     postRef: "post-1",
     status: "synced",
     syncedAt: new Date("2026-09-18T00:00:00Z"),
+    views: null,
     ...overrides,
   };
 }
@@ -1071,8 +1072,9 @@ describe("syndicationMatrixForApp", () => {
     const rows = [
       syndicationRow({
         postRef: "post-1",
-        platform: "medium",
+        platform: "devto",
         status: "synced",
+        views: 42,
       }),
       syndicationRow({
         postRef: "post-1",
@@ -1087,11 +1089,17 @@ describe("syndicationMatrixForApp", () => {
         postRef: "post-1",
         cells: [
           {
-            platform: "medium",
+            platform: "devto",
             status: "synced",
             syncedAt: rows[0].syncedAt?.toISOString(),
+            views: 42,
           },
-          { platform: "hashnode", status: "failed", syncedAt: null },
+          {
+            platform: "hashnode",
+            status: "failed",
+            syncedAt: null,
+            views: null,
+          },
         ],
       },
     ]);
