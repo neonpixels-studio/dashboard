@@ -41,10 +41,11 @@ describe("buildHeaderLinks", () => {
   });
 
   it("never emits a placeholder href", () => {
-    for (const app of APPS) {
-      for (const link of buildHeaderLinks(app)) {
-        expect(link.href).not.toBe("#");
-      }
+    const hrefs = APPS.flatMap((app) =>
+      buildHeaderLinks(app).map((link) => link.href),
+    );
+    for (const href of hrefs) {
+      expect(href).toMatch(/^https:\/\//);
     }
   });
 });
