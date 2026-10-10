@@ -402,6 +402,86 @@ describe("createSentryIssueSearcher", () => {
       expect(fetchStub).toHaveBeenCalledTimes(1);
     });
 
+    it("floors a zero Retry-After so retries are never instantaneous", async () => {
+      vi.useFakeTimers();
+      const fetchStub = buildSequencedFetch([
+        rateLimited({ "retry-after": "0" }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("floors a reset timestamp already in the past", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-10T12:00:00.000Z"));
+      const fetchStub = buildSequencedFetch([
+        rateLimited({
+          "x-sentry-rate-limit-reset": String(Date.now() / 1000 - 30),
+        }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("ignores an unparseable Retry-After (HTTP date) and uses the reset header", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-10T12:00:00.000Z"));
+      const fetchStub = buildSequencedFetch([
+        rateLimited({
+          "retry-after": "Sat, 10 Oct 2026 12:00:01 GMT",
+          "x-sentry-rate-limit-reset": String(Date.now() / 1000 + 1.5),
+        }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(1_499);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects with the timeout message when the request timer fires during a retry wait", async () => {
+      vi.useFakeTimers();
+      const slowRateLimitedFetch = buildSequencedFetch([
+        rateLimited({ "retry-after": "2" }),
+        success,
+      ]);
+      const slowFetch = vi.fn(async (...args: Parameters<typeof fetch>) => {
+        await new Promise((resolve) => setTimeout(resolve, 19_000));
+        return slowRateLimitedFetch(...args);
+      }) as unknown as typeof fetch;
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", slowFetch),
+      );
+      const assertion = expect(resultPromise).rejects.toThrow(
+        /markpost.*timed out after 20000ms/,
+      );
+
+      await vi.advanceTimersByTimeAsync(21_000);
+      await assertion;
+      expect(slowFetch).toHaveBeenCalledTimes(1);
+    });
+
     it("does not retry non-429 failures", async () => {
       const fetchStub = buildSequencedFetch([
         { ok: false, status: 500, body: {} },
