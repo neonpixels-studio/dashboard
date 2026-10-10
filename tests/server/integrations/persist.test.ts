@@ -704,7 +704,7 @@ describe("listSyncHealthRows", () => {
     const dialect = new PgDialect();
     const joinSql = dialect.sqlToQuery(innerJoin.mock.calls[0]![1]).sql;
     expect(joinSql).toBe(
-      '("integration_config"."slug" = "sync_status"."slug" and "integration_config"."vendor" = "sync_status"."vendor")',
+      '("integration_config"."slug" = "sync_status"."slug" and "integration_config"."vendor"::text = "sync_status"."vendor")',
     );
     const whereQuery = dialect.sqlToQuery(where.mock.calls[0]![0]);
     expect(whereQuery.sql).toContain('"enabled" = $1');

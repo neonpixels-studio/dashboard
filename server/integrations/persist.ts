@@ -90,6 +90,10 @@ export function listEnabledIntegrationConfigs(
 // Health of every enabled (slug, vendor) row, for the stale-vendor alert (see
 // staleVendorAlert.ts). Inner join so a disabled or removed integration, whose
 // sync_status row is left behind, never alerts.
+// integration_config.vendor is the integration_vendor enum and
+// sync_status.vendor is free text, and Postgres has no enum = text operator,
+// so the enum side is cast to text (not text to enum, which would throw on a
+// metrics-only vendor like "github").
 export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
   return db
     .select({
@@ -103,7 +107,7 @@ export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
       integrationConfig,
       and(
         eq(integrationConfig.slug, syncStatus.slug),
-        eq(integrationConfig.vendor, syncStatus.vendor),
+        sql`${integrationConfig.vendor}::text = ${syncStatus.vendor}`,
       ),
     )
     .where(eq(integrationConfig.enabled, true));
