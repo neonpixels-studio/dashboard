@@ -1,3 +1,5 @@
+import type { StripeEventKind } from "../../../shared/types/dashboard";
+
 // Plain, JSON-serializable subset of the Stripe API shapes this provider
 // needs. Deliberately NOT the `stripe` package's own `Stripe.Subscription` /
 // `Stripe.Price` types: those model every field Stripe can return (including
@@ -83,8 +85,6 @@ export type ListActiveSubscriptions = (
   startingAfter?: string,
 ) => Promise<StripeSubscriptionPage>;
 
-import type { StripeEventKind } from "../../../shared/types/dashboard";
-
 export type StripeActivityKind = StripeEventKind;
 
 // One priced line an activity event touched, already reduced to the product
@@ -108,6 +108,8 @@ export interface StripeActivityEvent {
   // The subscription (sub_...) or invoice (in_...) the event is about.
   objectId: string;
   currency: string;
+  // The subscription's status at event time; null for invoice events.
+  subscriptionStatus: string | null;
   customerId: string | null;
   customerEmail: string | null;
   lines: StripeActivityLine[];

@@ -1,5 +1,5 @@
 import type Stripe from "stripe";
-import { ACTIVITY_LOOKBACK_DAYS } from "./activity";
+import { activityCutoff } from "./activity";
 import { MILLISECONDS_PER_SECOND } from "./mrr";
 import { NO_DEADLINE, type FetchDeadline } from "../types";
 import {
@@ -15,7 +15,6 @@ import type {
 } from "./types";
 
 const EVENTS_PAGE_SIZE = 100;
-const SECONDS_PER_DAY = 24 * 60 * 60;
 const DEFAULT_SUBSCRIPTION_QUANTITY = 1;
 
 const SUBSCRIPTION_EVENT_KINDS: Record<string, StripeActivityKind> = {
@@ -76,6 +75,7 @@ function subscriptionActivity(
     occurredAt: event.created,
     objectId: subscription.id,
     currency: subscription.currency,
+    subscriptionStatus: subscription.status,
     customerId: customerIdOf(subscription.customer),
     customerEmail: null,
     lines: subscriptionLines(subscription),
@@ -95,6 +95,7 @@ function paymentFailedActivity(
     occurredAt: event.created,
     objectId: invoice.id,
     currency: invoice.currency,
+    subscriptionStatus: null,
     customerId: customerIdOf(invoice.customer),
     customerEmail: invoice.customer_email,
     lines: invoiceLines(invoice),
@@ -134,10 +135,7 @@ function memoizeById<Value>(
 }
 
 function activityWindowStart(now: Date): number {
-  return (
-    Math.floor(now.getTime() / MILLISECONDS_PER_SECOND) -
-    ACTIVITY_LOOKBACK_DAYS * SECONDS_PER_DAY
-  );
+  return Math.floor(activityCutoff(now).getTime() / MILLISECONDS_PER_SECOND);
 }
 
 /**

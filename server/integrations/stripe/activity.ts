@@ -12,7 +12,7 @@ import type {
 export const MAX_ACTIVITY_PAGES = 5;
 // Stripe only keeps 30 days of events; stored rows older than this are pruned
 // because they could never be re-fetched.
-export const ACTIVITY_LOOKBACK_DAYS = 30;
+const ACTIVITY_LOOKBACK_DAYS = 30;
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const MASK = "••••";
@@ -93,14 +93,25 @@ function planNameFor(
 // Null when any matching line has no flat amount (tiered/metered pricing), so
 // the panel shows a dash instead of a misleading partial or zero total.
 function totalAmountCents(lines: StripeActivityLine[]): number | null {
-  let total = 0;
-  for (const line of lines) {
-    if (line.amountCents === null) {
-      return null;
-    }
-    total += line.amountCents;
+  if (lines.some((line) => line.amountCents === null)) {
+    return null;
   }
-  return total;
+  return lines.reduce((sum, line) => sum + (line.amountCents ?? 0), 0);
+}
+
+// A subscription that never got its first payment (incomplete) isn't a real
+// signup and isn't in MRR, so it shouldn't appear as a "new" subscriber.
+const NEVER_PAID_SUBSCRIPTION_STATUSES: ReadonlySet<string> = new Set([
+  "incomplete",
+  "incomplete_expired",
+]);
+
+function isNeverPaidSignup(event: StripeActivityEvent): boolean {
+  return (
+    event.kind === "new" &&
+    event.subscriptionStatus !== null &&
+    NEVER_PAID_SUBSCRIPTION_STATUSES.has(event.subscriptionStatus)
+  );
 }
 
 async function resolveEmail(
@@ -150,7 +161,7 @@ export async function buildEventRows(
   const rows: StripeEventInput[] = [];
   for (const event of events) {
     const lines = matchingLines(event, productIds);
-    if (!lines.length) {
+    if (!lines.length || isNeverPaidSignup(event)) {
       continue;
     }
     rows.push(await toEventRow(event, lines, planNames, source));

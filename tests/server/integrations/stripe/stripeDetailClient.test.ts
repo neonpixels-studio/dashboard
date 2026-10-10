@@ -16,6 +16,7 @@ function stripeEvent(
 
 const SUBSCRIPTION = {
   id: "sub_1",
+  status: "active",
   currency: "usd",
   customer: "cus_1",
   items: {
@@ -54,6 +55,7 @@ describe("toActivityEvent", () => {
       occurredAt: 1_790_000_000,
       objectId: "sub_1",
       currency: "usd",
+      subscriptionStatus: "active",
       customerId: "cus_1",
       customerEmail: null,
       lines: [
@@ -96,6 +98,7 @@ describe("toActivityEvent", () => {
       occurredAt: 1_790_000_000,
       objectId: "in_1",
       currency: "usd",
+      subscriptionStatus: null,
       customerId: "cus_2",
       customerEmail: "robert@proton.me",
       lines: [{ productId: "prod_pro", amountCents: 400 }],

@@ -20,6 +20,7 @@ function activityEvent(
     occurredAt: 1_790_000_000,
     objectId: "sub_1",
     currency: "usd",
+    subscriptionStatus: "active",
     customerId: "cus_1",
     customerEmail: null,
     lines: [{ productId: "prod_pro", amountCents: 400 }],
@@ -228,6 +229,41 @@ describe("buildEventRows", () => {
     );
 
     expect(maxInFlight).toBe(1);
+  });
+
+  it.each(["incomplete", "incomplete_expired"])(
+    "drops a new-subscription event that never got its first payment (%s)",
+    async (subscriptionStatus) => {
+      const getCustomerEmail = vi.fn();
+
+      const rows = await buildEventRows(
+        [activityEvent({ subscriptionStatus })],
+        PRODUCT_IDS,
+        PLAN_NAMES,
+        { getCustomerEmail },
+      );
+
+      expect(rows).toEqual([]);
+      expect(getCustomerEmail).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps a trialing signup and a canceled incomplete subscription's cancellation", async () => {
+    const rows = await buildEventRows(
+      [
+        activityEvent({ id: "evt_trial", subscriptionStatus: "trialing" }),
+        activityEvent({
+          id: "evt_cancel",
+          kind: "canceled",
+          subscriptionStatus: "incomplete_expired",
+        }),
+      ],
+      PRODUCT_IDS,
+      PLAN_NAMES,
+      { getCustomerEmail: vi.fn(async () => null) },
+    );
+
+    expect(rows.map((row) => row.eventId)).toEqual(["evt_trial", "evt_cancel"]);
   });
 
   it("fails loud on a non-USD event rather than showing the wrong currency", async () => {
