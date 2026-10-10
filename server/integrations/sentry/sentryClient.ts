@@ -175,7 +175,7 @@ function waitForRetry(
       deadline,
       projectSlug,
       waitSignal.reason,
-    );
+    ) ?? waitSignal.reason;
 
   return new Promise((resolve, reject) => {
     if (waitSignal.aborted) {

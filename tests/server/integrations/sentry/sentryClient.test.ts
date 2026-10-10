@@ -391,7 +391,7 @@ describe("createSentryIssueSearcher", () => {
       const resultPromise = search(
         createSentryIssueSearcher("token_abc", "acme", fetchStub, {
           signal: deadlineController.signal,
-          remainingMs: () => 0,
+          remainingMs: () => 60_000,
         }),
       );
       const assertion = expect(resultPromise).rejects.toThrow(
@@ -514,6 +514,27 @@ describe("createSentryIssueSearcher", () => {
       );
 
       await vi.advanceTimersByTimeAsync(999);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("prefers a valid Retry-After over a valid reset header", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-10T12:00:00.000Z"));
+      const fetchStub = buildSequencedFetch([
+        rateLimited({
+          "retry-after": "0.5",
+          "x-sentry-rate-limit-reset": String(Date.now() / 1000 + 1.5),
+        }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(499);
       expect(fetchStub).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
       await resultPromise;
