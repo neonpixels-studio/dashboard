@@ -115,6 +115,9 @@ describe("fetchDevtoSyndication", () => {
         syncedAt: new Date("2026-09-01T12:05:00Z"),
         views: 42,
         externalId: null,
+        url: "https://dev.to/grimicorn/shipping-a-nuxt-dashboard-4p6a",
+        likes: 5,
+        comments: 2,
       },
       {
         platform: "devto",
@@ -124,6 +127,10 @@ describe("fetchDevtoSyndication", () => {
         syncedAt: new Date("2026-08-15T09:35:00Z"),
         views: 7,
         externalId: null,
+        url: "https://dev.to/grimicorn/landscape-photography-in-iceland-bdd",
+        // dev.to reports a real zero, which is kept.
+        likes: 0,
+        comments: 0,
       },
     ]);
   });

@@ -2,8 +2,8 @@
 // SyndicationPostMatrix's props, plus the two writing-template metric tiles
 // derived from the same data (issue #20). `syndication_post` has no title
 // column, so SyndicationPostMatrix's `posts[].title` renders the row's own
-// `postRef`. Per-platform views render only where the platform reported them
-// (null for Medium), never as an invented zero.
+// `postRef`. Per-platform views, likes and comments render only where the
+// platform reported them, never as an invented zero.
 import type { SyndicationMatrixRow } from "#shared/types/dashboard";
 import { formatCount } from "./rollupFormat";
 
@@ -14,8 +14,12 @@ interface StatusView {
   tone: SyndicationCellTone;
 }
 
-interface CellView extends StatusView {
+export interface SyndicationMatrixCellView extends StatusView {
   views: string | null;
+  likes: string | null;
+  comments: string | null;
+  // Only a LIVE cell links out, and only when the platform gave a URL.
+  url: string | null;
 }
 
 const STATUS_VIEWS: Record<
@@ -31,14 +35,40 @@ const STATUS_VIEWS: Record<
 // at all (syndicationMatrixForApp only ever groups the rows a post DOES
 // have) — distinct from a "failed" attempt, so it gets its own tone rather
 // than being folded into one of the three real statuses.
-const NOT_POSTED_VIEW: CellView = {
+const NOT_POSTED_VIEW: SyndicationMatrixCellView = {
   label: "— NOT POSTED",
   tone: "off",
   views: null,
+  likes: null,
+  comments: null,
+  url: null,
 };
+
+// danholloran.me serves every post at /posts/<slug>, the same slug the
+// matrix row's postRef carries.
+const CANONICAL_POST_PATH = "/posts/";
 
 function formatViews(views: number | null): string | null {
   return views === null ? null : `${formatCount(views)} views`;
+}
+
+function formatEngagement(
+  count: number | null,
+  singular: string,
+  plural: string,
+): string | null {
+  if (count === null) {
+    return null;
+  }
+  return `${formatCount(count)} ${count === 1 ? singular : plural}`;
+}
+
+function liveUrl(cell: SyndicationMatrixRow["cells"][number]): string | null {
+  return cell.status === "synced" ? cell.url : null;
+}
+
+function canonicalPostUrl(baseUrl: string, postRef: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}${CANONICAL_POST_PATH}${encodeURIComponent(postRef)}`;
 }
 
 // Flattens every row's cells into one list — the shared starting point for
@@ -58,15 +88,18 @@ export function syndicationPlatforms(rows: SyndicationMatrixRow[]): string[] {
 
 export interface SyndicationMatrixPostView {
   title: string;
-  cells: CellView[];
+  url: string;
+  cells: SyndicationMatrixCellView[];
 }
 
 export function syndicationMatrixPosts(
   rows: SyndicationMatrixRow[],
   platforms: string[],
+  canonicalBaseUrl: string,
 ): SyndicationMatrixPostView[] {
   return rows.map((row) => ({
     title: row.postRef,
+    url: canonicalPostUrl(canonicalBaseUrl, row.postRef),
     cells: platforms.map((platform) => {
       const cell = row.cells.find(
         (candidate) => candidate.platform === platform,
@@ -79,7 +112,13 @@ export function syndicationMatrixPosts(
       if (!cell || !statusView) {
         return NOT_POSTED_VIEW;
       }
-      return { ...statusView, views: formatViews(cell.views) };
+      return {
+        ...statusView,
+        views: formatViews(cell.views),
+        likes: formatEngagement(cell.likes, "like", "likes"),
+        comments: formatEngagement(cell.comments, "comment", "comments"),
+        url: liveUrl(cell),
+      };
     }),
   }));
 }

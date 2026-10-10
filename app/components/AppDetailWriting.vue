@@ -78,7 +78,7 @@ const props = defineProps<AppDetailTemplateProps>();
 const syndicationRows = computed(() => props.app.detail?.syndication ?? []);
 const platforms = computed(() => syndicationPlatforms(syndicationRows.value));
 const posts = computed(() =>
-  syndicationMatrixPosts(syndicationRows.value, platforms.value),
+  syndicationMatrixPosts(syndicationRows.value, platforms.value, props.app.url),
 );
 
 const platformsMeta = computed(() =>

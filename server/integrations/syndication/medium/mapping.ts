@@ -1,5 +1,9 @@
 import { assertValidDate } from "../dates";
-import type { SyndicationSourcePost } from "../types";
+import {
+  reportedCount,
+  reportedEngagement,
+  type SyndicationSourcePost,
+} from "../types";
 import type { MediumArticleInfo } from "./types";
 
 // Medium's own unique_slug carries a trailing per-article hash Hashnode/
@@ -67,10 +71,11 @@ export function toSyndicationSourcePost(
     postRef: toPostRef(info.unique_slug),
     publishedAt,
     externalId: info.id,
-    ...(isViewCount(info.views) ? { views: info.views } : {}),
+    ...reportedCount("views", info.views),
+    ...reportedEngagement({
+      url: info.url,
+      likes: info.claps,
+      comments: info.responses_count,
+    }),
   };
-}
-
-function isViewCount(views: unknown): views is number {
-  return typeof views === "number" && Number.isInteger(views) && views >= 0;
 }

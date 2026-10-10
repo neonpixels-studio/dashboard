@@ -3,12 +3,18 @@
     "id": 501,
     "slug": "shipping-a-nuxt-dashboard-4p6a",
     "published_at": "2026-09-01T12:05:00Z",
-    "page_views_count": 42
+    "page_views_count": 42,
+    "url": "https://dev.to/grimicorn/shipping-a-nuxt-dashboard-4p6a",
+    "public_reactions_count": 5,
+    "comments_count": 2
   },
   {
     "id": 502,
     "slug": "landscape-photography-in-iceland-bdd",
     "published_at": "2026-08-15T09:35:00Z",
-    "page_views_count": 7
+    "page_views_count": 7,
+    "url": "https://dev.to/grimicorn/landscape-photography-in-iceland-bdd",
+    "public_reactions_count": 0,
+    "comments_count": 0
   }
 ]

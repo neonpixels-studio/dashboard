@@ -64,6 +64,9 @@ export function buildSyndicationResult(
       syncedAt: post.publishedAt,
       views: post.views ?? null,
       externalId: post.externalId ?? null,
+      url: post.url ?? null,
+      likes: post.likes ?? null,
+      comments: post.comments ?? null,
       fetchedAt: capturedAt,
     })),
   };

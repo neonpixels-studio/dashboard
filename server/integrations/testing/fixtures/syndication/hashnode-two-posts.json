@@ -3,12 +3,18 @@
     {
       "id": "hn_1",
       "slug": "shipping-a-nuxt-dashboard",
-      "publishedAt": "2026-09-01T12:00:00.000Z"
+      "publishedAt": "2026-09-01T12:00:00.000Z",
+      "url": "https://danholloran.hashnode.dev/shipping-a-nuxt-dashboard",
+      "reactionCount": 3,
+      "responseCount": 1
     },
     {
       "id": "hn_2",
       "slug": "landscape-photography-in-iceland",
-      "publishedAt": "2026-08-15T09:30:00.000Z"
+      "publishedAt": "2026-08-15T09:30:00.000Z",
+      "url": "https://danholloran.hashnode.dev/landscape-photography-in-iceland",
+      "reactionCount": 0,
+      "responseCount": 0
     }
   ],
   "hasNextPage": false,

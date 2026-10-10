@@ -233,6 +233,13 @@ export const syndicationPost = pgTable(
     // the stalest rows first once its backfill is done, since each sync can
     // only afford to fetch a couple of articles.
     fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+    // The platform's own public URL for this post. Null when the platform's
+    // response carried none, so the matrix never links to a guessed address.
+    url: text("url"),
+    // Likes/reactions/claps and comment/response counts as last reported by
+    // the platform. Null when it doesn't report one, never a fabricated zero.
+    likes: integer("likes"),
+    comments: integer("comments"),
   },
   (table) => [
     uniqueIndex("syndication_post_slug_platform_post_ref_idx").on(

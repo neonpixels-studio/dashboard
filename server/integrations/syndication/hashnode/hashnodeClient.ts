@@ -30,6 +30,9 @@ const POSTS_QUERY = `
             id
             slug
             publishedAt
+            url
+            reactionCount
+            responseCount
           }
         }
       }

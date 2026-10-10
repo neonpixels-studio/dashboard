@@ -1,5 +1,5 @@
 import { assertValidDate } from "../dates";
-import type { SyndicationSourcePost } from "../types";
+import { reportedEngagement, type SyndicationSourcePost } from "../types";
 import type { HashnodePostNode } from "./types";
 
 /**
@@ -17,5 +17,13 @@ export function toSyndicationSourcePost(
       `Hashnode post "${node.id}" has an unparseable publishedAt value: "${node.publishedAt}".`,
   );
 
-  return { postRef: node.slug, publishedAt };
+  return {
+    postRef: node.slug,
+    publishedAt,
+    ...reportedEngagement({
+      url: node.url,
+      likes: node.reactionCount,
+      comments: node.responseCount,
+    }),
+  };
 }

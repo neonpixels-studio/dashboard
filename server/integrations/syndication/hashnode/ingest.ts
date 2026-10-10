@@ -1,7 +1,13 @@
 import type { ProviderResult } from "../../types";
 import { assertValidDate } from "../dates";
 import { buildSyndicationResult } from "../normalize";
-import type { SyndicationSourcePost } from "../types";
+import {
+  isHttpUrl,
+  isReportedCount,
+  reportedCount,
+  reportedEngagement,
+  type SyndicationSourcePost,
+} from "../types";
 
 // Hashnode's blog and its GraphQL API are both unreachable server-side
 // (Cloudflare challenge, paid API), so a logged-in browser on the Mac Mini
@@ -21,6 +27,11 @@ export interface HashnodeIngestPost {
   slug: string;
   publishedAt: string;
   views: number;
+  // Optional so an older scraper that only sends views keeps working; an
+  // omitted field shows nothing in the matrix.
+  url?: string;
+  likes?: number;
+  comments?: number;
 }
 
 export interface HashnodeIngestPayload {
@@ -56,7 +67,38 @@ function parsePost(value: unknown, index: number): HashnodeIngestPost {
   if (typeof views !== "number" || !Number.isInteger(views) || views < 0) {
     fail(`${field}.views must be a non-negative integer.`);
   }
-  return { slug, publishedAt, views };
+  return {
+    slug,
+    publishedAt,
+    views,
+    ...parseOptionalUrl(value.url, `${field}.url`),
+    ...parseOptionalCount("likes", value.likes, field),
+    ...parseOptionalCount("comments", value.comments, field),
+  };
+}
+
+function parseOptionalUrl(value: unknown, field: string): { url?: string } {
+  if (value === undefined) {
+    return {};
+  }
+  if (!isHttpUrl(value)) {
+    fail(`${field} must be an http(s) URL.`);
+  }
+  return { url: value };
+}
+
+function parseOptionalCount<Key extends "likes" | "comments">(
+  key: Key,
+  value: unknown,
+  field: string,
+): Partial<Record<Key, number>> {
+  if (value === undefined) {
+    return {};
+  }
+  if (!isReportedCount(value)) {
+    fail(`${field}.${key} must be a non-negative integer.`);
+  }
+  return reportedCount(key, value);
 }
 
 function assertUniqueSlugs(posts: HashnodeIngestPost[]): void {
@@ -103,7 +145,12 @@ function toSyndicationSourcePost(
     () =>
       `Hashnode post "${post.slug}" has an unparseable publishedAt value: "${post.publishedAt}".`,
   );
-  return { postRef: post.slug, publishedAt, views: post.views };
+  return {
+    postRef: post.slug,
+    publishedAt,
+    views: post.views,
+    ...reportedEngagement(post),
+  };
 }
 
 export function toHashnodeProviderResult(

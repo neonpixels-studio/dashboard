@@ -127,6 +127,9 @@ describe("fetchZyvopSyndication", () => {
         syncedAt: new Date("2026-10-09T10:13:07.261Z"),
         views: 3,
         externalId: null,
+        url: "https://zyvop.com/p/map-getorinsert-stop-writing-the-has-get-set-dance-446os",
+        likes: 4,
+        comments: 1,
       },
       {
         platform: "zyvop",
@@ -137,6 +140,10 @@ describe("fetchZyvopSyndication", () => {
         syncedAt: new Date("2026-10-06T10:13:01.440Z"),
         views: 10,
         externalId: null,
+        // This fixture post carries no engagement fields: null, never zero.
+        url: null,
+        likes: null,
+        comments: null,
       },
     ]);
   });

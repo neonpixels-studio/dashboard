@@ -28,6 +28,40 @@ describe("toSyndicationSourcePost (zyvop)", () => {
     });
   });
 
+  it("carries url, likes and comments when the tool returns them", () => {
+    const post = toSyndicationSourcePost({
+      id: "c4a1ea6f-e480-46ce-91bd-388d319b6e8b",
+      slug: "shipping-a-nuxt-dashboard-b0wvr",
+      publishedAt: "2026-10-09T10:13:07.261Z",
+      views: 3,
+      url: "https://zyvop.com/p/shipping-a-nuxt-dashboard-b0wvr",
+      likes: 0,
+      comments: 2,
+    });
+
+    expect(post).toMatchObject({
+      url: "https://zyvop.com/p/shipping-a-nuxt-dashboard-b0wvr",
+      likes: 0,
+      comments: 2,
+    });
+  });
+
+  it("omits malformed url, likes and comments", () => {
+    const post = toSyndicationSourcePost({
+      id: "x",
+      slug: "shipping-a-nuxt-dashboard-b0wvr",
+      publishedAt: "2026-10-09T10:13:07.261Z",
+      views: 3,
+      url: "/relative/path",
+      likes: 1.5,
+      comments: -1,
+    });
+
+    expect(post).not.toHaveProperty("url");
+    expect(post).not.toHaveProperty("likes");
+    expect(post).not.toHaveProperty("comments");
+  });
+
   it("throws instead of producing an Invalid Date for an unparseable publishedAt", () => {
     expect(() =>
       toSyndicationSourcePost({

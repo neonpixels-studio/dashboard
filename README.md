@@ -220,7 +220,10 @@ Reads post counts + per-post cross-post status for the writing template
 (danholloran; the only app with `template: "writing"` in
 `app/config/apps.ts`) — see `server/integrations/syndication`. Publishing
 itself happens outside this app; these providers only read what's already
-live on each platform. One shared account per platform (no per-slug env var
+live on each platform. Each also stores the post's platform URL plus likes
+(reactions/claps) and comment counts where the response carries them, which
+the writing template's matrix shows as links and counts; a platform that
+doesn't report one shows nothing for it, never a zero. One shared account per platform (no per-slug env var
 suffix, since there's only one writing-template app today).
 
 - **Hashnode** — <https://hashnode.com/settings/developer> → generate a
@@ -234,7 +237,8 @@ suffix, since there's only one writing-template app today).
   posts and views to `POST /api/ingest/hashnode` instead, with
   `Authorization: Bearer $NUXT_HASHNODE_INGEST_SECRET` and a body of
   `{ "app": "danholloran", "posts": [{ "slug", "publishedAt", "views" }] }`.
-  `posts` must be the full list. The row must exist (it can stay disabled).
+  Each post may also carry optional `url`, `likes` and `comments`; omit what
+  the scraper can't read. `posts` must be the full list. The row must exist (it can stay disabled).
 - **DEV.to** — <https://dev.to/settings/extensions> → DEV API Keys → Generate
   API Key (`NUXT_DEVTO_API_KEY`). No separate publication id: the key alone
   identifies the account. Per-article views come from `page_views_count`.

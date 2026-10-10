@@ -1,3 +1,4 @@
+import type { SyndicationMatrixPostView } from "../../app/utils/syndicationMatrix";
 import { describe, expect, it, vi } from "vitest";
 import AppDetailWriting from "../../app/components/AppDetailWriting.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
@@ -59,25 +60,42 @@ const LOADED_DETAIL = appDetailFixture({
           status: "synced",
           syncedAt: "2026-09-19T00:00:00.000Z",
           views: null,
+          url: null,
+          likes: null,
+          comments: null,
         },
         {
           platform: "hashnode",
           status: "synced",
           syncedAt: "2026-09-19T00:00:00.000Z",
           views: 4321,
+          url: null,
+          likes: null,
+          comments: null,
         },
         {
           platform: "zyvop",
           status: "failed",
           syncedAt: "2026-09-18T00:00:00.000Z",
           views: 0,
+          url: null,
+          likes: null,
+          comments: null,
         },
       ],
     },
     {
       postRef: "missouri-ozarks",
       cells: [
-        { platform: "medium", status: "pending", syncedAt: null, views: null },
+        {
+          platform: "medium",
+          status: "pending",
+          syncedAt: null,
+          views: null,
+          url: null,
+          likes: null,
+          comments: null,
+        },
       ],
     },
   ],
@@ -161,6 +179,9 @@ describe("AppDetailWriting", () => {
               status: "synced",
               syncedAt: "2026-09-19T00:00:00.000Z",
               views: null,
+              url: null,
+              likes: null,
+              comments: null,
             },
           ],
         },
@@ -190,12 +211,10 @@ describe("AppDetailWriting", () => {
     const wrapper = mountDetail({ detail: LOADED_DETAIL });
     const posts = wrapper
       .findComponent(SyndicationPostMatrix)
-      .props("posts") as {
-      title: string;
-      cells: { label: string; tone: string; views: string | null }[];
-    }[];
+      .props("posts") as SyndicationMatrixPostView[];
     expect(posts).toHaveLength(2);
     expect(posts[0]!.title).toBe("shipping-a-nuxt-site");
+    expect(posts[0]!.url).toBe(`${app.url}/posts/shipping-a-nuxt-site`);
     // Column order matches platforms: hashnode, medium, zyvop.
     expect(posts[0]!.cells.map((cell) => cell.tone)).toEqual([
       "live",

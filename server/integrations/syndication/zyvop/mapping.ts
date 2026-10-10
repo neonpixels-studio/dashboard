@@ -1,5 +1,5 @@
 import { assertValidDate } from "../dates";
-import type { SyndicationSourcePost } from "../types";
+import { reportedEngagement, type SyndicationSourcePost } from "../types";
 import type { ZyvopPost } from "./types";
 
 // ZyVOP appends a random 5-character base36 suffix to every slug (e.g.
@@ -22,5 +22,10 @@ export function toSyndicationSourcePost(
       `ZyVOP post ${post.id} has an unparseable publishedAt value: "${post.publishedAt}".`,
   );
 
-  return { postRef: toPostRef(post.slug), publishedAt, views: post.views };
+  return {
+    postRef: toPostRef(post.slug),
+    publishedAt,
+    views: post.views,
+    ...reportedEngagement(post),
+  };
 }
