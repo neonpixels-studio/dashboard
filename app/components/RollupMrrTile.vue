@@ -26,6 +26,8 @@
 </template>
 
 <script setup lang="ts">
+import type { OverviewRangeDays } from "#shared/constants/overviewRange";
+
 // The "/" rollup grid's MRR tile — split out of index.vue (issue #18) purely
 // to keep that page's template small; every value here is a plain prop, no
 // data fetching or shaping happens in this component.
@@ -35,6 +37,6 @@ defineProps<{
   deltaTone: "ok" | "muted";
   hasSparkline: boolean;
   sparklinePath: string;
-  rangeDays: number;
+  rangeDays: OverviewRangeDays;
 }>();
 </script>

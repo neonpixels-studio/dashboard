@@ -6,7 +6,10 @@ import type { MetricSnapshotRow } from "../../../server/utils/dashboardQueries";
 // getQuery needs a real H3 event; every test here passes a bare `{}`, so the
 // query is stubbed per test (default: no query string at all).
 const mockGetQuery = vi.fn();
-vi.mock("h3", () => ({ getQuery: mockGetQuery }));
+vi.mock("h3", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("h3")>()),
+  getQuery: mockGetQuery,
+}));
 
 const mockRequireUser = vi.fn();
 vi.mock("../../../server/utils/auth", () => ({ requireUser: mockRequireUser }));

@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 
 const mockGetQuery = vi.fn();
-vi.mock("h3", () => ({ getQuery: mockGetQuery }));
+vi.mock("h3", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("h3")>()),
+  getQuery: mockGetQuery,
+}));
 
 const { readOverviewRange } =
   await import("../../../server/utils/overviewRange");
