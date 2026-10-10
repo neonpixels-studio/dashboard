@@ -33,7 +33,7 @@ export const TRAFFIC_PANEL_VIEWBOX_HEIGHT = 150;
 
 // Real traffic_breakdown rows, sorted largest share first, for
 // TrafficPanel's "TRAFFIC SOURCES" list (below).
-export function buildTrafficSourceItems(
+function buildTrafficSourceItems(
   trafficBreakdown: TrafficChannelSplit[],
 ): { label: string; value: string }[] {
   return [...trafficBreakdown]
