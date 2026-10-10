@@ -15,6 +15,7 @@ import {
   mountDetailTemplate,
   type MountDetailOptions,
 } from "./support/mountDetailTemplate";
+import { expectGa4Links } from "../support/ga4Links";
 import { appDetailFixture } from "../support/appDetailFixture";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
@@ -233,14 +234,7 @@ describe("AppDetailProduct", () => {
     const wrapper = mountDetail({
       detail: appDetailFixture({ ga4PropertyId: "412345678" }),
     });
-    const links = wrapper.findAll("a.ga4-view-link");
-    expect(links.length).toBeGreaterThan(0);
-    for (const link of links) {
-      expect(link.attributes("href")).toBe(
-        "https://analytics.google.com/analytics/web/#/p412345678/reports/intelligenthome",
-      );
-      expect(link.attributes("target")).toBe("_blank");
-    }
+    expectGa4Links(wrapper, 2);
   });
 
   it("omits the GA4 link when no property id is configured", () => {
