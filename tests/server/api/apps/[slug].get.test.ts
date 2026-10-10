@@ -14,6 +14,8 @@ const mockFetchLatestTrafficBreakdowns = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
 const mockFetchIntegrationConfigs = vi.fn();
 const mockFetchSyndicationPosts = vi.fn();
+const mockFetchStripePlanRevenue = vi.fn();
+const mockFetchRecentStripeEvents = vi.fn();
 vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
   fetchMetricSnapshotSeries: mockFetchMetricSnapshotSeries,
@@ -21,6 +23,8 @@ vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchSyncStatuses: mockFetchSyncStatuses,
   fetchIntegrationConfigs: mockFetchIntegrationConfigs,
   fetchSyndicationPosts: mockFetchSyndicationPosts,
+  fetchStripePlanRevenue: mockFetchStripePlanRevenue,
+  fetchRecentStripeEvents: mockFetchRecentStripeEvents,
 }));
 
 const { default: appDetailHandler } =
@@ -39,6 +43,8 @@ describe("GET /api/apps/[slug]", () => {
     mockFetchSyncStatuses.mockResolvedValue([]);
     mockFetchIntegrationConfigs.mockResolvedValue([]);
     mockFetchSyndicationPosts.mockResolvedValue([]);
+    mockFetchStripePlanRevenue.mockResolvedValue([]);
+    mockFetchRecentStripeEvents.mockResolvedValue([]);
   });
 
   it("requires auth before touching the database", async () => {
@@ -77,6 +83,7 @@ describe("GET /api/apps/[slug]", () => {
       syndication: [],
       alerts: [],
       sources: [],
+      stripe: null,
       lastSyncedAt: null,
     });
   });
@@ -92,6 +99,83 @@ describe("GET /api/apps/[slug]", () => {
     expect(mockFetchSyncStatuses).toHaveBeenCalledWith({}, ["basin"]);
     expect(mockFetchIntegrationConfigs).toHaveBeenCalledWith({}, ["basin"]);
     expect(mockFetchSyndicationPosts).toHaveBeenCalledWith({}, "basin");
+    expect(mockFetchStripePlanRevenue).toHaveBeenCalledWith({}, "basin");
+    expect(mockFetchRecentStripeEvents).toHaveBeenCalledWith({}, "basin");
+  });
+
+  describe("stripe detail", () => {
+    const STRIPE_CONFIG = {
+      id: 1,
+      slug: "basin",
+      vendor: "stripe",
+      enabled: true,
+      externalId: "prod_pro",
+      secretRef: "NUXT_STRIPE_SECRET_KEY",
+      encryptedSecret: null,
+      lastAttemptAt: null,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+
+    beforeEach(() => {
+      mockFetchIntegrationConfigs.mockResolvedValue([STRIPE_CONFIG]);
+      mockFetchStripePlanRevenue.mockResolvedValue([
+        {
+          id: 1,
+          slug: "basin",
+          productId: "prod_pro",
+          planName: "Pro",
+          monthlyRevenue: 312,
+          subscribers: 78,
+          capturedAt: new Date("2026-09-19T00:00:00Z"),
+        },
+      ]);
+    });
+
+    it("tags the panel development and links test-mode Stripe pages for a test key", async () => {
+      vi.stubEnv("NUXT_STRIPE_SECRET_KEY", "sk_test_abc");
+      mockFetchRecentStripeEvents.mockResolvedValue([
+        {
+          id: 1,
+          slug: "basin",
+          eventId: "evt_1",
+          kind: "new",
+          occurredAt: new Date("2026-09-19T10:00:00Z"),
+          emailMasked: "m••••a@hey.com",
+          planName: "Pro",
+          amountCents: 400,
+          objectId: "sub_1",
+        },
+      ]);
+
+      const result = await appDetailHandler(makeEvent("basin"));
+
+      expect(result.stripe).toMatchObject({
+        environment: "development",
+        dashboardUrl: "https://dashboard.stripe.com/test/products/prod_pro",
+        plans: [{ plan: "Pro", monthlyRevenue: 312 }],
+        events: [
+          {
+            email: "m••••a@hey.com",
+            amount: 4,
+            url: "https://dashboard.stripe.com/test/subscriptions/sub_1",
+          },
+        ],
+      });
+      vi.unstubAllEnvs();
+    });
+
+    it("uses live-mode links and a production environment for a live key", async () => {
+      vi.stubEnv("NUXT_STRIPE_SECRET_KEY", "sk_live_abc");
+
+      const result = await appDetailHandler(makeEvent("basin"));
+
+      expect(result.stripe?.environment).toBe("production");
+      expect(result.stripe?.dashboardUrl).toBe(
+        "https://dashboard.stripe.com/products/prod_pro",
+      );
+      vi.unstubAllEnvs();
+    });
   });
 
   it("surfaces a failing vendor as both an alert and a source", async () => {

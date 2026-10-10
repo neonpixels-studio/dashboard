@@ -15,6 +15,7 @@ export function appDetailFixture(
     syndication: [],
     alerts: [],
     sources: [],
+    stripe: null,
     lastSyncedAt: null,
     ...overrides,
   };

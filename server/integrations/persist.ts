@@ -7,6 +7,8 @@ import type { BatchItem } from "drizzle-orm/batch";
 import {
   integrationConfig,
   metricSnapshot,
+  stripeEvent,
+  stripePlanRevenue,
   syncStatus,
   syndicationPost,
   trafficBreakdown,
@@ -134,6 +136,29 @@ export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
     .where(eq(integrationConfig.enabled, true));
 }
 
+// Stripe's detail rows. Plan revenue is replaced wholesale (delete + insert,
+// atomic inside the caller's db.batch) so a plan with no subscribers left
+// disappears; events are insert-if-new on the Stripe event id, so re-fetching
+// the same 30-day window is a no-op for rows already stored.
+function stripeDetailWrites(
+  db: DrizzleDb,
+  slug: string,
+  detail: NonNullable<ProviderResult["stripeDetail"]>,
+) {
+  const planRows = withSlug(detail.planRevenue, slug);
+  const eventRows = dedupeByConflictKey(
+    withSlug(detail.events, slug),
+    (eventRow) => [eventRow.slug, eventRow.eventId],
+  );
+  return [
+    db.delete(stripePlanRevenue).where(eq(stripePlanRevenue.slug, slug)),
+    ...(planRows.length ? [db.insert(stripePlanRevenue).values(planRows)] : []),
+    ...(eventRows.length
+      ? [db.insert(stripeEvent).values(eventRows).onConflictDoNothing()]
+      : []),
+  ];
+}
+
 // Every row a provider's fetch() returned, stamped with the slug the
 // orchestrator already knows (see types.ts's *Input types), written as one
 // batched request. server/db/index.ts's neon-http driver has no interactive
@@ -226,6 +251,9 @@ export function persistProviderResult(
               },
             }),
         ]
+      : []),
+    ...(result.stripeDetail
+      ? stripeDetailWrites(db, row.slug, result.stripeDetail)
       : []),
   ];
 

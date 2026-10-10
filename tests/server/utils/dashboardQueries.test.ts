@@ -12,6 +12,9 @@ import {
   fetchSyncStatuses,
   fetchSyndicationFetchedAtByExternalId,
   fetchSyndicationPosts,
+  fetchRecentStripeEvents,
+  fetchStripePlanRevenue,
+  RECENT_STRIPE_EVENT_LIMIT,
   seriesWindowStart,
   SERIES_WINDOW_DAYS,
 } from "../../../server/utils/dashboardQueries";
@@ -280,6 +283,31 @@ describe("fetchSyndicationPosts", () => {
     const { db, where } = createOrderedFakeDb(rows);
     await expect(fetchSyndicationPosts(db, "basin")).resolves.toEqual(rows);
     expect(where).toHaveBeenCalled();
+  });
+});
+
+describe("fetchStripePlanRevenue", () => {
+  it("returns the slug's plan rows, scoped by a slug where clause", async () => {
+    const rows = [{ id: 1, productId: "prod_pro" }];
+    const { db, where, orderBy } = createOrderedFakeDb(rows);
+
+    await expect(fetchStripePlanRevenue(db, "basin")).resolves.toEqual(rows);
+    const condition = renderSqlCondition(where.mock.calls[0]![0] as SQL);
+    expect(condition.params).toEqual(["basin"]);
+    expect(orderBy).toHaveBeenCalled();
+  });
+});
+
+describe("fetchRecentStripeEvents", () => {
+  it("returns only the newest RECENT_STRIPE_EVENT_LIMIT events for the slug", async () => {
+    const rows = [{ id: 1, eventId: "evt_1" }];
+    const { db, where, limit } = createLimitedFakeDb(rows as never);
+
+    await expect(fetchRecentStripeEvents(db, "basin")).resolves.toEqual(rows);
+    expect(renderSqlCondition(where.mock.calls[0]![0] as SQL).params).toEqual([
+      "basin",
+    ]);
+    expect(limit).toHaveBeenCalledWith(RECENT_STRIPE_EVENT_LIMIT);
   });
 });
 

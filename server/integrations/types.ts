@@ -2,6 +2,8 @@ import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
   integrationConfig,
   metricSnapshot,
+  stripeEvent,
+  stripePlanRevenue,
   syndicationPost,
   trafficBreakdown,
 } from "../db/schema";
@@ -54,6 +56,18 @@ export type SyndicationPostInput = Omit<
   "id" | "slug"
 >;
 
+// Stripe-only detail rows (the money panel's revenue-by-plan and recent
+// events). `slug` is stamped by the orchestrator like the inputs above;
+// `capturedAt` is left to the column default.
+export type StripePlanRevenueInput = Omit<
+  InferInsertModel<typeof stripePlanRevenue>,
+  "id" | "slug" | "capturedAt"
+>;
+export type StripeEventInput = Omit<
+  InferInsertModel<typeof stripeEvent>,
+  "id" | "slug"
+>;
+
 // Normalized shape every provider returns, regardless of vendor. The
 // orchestrator maps each array onto its matching table and stamps `slug` on
 // the way in. A provider that doesn't produce a given kind of data (e.g. a
@@ -62,6 +76,14 @@ export interface ProviderResult {
   metrics: MetricSnapshotInput[];
   trafficBreakdown: TrafficBreakdownInput[];
   syndicationPosts: SyndicationPostInput[];
+  // Present only when the Stripe provider ran a real detail fetch. When
+  // present, `planRevenue` REPLACES the app's stored plan rows (an empty list
+  // means "no active subscriptions", not "nothing fetched"); when absent the
+  // stored rows are left untouched.
+  stripeDetail?: {
+    planRevenue: StripePlanRevenueInput[];
+    events: StripeEventInput[];
+  };
   // True when the provider's own guard decided no real fetch was due this
   // tick (Medium's once-per-24h rate limit). The orchestrator then records
   // the run without overwriting the last real attempt's ok/error, so a

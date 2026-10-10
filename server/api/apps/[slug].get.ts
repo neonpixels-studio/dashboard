@@ -1,13 +1,18 @@
 import { getRouterParam } from "h3";
 import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
-import { integrationEnvironments } from "../../integrations/credentialEnvironment";
+import {
+  integrationEnvironmentKey,
+  integrationEnvironments,
+} from "../../integrations/credentialEnvironment";
 import { requireUser } from "../../utils/auth";
 import {
   fetchIntegrationConfigs,
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
   fetchMetricSnapshotSeries,
+  fetchRecentStripeEvents,
+  fetchStripePlanRevenue,
   fetchSyncStatuses,
   fetchSyndicationPosts,
 } from "../../utils/dashboardQueries";
@@ -21,6 +26,7 @@ import {
   syndicationMatrixForApp,
   trafficChannelSplitForApp,
 } from "../../utils/dashboardShaping";
+import { stripeDetailForApp } from "../../utils/stripeDetailShaping";
 import type { AppDetailResponse } from "../../../shared/types/dashboard";
 
 // Detail data for one app's product/writing/marketing template, DB-backed
@@ -47,6 +53,8 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     syncRows,
     configRows,
     posts,
+    stripePlanRows,
+    stripeEventRows,
   ] = await Promise.all([
     fetchLatestMetricSnapshots(db, [slug]),
     fetchMetricSnapshotSeries(db, [slug]),
@@ -54,7 +62,10 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     fetchSyncStatuses(db, [slug]),
     fetchIntegrationConfigs(db, [slug]),
     fetchSyndicationPosts(db, slug),
+    fetchStripePlanRevenue(db, slug),
+    fetchRecentStripeEvents(db, slug),
   ]);
+  const environments = integrationEnvironments(configRows);
 
   return {
     slug,
@@ -64,10 +75,13 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),
     syndication: syndicationMatrixForApp(posts),
     alerts: alertsForApp(syncRows, configRows, slug),
-    sources: syncSourcesForApp(
-      syncRows,
+    sources: syncSourcesForApp(syncRows, slug, environments),
+    stripe: stripeDetailForApp(
+      stripePlanRows,
+      stripeEventRows,
+      configRows,
       slug,
-      integrationEnvironments(configRows),
+      environments.get(integrationEnvironmentKey(slug, "stripe")) ?? null,
     ),
     lastSyncedAt: latestSyncedAt(syncRows),
   };

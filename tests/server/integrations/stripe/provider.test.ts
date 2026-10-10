@@ -12,19 +12,27 @@ import type { StripeSubscriptionPage } from "../../../../server/integrations/str
 // fetchStripeMetrics) needs the real "stripe" package mocked — every other
 // test in this file exercises fetchStripeMetrics directly with an injected
 // ListActiveSubscriptions fake and never touches the module.
-const { mockSubscriptionsList } = vi.hoisted(() => ({
-  mockSubscriptionsList: vi.fn(),
-}));
+const { mockSubscriptionsList, mockEventsList, mockProductsRetrieve } =
+  vi.hoisted(() => ({
+    mockSubscriptionsList: vi.fn(),
+    mockEventsList: vi.fn(),
+    mockProductsRetrieve: vi.fn(),
+  }));
 vi.mock("stripe", () => ({
   default: class MockStripe {
     static API_VERSION = "mock-api-version";
     subscriptions = { list: mockSubscriptionsList };
+    events = { list: mockEventsList };
+    products = { retrieve: mockProductsRetrieve };
+    customers = { retrieve: vi.fn() };
   },
 }));
 
 afterEach(() => {
   vi.unstubAllEnvs();
   mockSubscriptionsList.mockReset();
+  mockEventsList.mockReset();
+  mockProductsRetrieve.mockReset();
 });
 
 describe("stripeProvider", () => {
@@ -46,6 +54,8 @@ describe("stripeProvider", () => {
   });
 
   it("end-to-end: builds a real Stripe client from config.secret and returns its computed metrics", async () => {
+    mockEventsList.mockResolvedValue({ data: [], has_more: false });
+    mockProductsRetrieve.mockResolvedValue({ deleted: false, name: "Core" });
     mockSubscriptionsList.mockResolvedValue({
       data: [
         {
@@ -91,6 +101,17 @@ describe("stripeProvider", () => {
     );
     const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");
     expect(mrrMetric?.value).toBe(15);
+    expect(result.stripeDetail).toEqual({
+      planRevenue: [
+        {
+          productId: "prod_basin_core",
+          planName: "Core",
+          monthlyRevenue: 15,
+          subscribers: 1,
+        },
+      ],
+      events: [],
+    });
   });
 
   it("threads a passed-in deadline through to the real Stripe client (issue #62), rather than silently ignoring it", async () => {
@@ -255,5 +276,133 @@ describe("fetchStripeMetrics", () => {
     const mrrMetric = result.metrics.find((metric) => metric.metric === "mrr");
     expect(mrrMetric?.value).toBe(30);
     expect(listActiveSubscriptions).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("fetchStripeMetrics stripe detail", () => {
+  const config = createTestIntegrationConfig({
+    slug: "basin",
+    vendor: "stripe",
+    externalId: "prod_basin_core",
+    secret: "sk_test_basin",
+  });
+  const subscriptionPage: StripeSubscriptionPage = {
+    hasMore: false,
+    data: [
+      {
+        id: "sub_1",
+        status: "active",
+        discounts: [],
+        items: {
+          data: [
+            {
+              id: "si_1",
+              quantity: 1,
+              discounts: [],
+              price: {
+                id: "price_1",
+                unitAmount: 400,
+                currency: "usd",
+                product: "prod_basin_core",
+                recurring: { interval: "month", intervalCount: 1 },
+              },
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  it("omits stripeDetail entirely when no detail source is given", async () => {
+    const result = await fetchStripeMetrics(
+      config,
+      async () => subscriptionPage,
+    );
+
+    expect(result).not.toHaveProperty("stripeDetail");
+  });
+
+  it("returns plan revenue and masked, product-scoped events when a detail source is given", async () => {
+    const detailSource = {
+      getProductName: vi.fn(async () => "Pro"),
+      getCustomerEmail: vi.fn(async () => "maria@hey.com"),
+      listActivityEvents: vi.fn(async () => ({
+        hasMore: false,
+        data: [
+          {
+            id: "evt_mine",
+            kind: "new" as const,
+            occurredAt: 1_790_000_000,
+            objectId: "sub_1",
+            currency: "usd",
+            customerId: "cus_1",
+            customerEmail: null,
+            lines: [{ productId: "prod_basin_core", amountCents: 400 }],
+          },
+          {
+            id: "evt_other_app",
+            kind: "new" as const,
+            occurredAt: 1_790_000_100,
+            objectId: "sub_2",
+            currency: "usd",
+            customerId: "cus_2",
+            customerEmail: null,
+            lines: [{ productId: "prod_markpost", amountCents: 900 }],
+          },
+        ],
+      })),
+    };
+
+    const result = await fetchStripeMetrics(
+      config,
+      async () => subscriptionPage,
+      detailSource,
+    );
+
+    expect(result.stripeDetail?.planRevenue).toEqual([
+      {
+        productId: "prod_basin_core",
+        planName: "Pro",
+        monthlyRevenue: 4,
+        subscribers: 1,
+      },
+    ]);
+    expect(result.stripeDetail?.events).toHaveLength(1);
+    expect(result.stripeDetail?.events[0]).toMatchObject({
+      eventId: "evt_mine",
+      emailMasked: "m••••a@hey.com",
+      planName: "Pro",
+    });
+    expect(detailSource.getCustomerEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns an empty (not omitted) detail for an app with a source but no subscriptions or events", async () => {
+    const result = await fetchStripeMetrics(
+      config,
+      async () => ({ data: [], hasMore: false }),
+      {
+        getProductName: async () => "Pro",
+        getCustomerEmail: async () => null,
+        listActivityEvents: async () => ({ data: [], hasMore: false }),
+      },
+    );
+
+    expect(result.stripeDetail).toEqual({ planRevenue: [], events: [] });
+  });
+
+  it("does not build detail for an unconfigured app", async () => {
+    const listActivityEvents = vi.fn();
+    const result = await fetchStripeMetrics(
+      createTestIntegrationConfig({ vendor: "stripe", externalId: null }),
+      vi.fn(),
+      {
+        getProductName: vi.fn(),
+        getCustomerEmail: vi.fn(),
+        listActivityEvents,
+      },
+    );
+
+    expect(result).not.toHaveProperty("stripeDetail");
+    expect(listActivityEvents).not.toHaveBeenCalled();
   });
 });

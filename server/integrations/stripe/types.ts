@@ -82,3 +82,45 @@ export interface StripeSubscriptionPage {
 export type ListActiveSubscriptions = (
   startingAfter?: string,
 ) => Promise<StripeSubscriptionPage>;
+
+export type StripeActivityKind = "new" | "canceled" | "payment_failed";
+
+// One priced line an activity event touched, already reduced to the product
+// it belongs to and its amount in the currency's smallest unit.
+export interface StripeActivityLine {
+  productId: string;
+  amountCents: number;
+}
+
+// A subscription-created / subscription-deleted / invoice-payment-failed
+// event, flattened from Stripe's event union. `customerEmail` is only set
+// where the event's own object carries one (invoices); subscription events
+// carry just `customerId`, resolved separately via StripeDetailSource.
+export interface StripeActivityEvent {
+  id: string;
+  kind: StripeActivityKind;
+  // Unix seconds, as Stripe reports it.
+  occurredAt: number;
+  // The subscription (sub_...) or invoice (in_...) the event is about.
+  objectId: string;
+  currency: string;
+  customerId: string | null;
+  customerEmail: string | null;
+  lines: StripeActivityLine[];
+}
+
+export interface StripeActivityPage {
+  data: StripeActivityEvent[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
+// The seam the Stripe detail logic (activity.ts, provider.ts) is tested
+// against instead of a real Stripe client, like ListActiveSubscriptions:
+// stripeDetailClient.ts builds the real, network-touching implementation.
+export interface StripeDetailSource {
+  // Newest first, restricted to the three activity event types.
+  listActivityEvents(startingAfter?: string): Promise<StripeActivityPage>;
+  getCustomerEmail(customerId: string): Promise<string | null>;
+  getProductName(productId: string): Promise<string>;
+}

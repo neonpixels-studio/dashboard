@@ -208,12 +208,16 @@ describe("AppDetailProduct", () => {
     ]);
   });
 
-  it("still renders the un-wired Stripe/Sentry/auth panels (no dedicated endpoint yet — see PR follow-up)", () => {
+  it("renders no fabricated Stripe rows when the app has no Stripe detail, while the Sentry/auth panels stay static", () => {
     const wrapper = mountDetail({ detail: LOADED_DETAIL });
-    expect(wrapper.findAll(".transaction")).toHaveLength(4);
+    expect(wrapper.find(".stripe-panel .transaction").exists()).toBe(false);
+    expect(wrapper.find(".stripe-panel .plan-bars .bar-meter").exists()).toBe(
+      false,
+    );
+    expect(wrapper.find(".stripe-panel .sample-chip").exists()).toBe(false);
     expect(wrapper.findAll(".issue")).toHaveLength(3);
     const bars = wrapper.findAllComponents(BarMeter);
-    expect(bars).toHaveLength(6);
+    expect(bars).toHaveLength(3);
     expect(bars.every((bar) => bar.props("color") === app.accent)).toBe(true);
     const labels = wrapper
       .findAllComponents(SectionLabel)

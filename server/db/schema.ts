@@ -47,6 +47,12 @@ export const integrationVendor = pgEnum("integration_vendor", [
   "zyvop",
 ]);
 
+export const stripeEventKind = pgEnum("stripe_event_kind", [
+  "new",
+  "canceled",
+  "payment_failed",
+]);
+
 export const syndicationStatus = pgEnum("syndication_status", [
   "synced",
   "pending",
@@ -239,6 +245,67 @@ export const syndicationPost = pgTable(
       table.slug,
       table.platform,
       table.postRef,
+    ),
+  ],
+);
+
+// Current MRR split by Stripe product ("plan") for one app. Replaced
+// wholesale on every Stripe sync (delete + insert in one batch), so a plan
+// that lost its last subscriber disappears instead of lingering; an app with
+// no rows has no active subscriptions, never a fabricated zero.
+export const stripePlanRevenue = pgTable(
+  "stripe_plan_revenue",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull(),
+    productId: text("product_id").notNull(),
+    planName: text("plan_name").notNull(),
+    // Dollars, same `mode: "number"` reasoning as metric_snapshot.value.
+    monthlyRevenue: numeric("monthly_revenue", {
+      precision: 15,
+      scale: 4,
+      mode: "number",
+    }).notNull(),
+    subscribers: integer("subscribers").notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("stripe_plan_revenue_slug_product_id_idx").on(
+      table.slug,
+      table.productId,
+    ),
+  ],
+);
+
+// Recent subscription events (new, canceled, payment failed) for one app,
+// keyed by the Stripe event id so re-syncing the same 30-day event window
+// never duplicates a row. The customer email is stored already masked
+// (server/integrations/stripe/activity.ts's maskEmail); the raw address never
+// reaches this table.
+export const stripeEvent = pgTable(
+  "stripe_event",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull(),
+    eventId: text("event_id").notNull(),
+    kind: stripeEventKind("kind").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    emailMasked: text("email_masked"),
+    planName: text("plan_name").notNull(),
+    // Smallest currency unit (USD cents). Null when the event carried no
+    // amount for the app's products.
+    amountCents: integer("amount_cents"),
+    // The Stripe object the event is about (sub_... or in_...), used to link
+    // the row to its dashboard page.
+    objectId: text("object_id").notNull(),
+  },
+  (table) => [
+    uniqueIndex("stripe_event_slug_event_id_idx").on(table.slug, table.eventId),
+    index("stripe_event_slug_occurred_at_idx").on(
+      table.slug,
+      table.occurredAt.desc(),
     ),
   ],
 );
