@@ -6,6 +6,7 @@ import {
   isMetricIntegrated,
   METRIC_OPEN_ISSUES,
   METRIC_POSTS,
+  METRIC_USERS,
   METRIC_MRR,
   METRIC_SESSIONS,
   PERIOD_30D,
@@ -193,7 +194,7 @@ describe("isMetricIntegrated", () => {
   });
 
   it("is false when the metric's vendor is not configured", () => {
-    expect(isMetricIntegrated("users", sentryOnly)).toBe(false);
+    expect(isMetricIntegrated(METRIC_USERS, sentryOnly)).toBe(false);
     expect(isMetricIntegrated(METRIC_OPEN_ISSUES, [])).toBe(false);
   });
 

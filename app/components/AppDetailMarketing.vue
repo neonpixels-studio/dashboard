@@ -90,9 +90,10 @@ const tiles = computed(() => {
   const metrics = props.app.detail?.metrics ?? [];
   const series = props.app.detail?.series ?? [];
   const integrations = props.app.detail?.integrations ?? [];
-  return TILE_SPECS.filter((spec) =>
+  const specs = TILE_SPECS.filter((spec) =>
     isMetricIntegrated(spec.metric, integrations),
-  ).map((spec) =>
+  );
+  return specs.map((spec) =>
     buildMetricTileData(spec.metric, spec.period, metrics, series),
   );
 });

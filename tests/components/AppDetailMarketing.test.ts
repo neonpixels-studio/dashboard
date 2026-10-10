@@ -32,7 +32,7 @@ function mountDetail(
   );
 }
 
-function INTEGRATION_HEALTH(vendor: string): IntegrationHealth {
+function integrationHealth(vendor: string): IntegrationHealth {
   return {
     vendor,
     enabled: true,
@@ -74,9 +74,9 @@ const LOADED_DETAIL = appDetailFixture({
     { channel: "organic", pct: 17 },
   ],
   integrations: [
-    INTEGRATION_HEALTH("ga4"),
-    INTEGRATION_HEALTH("clerk"),
-    INTEGRATION_HEALTH("sentry"),
+    integrationHealth("ga4"),
+    integrationHealth("clerk"),
+    integrationHealth("sentry"),
   ],
   sources: [
     {
@@ -127,7 +127,7 @@ describe("AppDetailMarketing", () => {
 
   it("omits tiles for vendors the property has no integration for", () => {
     const wrapper = mountDetail("grimicorn", {
-      detail: { ...LOADED_DETAIL, integrations: [INTEGRATION_HEALTH("ga4")] },
+      detail: { ...LOADED_DETAIL, integrations: [integrationHealth("ga4")] },
     });
     expect(
       wrapper.findAllComponents(MetricTile).map((tile) => tile.props("label")),

@@ -196,13 +196,18 @@ export function buildMetricTileData(
 // The vendor whose integration produces each metric. A metric absent from
 // this map (e.g. posts/views, written by ingest endpoints) has no single
 // integration to be missing, so its tile is always shown.
+const VENDOR_STRIPE = "stripe";
+const VENDOR_GA4 = "ga4";
+const VENDOR_CLERK = "clerk";
+const VENDOR_SENTRY = "sentry";
+
 const VENDOR_BY_METRIC: Record<string, string> = {
-  [METRIC_MRR]: "stripe",
-  [METRIC_ACTIVE_SUBSCRIBERS]: "stripe",
-  [METRIC_SESSIONS]: "ga4",
-  [METRIC_USERS]: "clerk",
-  [METRIC_NEW_USERS]: "clerk",
-  [METRIC_OPEN_ISSUES]: "sentry",
+  [METRIC_MRR]: VENDOR_STRIPE,
+  [METRIC_ACTIVE_SUBSCRIBERS]: VENDOR_STRIPE,
+  [METRIC_SESSIONS]: VENDOR_GA4,
+  [METRIC_USERS]: VENDOR_CLERK,
+  [METRIC_NEW_USERS]: VENDOR_CLERK,
+  [METRIC_OPEN_ISSUES]: VENDOR_SENTRY,
 };
 
 // False only when the metric's vendor has no integration_config row for
