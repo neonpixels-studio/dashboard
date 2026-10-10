@@ -22,6 +22,14 @@ describe("AppHeaderBand", () => {
     expect(wrapper.find(".status-chip").exists()).toBe(false);
   });
 
+  it("places the status chip in the title row, right after the heading", () => {
+    const row = mountBand({ label: "LIVE", tone: "ok" }).find(".title-row");
+    expect(row.element.children[0]!.tagName).toBe("H1");
+    expect(row.element.children[1]!.classList.contains("status-chip")).toBe(
+      true,
+    );
+  });
+
   it("renders the real status label once available", () => {
     const wrapper = mountBand({ label: "LIVE", tone: "ok" });
     expect(wrapper.find(".status-chip").text()).toBe("LIVE");

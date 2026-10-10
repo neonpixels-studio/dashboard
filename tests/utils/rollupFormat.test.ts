@@ -11,6 +11,7 @@ import {
   formatPct,
   formatPctDelta,
   formatSyncedDate,
+  isDeltaVisible,
   NO_VALUE_LABEL,
   pctGrowthDeltaTone,
 } from "../../app/utils/rollupFormat";
@@ -194,4 +195,27 @@ describe("formatSyncedDate", () => {
   it("returns null for an unparseable timestamp rather than NaN/undefined text", () => {
     expect(formatSyncedDate("not-a-real-timestamp")).toBeNull();
   });
+});
+
+describe("isDeltaVisible", () => {
+  it.each([[""], [NO_VALUE_LABEL], ["-"], ["—"], ["—  "]])(
+    "hides the empty or dash-only delta %j",
+    (delta) => {
+      expect(isDeltaVisible(delta)).toBe(false);
+    },
+  );
+
+  it.each([["0"], ["— 0"], ["— 0.0%"], ["$0"], ["▲ 0.0%"]])(
+    "hides the zero delta %j",
+    (delta) => {
+      expect(isDeltaVisible(delta)).toBe(false);
+    },
+  );
+
+  it.each([["▲ 1"], ["▼ 3"], ["▲ 6.4%"], ["▲ 1,200"], ["▲ 0.1%"]])(
+    "keeps the real change %j",
+    (delta) => {
+      expect(isDeltaVisible(delta)).toBe(true);
+    },
+  );
 });

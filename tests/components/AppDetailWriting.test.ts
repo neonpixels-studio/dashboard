@@ -118,6 +118,7 @@ describe("AppDetailWriting", () => {
         .findAllComponents(SectionLabel)
         .map((node) => node.props("label")),
     ).toEqual(["REACH", "TRAFFIC"]);
+    expect(wrapper.text()).not.toContain("NO STRIPE OR CLERK");
   });
 
   it("renders sessions, posts, views, and platforms-live tiles from real data", () => {

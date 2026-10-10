@@ -10,6 +10,7 @@
 // under server/ and isn't part of the client bundle.
 import type {
   CurrentMetric,
+  IntegrationHealth,
   MetricPoint,
   MetricSeries,
   RollupDelta,
@@ -190,4 +191,30 @@ export function buildMetricTileData(
     deltaTone: delta.tone,
     sub: syncedDate ? `Synced ${syncedDate}` : "Sync date unknown",
   };
+}
+
+// The vendor whose integration produces each metric. A metric absent from
+// this map (e.g. posts/views, written by ingest endpoints) has no single
+// integration to be missing, so its tile is always shown.
+const VENDOR_BY_METRIC: Record<string, string> = {
+  [METRIC_MRR]: "stripe",
+  [METRIC_ACTIVE_SUBSCRIBERS]: "stripe",
+  [METRIC_SESSIONS]: "ga4",
+  [METRIC_USERS]: "clerk",
+  [METRIC_NEW_USERS]: "clerk",
+  [METRIC_OPEN_ISSUES]: "sentry",
+};
+
+// False only when the metric's vendor has no integration_config row for
+// this property. A configured vendor that hasn't synced still counts as
+// integrated, so its tile keeps the "Not synced yet" placeholder.
+export function isMetricIntegrated(
+  metric: string,
+  integrations: IntegrationHealth[],
+): boolean {
+  const vendor = VENDOR_BY_METRIC[metric];
+  if (!vendor) {
+    return true;
+  }
+  return integrations.some((integration) => integration.vendor === vendor);
 }

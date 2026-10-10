@@ -13,7 +13,10 @@ import {
   type MountDetailOptions,
 } from "./support/mountDetailTemplate";
 import { appDetailFixture } from "../support/appDetailFixture";
-import type { AppDetailResponse } from "../../shared/types/dashboard";
+import type {
+  AppDetailResponse,
+  IntegrationHealth,
+} from "../../shared/types/dashboard";
 
 function mountDetail(
   slug: string,
@@ -27,6 +30,18 @@ function mountDetail(
     toAppDetailViewModel(findAppBySlug(slug)!, detail),
     options,
   );
+}
+
+function INTEGRATION_HEALTH(vendor: string): IntegrationHealth {
+  return {
+    vendor,
+    enabled: true,
+    environment: null,
+    ok: null,
+    lastRunAt: null,
+    lastSuccessAt: null,
+    error: null,
+  };
 }
 
 const LOADED_DETAIL = appDetailFixture({
@@ -57,6 +72,11 @@ const LOADED_DETAIL = appDetailFixture({
   trafficBreakdown: [
     { channel: "direct", pct: 38 },
     { channel: "organic", pct: 17 },
+  ],
+  integrations: [
+    INTEGRATION_HEALTH("ga4"),
+    INTEGRATION_HEALTH("clerk"),
+    INTEGRATION_HEALTH("sentry"),
   ],
   sources: [
     {
@@ -103,6 +123,15 @@ describe("AppDetailMarketing", () => {
     // users/new_users never synced in this fixture — honest placeholders.
     expect(tiles[1]!.props("value")).toBe("—");
     expect(tiles[1]!.props("sub")).toBe("Not synced yet");
+  });
+
+  it("omits tiles for vendors the property has no integration for", () => {
+    const wrapper = mountDetail("grimicorn", {
+      detail: { ...LOADED_DETAIL, integrations: [INTEGRATION_HEALTH("ga4")] },
+    });
+    expect(
+      wrapper.findAllComponents(MetricTile).map((tile) => tile.props("label")),
+    ).toEqual(["SESSIONS"]);
   });
 
   it("charts sessions in the app's accent color for a non-studio property", () => {

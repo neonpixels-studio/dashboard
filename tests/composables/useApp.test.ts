@@ -15,6 +15,7 @@ const DETAIL_RESPONSE: AppDetailResponse = {
   syndication: [],
   alerts: [],
   sources: [],
+  integrations: [],
   lastSyncedAt: null,
 };
 

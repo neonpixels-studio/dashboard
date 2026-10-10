@@ -3,6 +3,9 @@ import {
   buildMetricTileData,
   findMetric,
   findSeries,
+  isMetricIntegrated,
+  METRIC_OPEN_ISSUES,
+  METRIC_POSTS,
   METRIC_MRR,
   METRIC_SESSIONS,
   PERIOD_30D,
@@ -10,7 +13,11 @@ import {
   PERIOD_DAILY,
   seriesDelta,
 } from "../../app/utils/metricTile";
-import type { CurrentMetric, MetricSeries } from "../../shared/types/dashboard";
+import type {
+  CurrentMetric,
+  IntegrationHealth,
+  MetricSeries,
+} from "../../shared/types/dashboard";
 
 function metric(overrides: Partial<CurrentMetric> = {}): CurrentMetric {
   return {
@@ -175,5 +182,22 @@ describe("buildMetricTileData", () => {
 
     expect(tile.delta).toBe("▼ 300");
     expect(tile.deltaTone).not.toBe("ok");
+  });
+});
+
+describe("isMetricIntegrated", () => {
+  const sentryOnly = [{ vendor: "sentry" }] as IntegrationHealth[];
+
+  it("is true when the metric's vendor is configured", () => {
+    expect(isMetricIntegrated(METRIC_OPEN_ISSUES, sentryOnly)).toBe(true);
+  });
+
+  it("is false when the metric's vendor is not configured", () => {
+    expect(isMetricIntegrated("users", sentryOnly)).toBe(false);
+    expect(isMetricIntegrated(METRIC_OPEN_ISSUES, [])).toBe(false);
+  });
+
+  it("is always true for a metric with no owning vendor", () => {
+    expect(isMetricIntegrated(METRIC_POSTS, [])).toBe(true);
   });
 });

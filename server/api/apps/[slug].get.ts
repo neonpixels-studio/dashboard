@@ -14,6 +14,7 @@ import {
 import {
   alertsForApp,
   computeAppStatus,
+  integrationHealthForApp,
   latestMetricsBySlug,
   latestSyncedAt,
   metricSeriesBySlug,
@@ -66,6 +67,12 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     alerts: alertsForApp(syncRows, configRows, slug),
     sources: syncSourcesForApp(
       syncRows,
+      slug,
+      integrationEnvironments(configRows),
+    ),
+    integrations: integrationHealthForApp(
+      syncRows,
+      configRows,
       slug,
       integrationEnvironments(configRows),
     ),

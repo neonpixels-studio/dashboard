@@ -6,28 +6,36 @@ exports[`AppDetailWriting > matches its tile-grid snapshot 1`] = `
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">SESSIONS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">6,104</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">6,104</span>
+      <!--v-if-->
+    </div>
     <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">POSTS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">41</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">41</span>
+      <!--v-if-->
+    </div>
     <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">VIEWS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">9,876</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">9,876</span>
+      <!--v-if-->
+    </div>
     <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">PLATFORMS LIVE</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span>
+      <!--v-if-->
+    </div>
     <div data-v-d6008d9b="" class="sub">3 platforms posted to</div>
   </div>
 </div>"
