@@ -1,6 +1,6 @@
 // Builds TrafficPanel's props from a real AppDetailResponse (issue #20),
-// shared by AppDetailProduct and AppDetailWriting — the two templates that
-// render a TrafficPanel. `stats`/`lists` only ever include entries backed by
+// shared by every detail template (product, writing, marketing), each of
+// which renders a TrafficPanel. `stats`/`lists` only ever include entries backed by
 // real data: GA4 traffic_breakdown has no per-page or per-referrer
 // dimension (only a channel split), so the original design's "TOP PAGES" /
 // "TOP REFERRERS" lists have no honest source and aren't reproduced here —
@@ -31,10 +31,8 @@ import { buildAxisLabels, buildSparklinePath } from "./sparklinePath";
 export const TRAFFIC_PANEL_VIEWBOX_WIDTH = 860;
 export const TRAFFIC_PANEL_VIEWBOX_HEIGHT = 150;
 
-// Real traffic_breakdown rows, sorted largest share first — shared by
-// TrafficPanel's "TRAFFIC SOURCES" list (below) and AppDetailMarketing's own
-// StatList of the same channel split (it doesn't render a TrafficPanel at
-// all).
+// Real traffic_breakdown rows, sorted largest share first, for
+// TrafficPanel's "TRAFFIC SOURCES" list (below).
 export function buildTrafficSourceItems(
   trafficBreakdown: TrafficChannelSplit[],
 ): { label: string; value: string }[] {

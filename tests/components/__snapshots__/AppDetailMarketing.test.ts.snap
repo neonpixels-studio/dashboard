@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`AppDetailMarketing > matches its tile-grid snapshot 1`] = `
-"<div data-v-71379453="" data-v-86945382="" class="tile-grid">
+"<div data-v-71379453="" class="tile-grid">
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">SESSIONS</span>
@@ -31,4 +31,25 @@ exports[`AppDetailMarketing > matches its tile-grid snapshot 1`] = `
     <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
 </div>"
+`;
+
+exports[`AppDetailMarketing > matches its traffic panel snapshot 1`] = `
+"<div data-v-b28e9303="" class="traffic-list"><span data-v-b28e9303="" class="metric-label">TRAFFIC SOURCES</span>
+  <ul data-v-5cd44a83="" data-v-b28e9303="" class="stat-list divided">
+    <li data-v-5cd44a83="" class="stat-row">
+      <!--v-if--><span data-v-5cd44a83="" class="label">Direct</span><span data-v-5cd44a83="" class="value">38%</span>
+      <!--v-if-->
+    </li>
+    <li data-v-5cd44a83="" class="stat-row">
+      <!--v-if--><span data-v-5cd44a83="" class="label">Organic search</span><span data-v-5cd44a83="" class="value">17%</span>
+      <!--v-if-->
+    </li>
+  </ul>
+</div>"
+`;
+
+exports[`AppDetailMarketing > matches its traffic panel snapshot 2`] = `
+"<ul data-v-b28e9303="" class="headline-stats">
+  <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">SESSIONS · 30D</span><span data-v-b28e9303="" class="display-num headline-value">6,104</span></li>
+</ul>"
 `;
