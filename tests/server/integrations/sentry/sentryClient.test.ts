@@ -20,11 +20,13 @@ function buildFetchStub(response: {
   body: unknown;
   linkHeader?: string | null;
   extraHeaders?: Record<string, string>;
+  bodyCancel?: () => Promise<void>;
 }) {
   return vi.fn(async () => ({
     ok: response.ok,
     status: response.status,
     json: async () => response.body,
+    body: response.bodyCancel ? { cancel: response.bodyCancel } : undefined,
     headers: {
       get: (name: string) => {
         const extraValue = response.extraHeaders?.[name.toLowerCase()];
@@ -480,6 +482,42 @@ describe("createSentryIssueSearcher", () => {
       await vi.advanceTimersByTimeAsync(21_000);
       await assertion;
       expect(slowFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("cancels the unread 429 body before waiting to retry", async () => {
+      vi.useFakeTimers();
+      const bodyCancel = vi.fn(async () => {});
+      const fetchStub = buildSequencedFetch([
+        { ...rateLimited(), bodyCancel },
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await resultPromise;
+      expect(bodyCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to the 1s default for a negative Retry-After and a non-numeric reset header", async () => {
+      vi.useFakeTimers();
+      const fetchStub = buildSequencedFetch([
+        rateLimited({
+          "retry-after": "-5",
+          "x-sentry-rate-limit-reset": "soon",
+        }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
     });
 
     it("does not retry non-429 failures", async () => {

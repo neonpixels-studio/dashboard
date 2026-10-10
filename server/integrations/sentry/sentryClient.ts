@@ -218,7 +218,7 @@ async function fetchIssuesPageWithRetry(
       return response;
     }
     // An unread body keeps its socket checked out under undici's fetch.
-    await response.body?.cancel();
+    await response.body?.cancel().catch(() => undefined);
     await waitForRetry(
       resolveRetryDelayMs(response.headers, Date.now()),
       abortController,
