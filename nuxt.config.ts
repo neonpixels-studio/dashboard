@@ -185,6 +185,29 @@ export default defineNuxtConfig({
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { name: "theme-color", content: "#08080a" },
+        { name: "apple-mobile-web-app-title", content: "Neon Pixels" },
+      ],
+      // Same icon set and cache-busting version as neonpixels.dev.
+      link: [
+        {
+          rel: "icon",
+          type: "image/png",
+          href: "/images/favicon-96x96.png?v=20260808",
+          sizes: "96x96",
+        },
+        {
+          rel: "icon",
+          type: "image/svg+xml",
+          href: "/images/favicon.svg?v=20260808",
+        },
+        { rel: "shortcut icon", href: "/images/favicon.ico?v=20260808" },
+        {
+          rel: "apple-touch-icon",
+          sizes: "180x180",
+          href: "/images/apple-touch-icon.png?v=20260808",
+        },
+        { rel: "manifest", href: "/images/site.webmanifest?v=20260808" },
       ],
     },
   },
