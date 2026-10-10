@@ -125,6 +125,7 @@ describe("fetchZyvopSyndication", () => {
         status: "synced",
         syncedAt: new Date("2026-10-09T10:13:07.261Z"),
         views: 3,
+        externalId: null,
       },
       {
         platform: "zyvop",
@@ -133,6 +134,7 @@ describe("fetchZyvopSyndication", () => {
         status: "synced",
         syncedAt: new Date("2026-10-06T10:13:01.440Z"),
         views: 10,
+        externalId: null,
       },
     ]);
   });

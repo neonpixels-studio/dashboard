@@ -63,6 +63,7 @@ export function buildSyndicationResult(
       status: SYNDICATION_STATUS_SYNCED,
       syncedAt: post.publishedAt,
       views: post.views ?? null,
+      externalId: post.externalId ?? null,
     })),
   };
 }

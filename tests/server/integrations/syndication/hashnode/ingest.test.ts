@@ -148,6 +148,7 @@ describe("toHashnodeProviderResult", () => {
         status: "synced",
         syncedAt: new Date("2026-09-01T12:00:00.000Z"),
         views: 120,
+        externalId: null,
       },
       {
         platform: "hashnode",
@@ -155,6 +156,7 @@ describe("toHashnodeProviderResult", () => {
         status: "synced",
         syncedAt: new Date("2026-08-15T09:30:00.000Z"),
         views: 30,
+        externalId: null,
       },
     ]);
   });

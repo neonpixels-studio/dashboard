@@ -24,6 +24,9 @@ export interface SyndicationSourcePost {
   publishedAt: Date;
   // Lifetime views. Omitted by platforms that don't report them (Medium).
   views?: number;
+  // The platform's own article id. Only Medium sets it; see
+  // syndication_post.external_id in server/db/schema.ts.
+  externalId?: string;
 }
 
 /**

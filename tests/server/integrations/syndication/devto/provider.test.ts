@@ -113,6 +113,7 @@ describe("fetchDevtoSyndication", () => {
         status: "synced",
         syncedAt: new Date("2026-09-01T12:05:00Z"),
         views: 42,
+        externalId: null,
       },
       {
         platform: "devto",
@@ -120,6 +121,7 @@ describe("fetchDevtoSyndication", () => {
         status: "synced",
         syncedAt: new Date("2026-08-15T09:35:00Z"),
         views: 7,
+        externalId: null,
       },
     ]);
   });

@@ -3,6 +3,7 @@ import { METRIC_POSTS } from "../../../utils/dashboardMetrics";
 import {
   fetchLastAttemptedSyncAt,
   fetchLatestMetricCapturedAt,
+  fetchSyndicationExternalIds,
 } from "../../../utils/dashboardQueries";
 import { recordSyncAttempt } from "../../persist";
 import { NO_DEADLINE } from "../../types";
@@ -36,11 +37,10 @@ const MEDIUM_VENDOR = "medium";
 // `posts` metric itself still reports the platform's true total
 // (articleIds.length, free — already in hand from the id listing) so it's
 // never stale/undercounted; only the syndication_post rows (and therefore
-// the matrix) are bounded to the MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC most
-// recently listed each sync. Flagged as a follow-up: a cheaper, incremental
-// way to backfill the rest (e.g. only fetching ids not already present in
-// syndication_post) needs its own DB read, which this pure fetch()-only
-// provider doesn't have.
+// the matrix) are bounded to the MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC
+// newest articles that have no row yet each sync (see
+// selectArticleIdsToFetch), so new posts land first and older ones backfill
+// a couple per day.
 export const MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC = 2;
 
 /**
@@ -76,11 +76,23 @@ function dedupeByPostRefKeepingLatest(
   return [...latestByPostRef.values()];
 }
 
+// The listing is newest first, so this picks up new posts before older ones.
+// @todo an article that loses dedupeByPostRefKeepingLatest's title collision
+// never gets a row, so it stays "unseen" and spends a detail request every
+// sync; track fetched ids separately if that ever shows up.
+function selectArticleIdsToFetch(
+  articleIds: string[],
+  knownArticleIds: ReadonlySet<string>,
+): string[] {
+  return articleIds
+    .filter((articleId) => !knownArticleIds.has(articleId))
+    .slice(0, MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC);
+}
+
 async function fetchArticleDetails(
   articleIds: string[],
   fetchArticleInfo: FetchMediumArticleInfo,
 ): Promise<SyndicationSourcePost[]> {
-  const boundedIds = articleIds.slice(0, MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC);
   // Sequential, not Promise.all: mediumapi.com's plans are typically
   // rate-limited per second as well as per month, and this provider has no
   // visibility into that per-second ceiling — firing every detail request
@@ -89,7 +101,7 @@ async function fetchArticleDetails(
   // (this runs in the background, on a schedule — latency isn't
   // user-facing) for not needing to guess at a safe concurrency limit.
   const posts: SyndicationSourcePost[] = [];
-  for (const articleId of boundedIds) {
+  for (const articleId of articleIds) {
     const info = await fetchArticleInfo(articleId);
     posts.push(toSyndicationSourcePost(info));
   }
@@ -105,9 +117,13 @@ async function fetchArticleDetails(
 export async function fetchMediumSyndication(
   listArticleIds: ListMediumArticleIds,
   fetchArticleInfo: FetchMediumArticleInfo,
+  knownArticleIds: ReadonlySet<string> = new Set(),
 ): Promise<ProviderResult> {
   const articleIds = await listArticleIds();
-  const posts = await fetchArticleDetails(articleIds, fetchArticleInfo);
+  const posts = await fetchArticleDetails(
+    selectArticleIdsToFetch(articleIds, knownArticleIds),
+    fetchArticleInfo,
+  );
   // The `posts` metric reports the platform's true total (articleIds.length)
   // even though `posts` (the syndication_post rows) is bounded — see
   // MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC's comment.
@@ -129,6 +145,10 @@ async function defaultGetLastAttemptedSyncAt(
   slug: string,
 ): Promise<Date | null> {
   return fetchLastAttemptedSyncAt(useDb(), slug, MEDIUM_VENDOR);
+}
+
+async function defaultGetKnownArticleIds(slug: string): Promise<Set<string>> {
+  return fetchSyndicationExternalIds(useDb(), slug, MEDIUM_VENDOR);
 }
 
 // Deliberately not best-effort (unlike orchestrator.ts's
@@ -161,6 +181,7 @@ export interface CreateMediumProviderOptions {
   // Returns false when another concurrent call already claimed this
   // attempt window — see defaultRecordAttempt's comment.
   recordAttempt?: (slug: string, attemptedAt: Date) => Promise<boolean>;
+  getKnownArticleIds?: (slug: string) => Promise<ReadonlySet<string>>;
   now?: () => Date;
 }
 
@@ -181,6 +202,8 @@ export function createMediumProvider(
   const getLastAttemptedSyncAt =
     options.getLastAttemptedSyncAt ?? defaultGetLastAttemptedSyncAt;
   const recordAttempt = options.recordAttempt ?? defaultRecordAttempt;
+  const getKnownArticleIds =
+    options.getKnownArticleIds ?? defaultGetKnownArticleIds;
   const now = options.now ?? (() => new Date());
 
   return {
@@ -245,7 +268,11 @@ export function createMediumProvider(
         undefined,
         deadline,
       );
-      return fetchMediumSyndication(listArticleIds, fetchArticleInfo);
+      return fetchMediumSyndication(
+        listArticleIds,
+        fetchArticleInfo,
+        await getKnownArticleIds(config.slug),
+      );
     },
   };
 }

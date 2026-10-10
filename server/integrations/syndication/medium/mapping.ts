@@ -63,5 +63,9 @@ export function toSyndicationSourcePost(
       `Medium article "${info.unique_slug}" has an unparseable published_at value: ${info.published_at}.`,
   );
 
-  return { postRef: toPostRef(info.unique_slug), publishedAt };
+  return {
+    postRef: toPostRef(info.unique_slug),
+    publishedAt,
+    externalId: info.id,
+  };
 }

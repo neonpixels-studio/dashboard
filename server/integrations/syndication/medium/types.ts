@@ -23,6 +23,7 @@ export interface MediumUserArticlesResponse {
 }
 
 export interface MediumArticleInfo {
+  id: string;
   unique_slug: string;
   // Either epoch milliseconds (Medium's own internal API convention, which
   // mediumapi.com is documented elsewhere as wrapping) OR a

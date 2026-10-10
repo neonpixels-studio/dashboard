@@ -5,7 +5,17 @@
 // server/db/seed.ts:seedIntegrationConfig. All shaping/aggregation logic
 // lives in dashboardShaping.ts, which operates on plain row arrays and needs
 // no `db` fake at all.
-import { and, asc, desc, eq, gte, inArray, max, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  max,
+  or,
+} from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/neon-http";
 import type * as schema from "../db/schema";
@@ -193,6 +203,32 @@ export function fetchSyndicationPosts(
     .from(syndicationPost)
     .where(eq(syndicationPost.slug, slug))
     .orderBy(desc(syndicationPost.syncedAt), asc(syndicationPost.platform));
+}
+
+// The platform article ids already stored for a (slug, platform), so the
+// Medium provider can spend its capped detail requests on articles it has no
+// row for yet. Rows without an external id (every non-Medium platform) are
+// skipped.
+export async function fetchSyndicationExternalIds(
+  db: DrizzleDb,
+  slug: string,
+  platform: string,
+): Promise<Set<string>> {
+  const rows = await db
+    .select({ externalId: syndicationPost.externalId })
+    .from(syndicationPost)
+    .where(
+      and(
+        eq(syndicationPost.slug, slug),
+        eq(syndicationPost.platform, platform),
+        isNotNull(syndicationPost.externalId),
+      ),
+    );
+  return new Set(
+    rows
+      .map((row) => row.externalId)
+      .filter((externalId): externalId is string => externalId !== null),
+  );
 }
 
 // Powers server/integrations/syndication/medium's rate-limit guard: the

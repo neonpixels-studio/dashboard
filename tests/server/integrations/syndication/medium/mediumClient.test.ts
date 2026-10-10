@@ -90,6 +90,7 @@ describe("createMediumArticleInfoFetcher", () => {
   it("requests one article's info by id", async () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(
       jsonResponse({
+        id: "1a2b3c4d5e6f",
         unique_slug: "a-post-1a2b3c4d5e6f",
         published_at: 1798108800000,
       }),
@@ -102,6 +103,7 @@ describe("createMediumArticleInfoFetcher", () => {
     const info = await fetchArticleInfo("article_1");
 
     expect(info).toEqual({
+      id: "1a2b3c4d5e6f",
       unique_slug: "a-post-1a2b3c4d5e6f",
       published_at: 1798108800000,
     });

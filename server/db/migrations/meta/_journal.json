@@ -71,6 +71,13 @@
       "when": 1791600274237,
       "tag": "0009_add_syndication_post_views",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791604204281,
+      "tag": "0010_add_syndication_post_external_id",
+      "breakpoints": true
     }
   ]
 }

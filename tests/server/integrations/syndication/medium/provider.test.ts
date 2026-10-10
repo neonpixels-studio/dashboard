@@ -55,6 +55,7 @@ describe("createMediumProvider", () => {
   function buildProvider(overrides: {
     lastSuccessfulSyncAt?: Date | null;
     lastAttemptedSyncAt?: Date | null;
+    knownArticleIds?: string[];
     now?: Date;
   }) {
     const getLastSuccessfulSyncAt = vi.fn(
@@ -68,10 +69,14 @@ describe("createMediumProvider", () => {
     // attempt window; that's an explicit per-test override (see the
     // "loses the race" test below), not the common case.
     const recordAttempt = vi.fn(async () => true);
+    const getKnownArticleIds = vi.fn(
+      async () => new Set(overrides.knownArticleIds ?? []),
+    );
     const provider = createMediumProvider({
       getLastSuccessfulSyncAt,
       getLastAttemptedSyncAt,
       recordAttempt,
+      getKnownArticleIds,
       now: () => overrides.now ?? new Date("2026-09-20T12:00:00Z"),
     });
     return {
@@ -79,6 +84,7 @@ describe("createMediumProvider", () => {
       getLastSuccessfulSyncAt,
       getLastAttemptedSyncAt,
       recordAttempt,
+      getKnownArticleIds,
     };
   }
 
@@ -141,7 +147,7 @@ describe("createMediumProvider", () => {
   });
 
   it("skips the fetch — emits no rows, never calls the Medium API, and never records a new attempt — when the guard says it isn't due yet (last success)", async () => {
-    const { provider, recordAttempt } = buildProvider({
+    const { provider, recordAttempt, getKnownArticleIds } = buildProvider({
       lastSuccessfulSyncAt: new Date("2026-09-20T11:00:00Z"), // 1h ago
       now: new Date("2026-09-20T12:00:00Z"),
     });
@@ -163,6 +169,51 @@ describe("createMediumProvider", () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(recordAttempt).not.toHaveBeenCalled();
+    expect(getKnownArticleIds).not.toHaveBeenCalled();
+  });
+
+  it("only fetches detail for articles this slug has no row for yet", async () => {
+    const { provider, getKnownArticleIds } = buildProvider({
+      lastSuccessfulSyncAt: null,
+      knownArticleIds: ["newest"],
+    });
+    const config = createTestIntegrationConfig({
+      slug: "danholloran",
+      vendor: "medium",
+      externalId: "dan-handle",
+      secret: "rapidapi_key",
+    });
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url.includes("/user/id_for/")) {
+        return jsonResponse({ id: "user_123" });
+      }
+      if (url.includes("/articles")) {
+        return jsonResponse({ associated_articles: ["newest", "older"] });
+      }
+      return jsonResponse({
+        id: "older",
+        unique_slug: "an-older-post-1a2b3c4d5e6f",
+        published_at: "2026-09-01 12:00:00",
+      });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await provider.fetch(config);
+
+    expect(getKnownArticleIds).toHaveBeenCalledWith("danholloran");
+    const requestedUrls = fetchSpy.mock.calls.map(([url]) => url);
+    expect(requestedUrls).toContain(
+      "https://medium2.p.rapidapi.com/article/older",
+    );
+    expect(requestedUrls).not.toContain(
+      "https://medium2.p.rapidapi.com/article/newest",
+    );
+    expect(result.syndicationPosts).toEqual([
+      expect.objectContaining({
+        postRef: "an-older-post",
+        externalId: "older",
+      }),
+    ]);
   });
 
   it("skips the fetch — emits no rows, never calls the Medium API — when the guard says it isn't due yet because of a recent attempt, even with no prior success (retry-storm regression)", async () => {
@@ -460,6 +511,7 @@ describe("fetchMediumSyndication", () => {
         status: "synced",
         syncedAt: new Date(1798108800000),
         views: null,
+        externalId: "1a2b3c4d5e6f",
       },
       {
         platform: "medium",
@@ -467,6 +519,7 @@ describe("fetchMediumSyndication", () => {
         status: "synced",
         syncedAt: new Date(1786786500000),
         views: null,
+        externalId: "6f5e4d3c2b1a",
       },
     ]);
   });
@@ -491,6 +544,7 @@ describe("fetchMediumSyndication", () => {
         await Promise.resolve();
         inFlight -= 1;
         return {
+          id: articleId,
           unique_slug: `${articleId}-1a2b3c4d5e6f`,
           published_at: 1798108800000,
         };
@@ -514,6 +568,7 @@ describe("fetchMediumSyndication", () => {
       async (articleId: string) => ({
         // Both strip down to postRef "weekly-notes" — same title, different
         // Medium articles.
+        id: articleId,
         unique_slug: `weekly-notes-${articleId === "older" ? "1a2b3c4d5e" : "6f5e4d3c2b"}`,
         published_at: articleId === "older" ? 1786786500000 : 1798108800000,
       }),
@@ -531,6 +586,53 @@ describe("fetchMediumSyndication", () => {
     });
   });
 
+  it("skips already-stored articles and backfills the newest unseen ones, still reporting the TRUE posts count", async () => {
+    const articleIds = ["a0", "a1", "a2", "a3", "a4"];
+    const listArticleIds: ListMediumArticleIds = vi
+      .fn()
+      .mockResolvedValue(articleIds);
+    const fetchArticleInfo: FetchMediumArticleInfo = vi.fn(
+      async (articleId: string) => ({
+        id: articleId,
+        unique_slug: `${articleId}-1a2b3c4d5e6f`,
+        published_at: 1798108800000,
+      }),
+    );
+
+    const result = await fetchMediumSyndication(
+      listArticleIds,
+      fetchArticleInfo,
+      new Set(["a0", "a2"]),
+    );
+
+    expect(vi.mocked(fetchArticleInfo).mock.calls).toEqual([["a1"], ["a3"]]);
+    expect(result.syndicationPosts.map((post) => post.externalId)).toEqual([
+      "a1",
+      "a3",
+    ]);
+    expect(result.metrics[0]).toMatchObject({
+      metric: "posts",
+      value: articleIds.length,
+    });
+  });
+
+  it("makes no detail requests once every listed article already has a row", async () => {
+    const listArticleIds: ListMediumArticleIds = vi
+      .fn()
+      .mockResolvedValue(["a0", "a1"]);
+    const fetchArticleInfo: FetchMediumArticleInfo = vi.fn();
+
+    const result = await fetchMediumSyndication(
+      listArticleIds,
+      fetchArticleInfo,
+      new Set(["a0", "a1"]),
+    );
+
+    expect(fetchArticleInfo).not.toHaveBeenCalled();
+    expect(result.syndicationPosts).toEqual([]);
+    expect(result.metrics[0]).toMatchObject({ metric: "posts", value: 2 });
+  });
+
   it("bounds per-article detail fetches (and therefore matrix rows) to MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC, while still reporting the platform's TRUE posts count", async () => {
     const totalArticleCount = MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC + 5;
     const manyArticleIds = Array.from(
@@ -542,6 +644,7 @@ describe("fetchMediumSyndication", () => {
       .mockResolvedValue(manyArticleIds);
     const fetchArticleInfo: FetchMediumArticleInfo = vi.fn(
       async (articleId: string) => ({
+        id: articleId,
         unique_slug: `${articleId}-1a2b3c4d5e6f`,
         published_at: 1798108800000,
       }),

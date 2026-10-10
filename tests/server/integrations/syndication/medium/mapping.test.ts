@@ -33,6 +33,7 @@ describe("toPostRef", () => {
 describe("toSyndicationSourcePost (medium)", () => {
   it("maps an article info response's unique_slug and an epoch-milliseconds published_at into a SyndicationSourcePost", () => {
     const post = toSyndicationSourcePost({
+      id: "1a2b3c4d5e6f",
       unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
       published_at: 1798108800000,
     });
@@ -40,11 +41,13 @@ describe("toSyndicationSourcePost (medium)", () => {
     expect(post).toEqual({
       postRef: "shipping-a-nuxt-dashboard",
       publishedAt: new Date(1798108800000),
+      externalId: "1a2b3c4d5e6f",
     });
   });
 
   it("also handles a bare 'YYYY-MM-DD HH:mm:ss' UTC string published_at (the other documented shape)", () => {
     const post = toSyndicationSourcePost({
+      id: "1a2b3c4d5e6f",
       unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
       published_at: "2026-09-01 12:00:00",
     });
@@ -54,6 +57,7 @@ describe("toSyndicationSourcePost (medium)", () => {
 
   it("does NOT double-append a timezone marker onto a full ISO 8601 string that already has one", () => {
     const post = toSyndicationSourcePost({
+      id: "1a2b3c4d5e6f",
       unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
       published_at: "2026-09-01T12:00:00.000Z",
     });
@@ -64,6 +68,7 @@ describe("toSyndicationSourcePost (medium)", () => {
   it("throws instead of producing an Invalid Date for a non-finite published_at", () => {
     expect(() =>
       toSyndicationSourcePost({
+        id: "000000000000",
         unique_slug: "broken-post-000000000000",
         published_at: Number.NaN,
       }),
@@ -73,6 +78,7 @@ describe("toSyndicationSourcePost (medium)", () => {
   it("throws instead of producing an Invalid Date for an unparseable published_at string", () => {
     expect(() =>
       toSyndicationSourcePost({
+        id: "000000000000",
         unique_slug: "broken-post-000000000000",
         published_at: "not-a-date",
       }),

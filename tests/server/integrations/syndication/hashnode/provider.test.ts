@@ -186,6 +186,7 @@ describe("fetchHashnodeSyndication", () => {
         status: "synced",
         syncedAt: new Date("2026-09-01T12:00:00.000Z"),
         views: null,
+        externalId: null,
       },
       {
         platform: "hashnode",
@@ -193,6 +194,7 @@ describe("fetchHashnodeSyndication", () => {
         status: "synced",
         syncedAt: new Date("2026-08-15T09:30:00.000Z"),
         views: null,
+        externalId: null,
       },
     ]);
     expect(result.trafficBreakdown).toEqual([]);

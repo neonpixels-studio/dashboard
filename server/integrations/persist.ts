@@ -221,6 +221,7 @@ export function persistProviderResult(
                 status: sql`excluded.status`,
                 syncedAt: sql`excluded.synced_at`,
                 views: sql`excluded.views`,
+                externalId: sql`excluded.external_id`,
               },
             }),
         ]

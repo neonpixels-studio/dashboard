@@ -10,6 +10,7 @@ import {
   fetchLatestTrafficBreakdowns,
   fetchMetricSnapshotSeries,
   fetchSyncStatuses,
+  fetchSyndicationExternalIds,
   fetchSyndicationPosts,
   seriesWindowStart,
   SERIES_WINDOW_DAYS,
@@ -363,5 +364,42 @@ describe("fetchLastAttemptedSyncAt", () => {
     expect(sql).toContain('"slug" = $1');
     expect(sql).toContain('"vendor" = $2');
     expect(params).toEqual(["danholloran", "medium"]);
+  });
+});
+
+// Stubs `select().from().where()` — the chain used by
+// fetchSyndicationExternalIds (no orderBy or limit).
+function createWhereFakeDb(rows: { externalId: string | null }[]) {
+  const where = vi.fn().mockResolvedValue(rows);
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+  return { db: { select } as unknown as FakeDb, where };
+}
+
+describe("fetchSyndicationExternalIds", () => {
+  it("returns the stored external ids as a set, filtered by slug, platform and a non-null id", async () => {
+    const { db, where } = createWhereFakeDb([
+      { externalId: "10ae460b739a" },
+      { externalId: "7f30aaadcead" },
+    ]);
+
+    await expect(
+      fetchSyndicationExternalIds(db, "danholloran", "medium"),
+    ).resolves.toEqual(new Set(["10ae460b739a", "7f30aaadcead"]));
+
+    const condition = where.mock.calls[0]![0] as SQL;
+    const { sql, params } = renderSqlCondition(condition);
+    expect(sql).toContain('"slug" = $1');
+    expect(sql).toContain('"platform" = $2');
+    expect(sql).toContain('"external_id" is not null');
+    expect(params).toEqual(["danholloran", "medium"]);
+  });
+
+  it("returns an empty set when no rows carry an external id", async () => {
+    const { db } = createWhereFakeDb([]);
+
+    await expect(
+      fetchSyndicationExternalIds(db, "danholloran", "medium"),
+    ).resolves.toEqual(new Set());
   });
 });

@@ -342,6 +342,10 @@ describe("persistProviderResult", () => {
     expect(conflictArgs.set.views.queryChunks[0].value).toEqual([
       "excluded.views",
     ]);
+    expect(conflictArgs.set.externalId).toBeInstanceOf(SQL);
+    expect(conflictArgs.set.externalId.queryChunks[0].value).toEqual([
+      "excluded.external_id",
+    ]);
   });
 
   it("upserts metric_snapshot on (slug, vendor, metric, period, captured_at) instead of duplicating a re-run backfill row", async () => {
