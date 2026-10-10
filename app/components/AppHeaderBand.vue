@@ -29,11 +29,13 @@
 
     <a
       v-for="link in secondaryLinks"
-      :key="link"
-      href="#"
+      :key="link.label"
+      :href="link.href"
+      target="_blank"
+      rel="noopener"
       class="secondary-btn"
     >
-      {{ link }}
+      {{ link.label }}
     </a>
 
     <a
@@ -66,6 +68,7 @@
 <script setup lang="ts">
 import type { AppStatus } from "#shared/types/dashboard";
 import type { DashboardApp } from "~/config/apps";
+import type { HeaderLink } from "~/utils/headerLinks";
 import { healthToneChipStyle } from "~/utils/statusColor";
 
 // `status` is a separate optional prop (from `AppDetailResponse.status`).
@@ -76,7 +79,7 @@ withDefaults(
   defineProps<{
     app: DashboardApp;
     status?: AppStatus | null;
-    secondaryLinks?: string[];
+    secondaryLinks?: HeaderLink[];
   }>(),
   {
     status: null,
