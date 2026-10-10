@@ -74,9 +74,10 @@ function formatMethodLabel(method: string): string {
   if (known) {
     return known;
   }
-  const readable = method
-    .replace(CUSTOM_PROVIDER_PREFIX, "")
-    .replaceAll("_", " ");
+  const unprefixed = method.startsWith(CUSTOM_PROVIDER_PREFIX)
+    ? method.slice(CUSTOM_PROVIDER_PREFIX.length)
+    : method;
+  const readable = unprefixed.replaceAll("_", " ");
   return `${readable.charAt(0).toUpperCase()}${readable.slice(1)}`;
 }
 
@@ -185,10 +186,11 @@ function clerkEnvironment(
 export function buildAuthPanelData(
   detail: AppDetailResponse | null,
 ): AuthPanelData | null {
-  const users = detail
-    ? findMetric(detail.metrics, METRIC_USERS, PERIOD_CURRENT)
-    : undefined;
-  if (!detail || !users) {
+  if (!detail) {
+    return null;
+  }
+  const users = findMetric(detail.metrics, METRIC_USERS, PERIOD_CURRENT);
+  if (!users) {
     return null;
   }
   const { metrics } = detail;

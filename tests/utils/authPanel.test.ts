@@ -86,6 +86,7 @@ describe("buildAuthPanelData", () => {
   it.each([
     ["auth_method:oauth_custom", "Oauth custom"],
     ["auth_method:custom_acme_sso", "Acme sso"],
+    ["auth_method:acme_custom_sso", "Acme custom sso"],
     ["auth_method:sso", "Enterprise SSO"],
   ])("labels %s as %s", (metricName, label) => {
     const data = buildAuthPanelData(
