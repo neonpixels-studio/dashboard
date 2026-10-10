@@ -26,7 +26,9 @@ describe("netlifyProjectName", () => {
 
   it("covers every configured property", () => {
     for (const app of APPS) {
-      expect(netlifyProjectName(app.url)).not.toContain(".");
+      expect(netlifyProjectName(app.url)).toBe(
+        new URL(app.url).hostname.replaceAll(".", "-"),
+      );
     }
   });
 });

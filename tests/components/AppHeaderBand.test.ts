@@ -78,7 +78,7 @@ describe("AppHeaderBand", () => {
         (candidate) => candidate.template === template,
       );
       expect(templateApp).toBeDefined();
-      const wrapper = mountBand(null, templateApp);
+      const wrapper = mountBand(null, templateApp!);
       const links = wrapper.findAll("a.secondary-btn");
       expect(links).toHaveLength(linkCount);
       for (const link of links) {
