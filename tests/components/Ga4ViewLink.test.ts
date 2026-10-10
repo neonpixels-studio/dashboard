@@ -1,3 +1,4 @@
+import { GA4_REPORTS_URL_FIXTURE } from "../support/ga4Links";
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { appDetailFixture } from "../support/appDetailFixture";
@@ -27,9 +28,7 @@ describe("Ga4ViewLink", () => {
     const link = mount(Ga4ViewLink, {
       props: { detail: appDetailFixture({ ga4PropertyId: "412345678" }) },
     }).get("a");
-    expect(link.attributes("href")).toBe(
-      "https://analytics.google.com/analytics/web/#/p412345678/reports/intelligenthome",
-    );
+    expect(link.attributes("href")).toBe(GA4_REPORTS_URL_FIXTURE);
     expect(link.attributes("target")).toBe("_blank");
     expect(link.attributes("rel")).toBe("noopener noreferrer");
   });

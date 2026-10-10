@@ -252,6 +252,6 @@ describe("AppDetailWriting", () => {
 
   it("omits the GA4 link when no property id is configured", () => {
     const wrapper = mountDetail({ detail: appDetailFixture() });
-    expect(wrapper.find("a.ga4-view-link").exists()).toBe(false);
+    expectGa4Links(wrapper, 0);
   });
 });

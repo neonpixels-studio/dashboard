@@ -90,7 +90,7 @@ describe("GET /api/apps/[slug]", () => {
         vendor: "ga4",
         enabled: true,
         externalId: "412345678",
-        secretRef: null,
+        secretRef: "SHOULD_NOT_LEAK",
         encryptedSecret: null,
       },
     ]);
@@ -98,6 +98,7 @@ describe("GET /api/apps/[slug]", () => {
     const result = await appDetailHandler(makeEvent("basin"));
 
     expect(result.ga4PropertyId).toBe("412345678");
+    expect(JSON.stringify(result)).not.toContain("SHOULD_NOT_LEAK");
   });
 
   it("scopes every fetch to the requested slug", async () => {

@@ -20,7 +20,7 @@ function row(overrides: Partial<IntegrationConfigRow>): IntegrationConfigRow {
 }
 
 describe("ga4PropertyIdForApp", () => {
-  it("returns the enabled ga4 row's external id and nothing else", () => {
+  it("returns the enabled ga4 row's external id", () => {
     expect(ga4PropertyIdForApp([row({})], "basin")).toBe("111");
   });
 
