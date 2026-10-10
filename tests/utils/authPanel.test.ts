@@ -83,6 +83,23 @@ describe("buildAuthPanelData", () => {
     ]);
   });
 
+  it.each([
+    ["auth_method:oauth_custom", "Oauth custom"],
+    ["auth_method:custom_acme_sso", "Acme sso"],
+    ["auth_method:sso", "Enterprise SSO"],
+  ])("labels %s as %s", (metricName, label) => {
+    const data = buildAuthPanelData(
+      appDetailFixture({
+        metrics: [
+          metric("users", "current", 5),
+          metric(metricName, "current", 5),
+        ],
+      }),
+    );
+
+    expect(data?.methods[0]?.label).toBe(label);
+  });
+
   it("omits what was not derived: no scan metrics, no subscribers, no signup series", () => {
     const data = buildAuthPanelData(
       appDetailFixture({ metrics: [metric("users", "current", 200)] }),

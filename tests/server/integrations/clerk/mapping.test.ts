@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertNonNegativeCount,
-  computeNewUsersWindowStart,
+  computeWindowStart,
   countActiveSince,
   countBySignInMethod,
   countDailySignups,
@@ -22,11 +22,11 @@ function user(overrides: Partial<ClerkUserSummary> = {}): ClerkUserSummary {
   };
 }
 
-describe("computeNewUsersWindowStart", () => {
+describe("computeWindowStart", () => {
   it("returns the epoch ms exactly windowDays before now", () => {
     const now = new Date("2026-09-20T12:00:00.000Z");
 
-    const windowStart = computeNewUsersWindowStart(now, 30);
+    const windowStart = computeWindowStart(now, 30);
 
     expect(new Date(windowStart).toISOString()).toBe(
       "2026-08-21T12:00:00.000Z",
@@ -36,7 +36,7 @@ describe("computeNewUsersWindowStart", () => {
   it("returns now itself for a zero-day window", () => {
     const now = new Date("2026-09-20T12:00:00.000Z");
 
-    expect(computeNewUsersWindowStart(now, 0)).toBe(now.getTime());
+    expect(computeWindowStart(now, 0)).toBe(now.getTime());
   });
 });
 

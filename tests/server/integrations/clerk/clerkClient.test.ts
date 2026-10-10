@@ -75,6 +75,8 @@ function buildUser(overrides: Record<string, unknown> = {}): User {
     createdAt: 1_700_000_000_000,
     lastActiveAt: 1_700_100_000_000,
     passwordEnabled: false,
+    enterpriseAccounts: [],
+    web3Wallets: [],
     emailAddresses: [{ verification: { status: "verified" } }],
     externalAccounts: [],
     ...overrides,
@@ -85,6 +87,8 @@ describe("classifySignInMethod", () => {
   it.each([
     [{ externalAccounts: [{ provider: "oauth_github" }] }, "github"],
     [{ externalAccounts: [{ provider: "google" }] }, "google"],
+    [{ enterpriseAccounts: [{}], passwordEnabled: true }, "sso"],
+    [{ web3Wallets: [{}] }, "web3"],
     [{ externalAccounts: [], passwordEnabled: true }, "password"],
     [{ externalAccounts: [], passwordEnabled: false }, "passwordless"],
   ])("classifies %j as %s", (overrides, expected) => {
@@ -160,21 +164,32 @@ describe("createClerkUserScanner", () => {
     expect(scan.totalCount).toBe(502);
   });
 
-  it("stops at the page cap and reports the shortfall instead of paging forever", async () => {
+  it("can complete a scan of exactly the cap (10 full pages)", async () => {
     const fullPage = Array.from({ length: 500 }, () => buildUser());
     const { client, getUserList } = pagedClient(
-      Array.from({ length: 20 }, () => fullPage),
-      10_000,
+      Array.from({ length: 10 }, () => fullPage),
+      5_000,
     );
 
     const scan = await createClerkUserScanner("sk_test_unused", client)();
 
     expect(getUserList).toHaveBeenCalledTimes(10);
     expect(scan.users).toHaveLength(5_000);
-    expect(scan.totalCount).toBe(10_000);
+    expect(scan.consistent).toBe(true);
   });
 
-  it("flags the scan inconsistent when the total shifts between pages (mid-scan deletion)", async () => {
+  it("makes a single request for an instance over the page cap, since the scan can never complete", async () => {
+    const fullPage = Array.from({ length: 500 }, () => buildUser());
+    const { client, getUserList } = pagedClient([fullPage], 5_001);
+
+    const scan = await createClerkUserScanner("sk_test_unused", client)();
+
+    expect(getUserList).toHaveBeenCalledTimes(1);
+    expect(scan.totalCount).toBe(5_001);
+    expect(scan.users).toHaveLength(500);
+  });
+
+  it("flags the scan inconsistent when the total shrinks between pages (mid-scan deletion)", async () => {
     const fullPage = Array.from({ length: 500 }, () => buildUser());
     const totals = [501, 500];
     const getUserList = vi.fn(async ({ offset }: { offset: number }) => ({

@@ -1,6 +1,6 @@
 import type { IntegrationConfigRow } from "../types";
+import { CLERK_VENDOR } from "./types";
 
-const CLERK_VENDOR = "clerk";
 const CLERK_DASHBOARD_ORIGIN = "https://dashboard.clerk.com";
 // Clerk's dashboard shortcut to the Users page of whichever instance the
 // signed-in user last had open. Not app-specific, so it's only the fallback

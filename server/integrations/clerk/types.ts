@@ -1,3 +1,5 @@
+export const CLERK_VENDOR = "clerk";
+
 // Plain, JSON-serializable subset of what this provider needs from Clerk's
 // Backend API. Deliberately NOT the raw `@clerk/backend` `UserAPI` return
 // types: `getCount()` resolves a bare `number`, while `getUserList()`

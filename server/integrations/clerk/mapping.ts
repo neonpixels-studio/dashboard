@@ -3,16 +3,13 @@ import type { ClerkUserScan, ClerkUserSummary } from "./types";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Epoch ms marking the start of the new-users reporting window:
- * `windowDays` days before `now`. Takes `now` as a parameter (rather than
+ * Epoch ms marking the start of a trailing reporting window (new users,
+ * active users): `windowDays` days before `now`. Takes `now` as a parameter (rather than
  * reading `Date.now()` itself) so provider.ts's `capturedAt` and this
  * window start are always derived from the exact same instant, instead of
  * two separate clock reads that could straddle a millisecond boundary.
  */
-export function computeNewUsersWindowStart(
-  now: Date,
-  windowDays: number,
-): number {
+export function computeWindowStart(now: Date, windowDays: number): number {
   return now.getTime() - windowDays * MS_PER_DAY;
 }
 

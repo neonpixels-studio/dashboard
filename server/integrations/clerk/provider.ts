@@ -22,16 +22,16 @@ import {
 } from "./clerkClient";
 import {
   assertNonNegativeCount,
-  computeNewUsersWindowStart,
+  computeWindowStart,
   countActiveSince,
   countBySignInMethod,
   countDailySignups,
   countVerifiedEmailUsers,
   isCompleteScan,
 } from "./mapping";
+import { CLERK_VENDOR } from "./types";
 import type { ClerkUserScan, GetClerkUserCount, ScanClerkUsers } from "./types";
 
-const CLERK_VENDOR = "clerk";
 // How far back the new-users delta looks: a rolling 30×24h window ending at
 // capturedAt. NOT calendar-aligned the same way GA4's 30d sessions total is
 // (server/integrations/ga4/provider.ts's REPORT_START_DATE/REPORT_END_DATE
@@ -42,7 +42,6 @@ const CLERK_VENDOR = "clerk";
 const NEW_USERS_WINDOW_DAYS = 30;
 const ACTIVE_USERS_WINDOW_DAYS = 7;
 const SIGNUPS_WINDOW_DAYS = 30;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // A fresh object per call — a single shared module-level constant here
 // would let a caller that mutates its `metrics`/`trafficBreakdown`/
@@ -70,8 +69,7 @@ function buildScanMetrics(
   if (!isCompleteScan(scan)) {
     return [];
   }
-  const activeSince =
-    capturedAt.getTime() - ACTIVE_USERS_WINDOW_DAYS * MS_PER_DAY;
+  const activeSince = computeWindowStart(capturedAt, ACTIVE_USERS_WINDOW_DAYS);
   const methodMetrics = [...countBySignInMethod(scan.users)].map(
     ([method, count]) =>
       clerkMetric(
@@ -135,7 +133,7 @@ export async function fetchClerkMetrics(
   }
 
   const capturedAt = new Date();
-  const newUsersWindowStart = computeNewUsersWindowStart(
+  const newUsersWindowStart = computeWindowStart(
     capturedAt,
     NEW_USERS_WINDOW_DAYS,
   );

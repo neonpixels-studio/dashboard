@@ -40,7 +40,10 @@ const METHOD_LABELS: Record<string, string> = {
   apple: "Apple",
   password: "Password",
   passwordless: "Passwordless",
+  sso: "Enterprise SSO",
+  web3: "Web3 wallet",
 };
+const CUSTOM_PROVIDER_PREFIX = "custom_";
 
 export interface AuthMethodShare {
   label: string;
@@ -67,10 +70,14 @@ export interface AuthPanelData {
 }
 
 function formatMethodLabel(method: string): string {
-  return (
-    METHOD_LABELS[method] ??
-    `${method.charAt(0).toUpperCase()}${method.slice(1)}`
-  );
+  const known = METHOD_LABELS[method];
+  if (known) {
+    return known;
+  }
+  const readable = method
+    .replace(CUSTOM_PROVIDER_PREFIX, "")
+    .replaceAll("_", " ");
+  return `${readable.charAt(0).toUpperCase()}${readable.slice(1)}`;
 }
 
 // A scan-derived metric from an older sync (e.g. before the instance
