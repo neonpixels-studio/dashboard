@@ -11,6 +11,19 @@ const SENTRY_REQUEST_TIMEOUT_MS = 20_000;
 // sentry.io).
 const SENTRY_API_BASE_URL = "https://sentry.io/api/0";
 
+// Sentry's issue-search endpoint allows 5 requests per 1-second window per
+// token, and one sync batch can burst past that (issue #107). A 429 is
+// transient, so it is retried a bounded number of times instead of failing
+// the whole project's sync.
+const HTTP_TOO_MANY_REQUESTS = 429;
+const SENTRY_MAX_RATE_LIMIT_RETRIES = 3;
+// The rate-limit window is 1s, so this is a sensible wait when Sentry sends
+// no usable hint header.
+const SENTRY_DEFAULT_RETRY_DELAY_MS = 1_000;
+// Clamp so a large or bogus header can never stall a sync.
+const SENTRY_MAX_RETRY_DELAY_MS = 2_000;
+const MS_PER_SECOND = 1_000;
+
 // Only the subset of the global `fetch` signature this package calls —
 // narrowing the parameter type (rather than depending on the ambient global
 // directly) is what makes `createSentryIssueSearcher` accept a lightweight
@@ -87,6 +100,96 @@ async function fetchIssuesPage(
   }
 }
 
+function parseRetryAfterMs(headers: Headers): number | null {
+  const seconds = Number(headers.get("retry-after"));
+  if (!headers.get("retry-after") || !Number.isFinite(seconds) || seconds < 0) {
+    return null;
+  }
+  return seconds * MS_PER_SECOND;
+}
+
+function parseRateLimitResetMs(headers: Headers, nowMs: number): number | null {
+  const resetEpochSeconds = Number(headers.get("x-sentry-rate-limit-reset"));
+  if (!headers.get("x-sentry-rate-limit-reset")) {
+    return null;
+  }
+  if (!Number.isFinite(resetEpochSeconds)) {
+    return null;
+  }
+  return Math.max(0, resetEpochSeconds * MS_PER_SECOND - nowMs);
+}
+
+// Prefers Retry-After, then x-sentry-rate-limit-reset (epoch seconds), then a
+// default; always clamped to SENTRY_MAX_RETRY_DELAY_MS.
+function resolveRetryDelayMs(headers: Headers, nowMs: number): number {
+  const hintedDelayMs =
+    parseRetryAfterMs(headers) ??
+    parseRateLimitResetMs(headers, nowMs) ??
+    SENTRY_DEFAULT_RETRY_DELAY_MS;
+  return Math.min(hintedDelayMs, SENTRY_MAX_RETRY_DELAY_MS);
+}
+
+// Resolves after `delayMs`, or rejects as soon as the shared run budget is
+// exhausted so a retry wait never outlives the sync.
+function waitForRetry(
+  delayMs: number,
+  deadline: FetchDeadline,
+  projectSlug: string,
+): Promise<void> {
+  const budgetExhaustedError = () =>
+    new Error(
+      `Sentry issue search for project "${projectSlug}" was aborted because the sync's shared run budget was exhausted.`,
+      { cause: deadline.signal.reason },
+    );
+
+  return new Promise((resolve, reject) => {
+    if (deadline.signal.aborted) {
+      reject(budgetExhaustedError());
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timerId);
+      reject(budgetExhaustedError());
+    };
+    const timerId = setTimeout(() => {
+      deadline.signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    deadline.signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function fetchIssuesPageWithRetry(
+  fetchImpl: FetchIssuesPage,
+  url: URL,
+  authToken: string,
+  abortController: AbortController,
+  deadline: FetchDeadline,
+  projectSlug: string,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetchIssuesPage(
+      fetchImpl,
+      url,
+      authToken,
+      abortController,
+      deadline,
+      projectSlug,
+    );
+    if (
+      response.status !== HTTP_TOO_MANY_REQUESTS ||
+      attempt >= SENTRY_MAX_RATE_LIMIT_RETRIES
+    ) {
+      return response;
+    }
+    await waitForRetry(
+      resolveRetryDelayMs(response.headers, Date.now()),
+      deadline,
+      projectSlug,
+    );
+  }
+}
+
 async function parseIssuesResponseBody(
   response: Response,
   projectSlug: string,
@@ -145,7 +248,7 @@ export function createSentryIssueSearcher(
     // body parse stay inside this one try, and the timer only clears once
     // both are done.
     try {
-      const response = await fetchIssuesPage(
+      const response = await fetchIssuesPageWithRetry(
         fetchImpl,
         url,
         authToken,

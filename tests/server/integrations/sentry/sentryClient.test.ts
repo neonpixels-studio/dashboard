@@ -19,6 +19,7 @@ function buildFetchStub(response: {
   status: number;
   body: unknown;
   linkHeader?: string | null;
+  extraHeaders?: Record<string, string>;
 }) {
   return vi.fn(async () => ({
     ok: response.ok,
@@ -26,6 +27,10 @@ function buildFetchStub(response: {
     json: async () => response.body,
     headers: {
       get: (name: string) => {
+        const extraValue = response.extraHeaders?.[name.toLowerCase()];
+        if (extraValue !== undefined) {
+          return extraValue;
+        }
         if (name.toLowerCase() !== "link") {
           return null;
         }
@@ -271,5 +276,141 @@ describe("createSentryIssueSearcher", () => {
     );
     deadlineController.abort();
     await assertion;
+  });
+
+  describe("429 rate-limit retries (issue #107)", () => {
+    function buildSequencedFetch(
+      responses: Parameters<typeof buildFetchStub>[0][],
+    ) {
+      const stubs = responses.map((response) => buildFetchStub(response));
+      let callIndex = 0;
+      return vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const stub = stubs[Math.min(callIndex, stubs.length - 1)];
+        callIndex++;
+        return stub!(...args);
+      }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+    }
+
+    const rateLimited = (extraHeaders: Record<string, string> = {}) => ({
+      ok: false,
+      status: 429,
+      body: {},
+      extraHeaders,
+    });
+    const success = { ok: true, status: 200, body: [] };
+    const search = (searcher: ReturnType<typeof createSentryIssueSearcher>) =>
+      searcher({ projectSlug: "markpost", query: "is:unresolved" });
+
+    it("resolves when a 429 is followed by a 200", async () => {
+      vi.useFakeTimers();
+      const fetchStub = buildSequencedFetch([rateLimited(), success]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(resultPromise).resolves.toMatchObject({ issues: [] });
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("waits for Retry-After seconds before retrying", async () => {
+      vi.useFakeTimers();
+      const fetchStub = buildSequencedFetch([
+        rateLimited({ "retry-after": "1" }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("falls back to x-sentry-rate-limit-reset (epoch seconds) when Retry-After is absent", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-10T12:00:00.000Z"));
+      const resetEpochSeconds = Date.now() / 1000 + 1;
+      const fetchStub = buildSequencedFetch([
+        rateLimited({
+          "x-sentry-rate-limit-reset": String(resetEpochSeconds),
+        }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("clamps an oversized Retry-After to the 2s ceiling", async () => {
+      vi.useFakeTimers();
+      const fetchStub = buildSequencedFetch([
+        rateLimited({ "retry-after": "60" }),
+        success,
+      ]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      await resultPromise;
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops after 3 retries and throws the existing status-429 error", async () => {
+      vi.useFakeTimers();
+      const fetchStub = buildSequencedFetch([rateLimited()]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub),
+      );
+      const assertion = expect(resultPromise).rejects.toThrow(
+        'Sentry issue search for project "markpost" failed with status 429.',
+      );
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      await assertion;
+      expect(fetchStub).toHaveBeenCalledTimes(4);
+    });
+
+    it("cancels a pending retry wait when the shared deadline aborts", async () => {
+      vi.useFakeTimers();
+      const deadlineController = new AbortController();
+      const fetchStub = buildSequencedFetch([rateLimited(), success]);
+      const resultPromise = search(
+        createSentryIssueSearcher("token_abc", "acme", fetchStub, {
+          signal: deadlineController.signal,
+          remainingMs: () => 0,
+        }),
+      );
+      const assertion = expect(resultPromise).rejects.toThrow(
+        /markpost.*shared run budget was exhausted/,
+      );
+
+      await vi.advanceTimersByTimeAsync(100);
+      deadlineController.abort();
+      await assertion;
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not retry non-429 failures", async () => {
+      const fetchStub = buildSequencedFetch([
+        { ok: false, status: 500, body: {} },
+      ]);
+
+      await expect(
+        search(createSentryIssueSearcher("token_abc", "acme", fetchStub)),
+      ).rejects.toThrow(/failed with status 500/);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+    });
   });
 });
