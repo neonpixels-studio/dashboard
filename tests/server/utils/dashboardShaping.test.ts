@@ -15,6 +15,7 @@ import {
   syndicationMatrixForApp,
   trafficChannelSplitAcrossApps,
   trafficChannelSplitForApp,
+  windowedTotalAcrossApps,
 } from "../../../server/utils/dashboardShaping";
 import type {
   IntegrationConfigRow,
@@ -1278,5 +1279,82 @@ describe("sessionsForApp", () => {
     );
 
     expect(result.total30d).toBe(999);
+  });
+});
+
+describe("rollupSeriesAcrossApps windowDays", () => {
+  const now = new Date("2026-09-20T12:00:00Z");
+  const rows = Array.from({ length: 60 }, (_, index) => {
+    const capturedAt = new Date("2026-09-20T00:00:00Z");
+    capturedAt.setUTCDate(capturedAt.getUTCDate() - (59 - index));
+    return metricRow({ id: index + 1, value: index, capturedAt });
+  });
+
+  it.each([7, 30, 60])("produces exactly %i daily points", (windowDays) => {
+    const series = rollupSeriesAcrossApps(
+      rows,
+      ["basin"],
+      "mrr",
+      "current",
+      windowDays,
+      now,
+    );
+    expect(series).toHaveLength(windowDays);
+    expect(series[0]!.value).toBe(60 - windowDays);
+    expect(rollupDelta(series)?.value).toBe(windowDays - 1);
+  });
+});
+
+describe("windowedTotalAcrossApps", () => {
+  const now = new Date("2026-09-20T12:00:00Z");
+
+  function dailySessions(daysAgo: number, value: number, slug = "basin") {
+    const capturedAt = new Date("2026-09-20T00:00:00Z");
+    capturedAt.setUTCDate(capturedAt.getUTCDate() - daysAgo);
+    return sessionsRow({ slug, period: "daily", value, capturedAt });
+  }
+
+  const total = (
+    rows: MetricSnapshotRow[],
+    windowDays: number,
+    slugs = ["basin"],
+  ) =>
+    windowedTotalAcrossApps(rows, slugs, "sessions", "daily", windowDays, now);
+
+  it("returns null with no matching rows rather than a fabricated zero", () => {
+    expect(total([], 7)).toBeNull();
+    expect(total([dailySessions(0, 5)], 7, ["markpost"])).toBeNull();
+  });
+
+  it("sums only the days inside the window, inclusive of today and of the first day", () => {
+    const rows = [
+      dailySessions(0, 1),
+      dailySessions(6, 10),
+      dailySessions(7, 100),
+      dailySessions(29, 1000),
+      dailySessions(30, 10000),
+    ];
+    expect(total(rows, 7)).toBe(11);
+    expect(total(rows, 30)).toBe(1111);
+    expect(total(rows, 60)).toBe(11111);
+  });
+
+  it("sums across apps but counts one row per app per day (latest wins)", () => {
+    const earlier = dailySessions(0, 5);
+    const later = {
+      ...dailySessions(0, 8),
+      capturedAt: new Date("2026-09-20T09:00:00Z"),
+    };
+    const rows = [earlier, later, dailySessions(0, 20, "markpost")];
+    expect(total(rows, 7, ["basin", "markpost"])).toBe(28);
+  });
+
+  it("ignores other metrics and periods", () => {
+    const rows = [
+      dailySessions(0, 5),
+      sessionsRow({ period: "30d", value: 9999, capturedAt: now }),
+      metricRow({ metric: "mrr", period: "daily", capturedAt: now, value: 7 }),
+    ];
+    expect(total(rows, 7)).toBe(5);
   });
 });
