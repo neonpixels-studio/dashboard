@@ -162,4 +162,8 @@ export interface AppDetailResponse {
   alerts: AppAlert[];
   sources: SyncSource[];
   lastSyncedAt: string | null;
+  // The numeric GA4 property id (not a secret) behind this app's traffic
+  // panels, or null when GA4 isn't enabled/configured for it. Lets the UI
+  // link out to the property's reports.
+  ga4PropertyId: string | null;
 }

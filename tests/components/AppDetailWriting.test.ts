@@ -242,4 +242,22 @@ describe("AppDetailWriting", () => {
       mountDetail({ detail: LOADED_DETAIL }).find(".tile-grid").html(),
     ).toMatchSnapshot();
   });
+  it("links to the GA4 property in a new tab when one is configured", () => {
+    const wrapper = mountDetail({
+      detail: appDetailFixture({ ga4PropertyId: "412345678" }),
+    });
+    const links = wrapper.findAll("a.ga4-view-link");
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link.attributes("href")).toBe(
+        "https://analytics.google.com/analytics/web/#/p412345678/reports/intelligenthome",
+      );
+      expect(link.attributes("target")).toBe("_blank");
+    }
+  });
+
+  it("omits the GA4 link when no property id is configured", () => {
+    const wrapper = mountDetail({ detail: appDetailFixture() });
+    expect(wrapper.find("a.ga4-view-link").exists()).toBe(false);
+  });
 });
