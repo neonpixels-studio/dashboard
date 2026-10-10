@@ -1,0 +1,119 @@
+name: Weekly production deploy
+
+# The cron is the single place the deploy cadence lives. Manual runs
+# (Actions tab > Weekly production deploy > Run workflow) ship hotfixes.
+on:
+  schedule:
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Migrate production DB and trigger deploy
+    # Migrations run as their own visible step (not inside the Netlify build) so
+    # a failed migration fails loudly, and the build hook is only called once
+    # the schema change has succeeded. Migrations therefore apply just before
+    # the deploy and must stay backward compatible with the code still live.
+    #
+    # Required repository secrets (Settings > Secrets > Actions):
+    #   NETLIFY_BUILD_HOOK_URL        - Netlify build hook for branch `main`.
+    #   DOTENV_PRIVATE_KEY_PRODUCTION - decrypts .env.production, which holds the
+    #                                   production DATABASE_URL that drizzle.config
+    #                                   reads. Same key already set in Netlify.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Require secrets
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+        run: |
+          if [ -z "$DOTENV_PRIVATE_KEY_PRODUCTION" ]; then
+            echo "::error::DOTENV_PRIVATE_KEY_PRODUCTION is not set. Production migrations cannot run; add the repo secret."
+            exit 1
+          fi
+          if [ -z "$NETLIFY_BUILD_HOOK_URL" ]; then
+            echo "::error::NETLIFY_BUILD_HOOK_URL is not set. Production would never deploy; add the repo secret."
+            exit 1
+          fi
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Skip scheduled run with no changes
+        id: changes
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "schedule" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          recent_commits=$(git log origin/main --since="7 days ago" --oneline | wc -l)
+          if [ "$recent_commits" -eq 0 ]; then
+            echo "No commits on main in the last 7 days; skipping migration and deploy (a no-change production deploy still costs credits)."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "deploy=true" >> "$GITHUB_OUTPUT"
+
+      - name: Require green CI on main HEAD
+        if: steps.changes.outputs.deploy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head_sha=$(git rev-parse HEAD)
+          run_state=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$head_sha&branch=main&event=push" \
+            --jq '.workflow_runs | sort_by(.created_at) | last | "\(.status // "none") \(.conclusion // "none")"')
+          if [ "$run_state" = "completed success" ]; then
+            exit 0
+          fi
+          echo "::error::CI on main HEAD ($head_sha) is '$run_state' (status conclusion), not 'completed success'. Refusing to migrate or deploy. If CI is still running, re-run this workflow when it finishes."
+          exit 1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.changes.outputs.deploy == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.changes.outputs.deploy == 'true'
+        run: npm ci
+        env:
+          HUSKY: 0
+
+      - name: Apply Drizzle migrations to production
+        if: steps.changes.outputs.deploy == 'true'
+        run: npm run db:migrate:production
+        env:
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+
+      - name: Trigger Netlify production deploy
+        if: steps.changes.outputs.deploy == 'true'
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A build hook can't pin a commit; narrow the race by failing if main
+          # moved since CI and migrations were checked.
+          remote_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$remote_sha" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::main moved during the run (now $remote_sha). Migrations were applied but no deploy was triggered; re-run the workflow."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            trigger_title="Manual+production+deploy"
+          else
+            trigger_title="Weekly+production+deploy"
+          fi
+          curl --fail --silent --show-error -X POST -d '{}' "$NETLIFY_BUILD_HOOK_URL?trigger_title=$trigger_title"
