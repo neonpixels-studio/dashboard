@@ -26,6 +26,7 @@
             :delta-tone="mrrDeltaTone"
             :has-sparkline="hasMrrSparkline"
             :sparkline-path="mrrSparklinePath"
+            :range-days="range"
           />
           <RollupStatTile
             label="ACTIVE SUBSCRIBERS"

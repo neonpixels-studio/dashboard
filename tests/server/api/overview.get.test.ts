@@ -256,7 +256,55 @@ describe("GET /api/overview", () => {
         expect(result.sessions30d.period).toBe(`${range}d`);
       }
 
-      expect(totals).toEqual({ 7: 70, 30: 300, 60: 300 });
+      // 30 is the vendor's own exact total; 7 and 60 come from the daily rows
+      // (60 has only the 30 days that exist: thin history, no padding).
+      expect(totals).toEqual({ 7: 70, 30: 9999, 60: 300 });
+    });
+
+    it("never lets a partial daily backfill undercut the vendor total at the default range", async () => {
+      vi.setSystemTime(NOW);
+      mockFetchLatestMetricSnapshots.mockResolvedValue([
+        metricRow({
+          vendor: "ga4",
+          metric: "sessions",
+          period: "30d",
+          value: 9999,
+          capturedAt: NOW,
+        }),
+      ]);
+      mockFetchMetricSnapshotSeries.mockResolvedValue([
+        metricRow({
+          id: 7,
+          vendor: "ga4",
+          metric: "sessions",
+          period: "daily",
+          value: 3,
+          capturedAt: new Date("2026-09-20T00:00:00Z"),
+        }),
+      ]);
+
+      const result = await overviewHandler({} as H3Event);
+
+      expect(result.sessions30d.value).toBe(9999);
+    });
+
+    it("derives the default range from daily rows when the vendor total is missing", async () => {
+      vi.setSystemTime(NOW);
+      mockFetchMetricSnapshotSeries.mockResolvedValue([
+        metricRow({
+          id: 7,
+          vendor: "ga4",
+          metric: "sessions",
+          period: "daily",
+          value: 3,
+          capturedAt: new Date("2026-09-20T00:00:00Z"),
+        }),
+      ]);
+
+      const result = await overviewHandler({} as H3Event);
+
+      expect(result.sessions30d.value).toBe(3);
+      expect(result.sessions30d.period).toBe("30d");
     });
 
     it("keeps the vendor 30d total at the default range when no daily rows exist, and shows nothing for other ranges", async () => {
@@ -271,13 +319,33 @@ describe("GET /api/overview", () => {
         }),
       ]);
 
+      // A rolling-series with a real change in it: without the null-total
+      // guard the 7-day delta would still be computed from this.
+      mockFetchMetricSnapshotSeries.mockResolvedValue(
+        [
+          ["2026-09-14T00:00:00Z", 8000],
+          ["2026-09-20T00:00:00Z", 9999],
+        ].map(([capturedAt, value], index) =>
+          metricRow({
+            id: index + 1,
+            vendor: "ga4",
+            metric: "sessions",
+            period: "30d",
+            value: value as number,
+            capturedAt: new Date(capturedAt as string),
+          }),
+        ),
+      );
+
       const defaultResult = await overviewHandler({} as H3Event);
       expect(defaultResult.sessions30d.value).toBe(9999);
+      expect(defaultResult.sessions30d.delta).not.toBeNull();
       expect(defaultResult.sessions30d.period).toBe("30d");
 
       mockGetQuery.mockReturnValue({ range: "7" });
       const sevenDayResult = await overviewHandler({} as H3Event);
       expect(sevenDayResult.sessions30d.value).toBeNull();
+      expect(sevenDayResult.sessions30d.delta).toBeNull();
     });
 
     it("leaves the open issues since-yesterday window fixed regardless of range", async () => {

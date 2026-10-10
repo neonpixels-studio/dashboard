@@ -72,23 +72,21 @@ function withDelta<Total extends RollupTotal>(
 
 // Sessions is the one rollup whose headline number the vendor hands over
 // already aggregated over a fixed 30 days (GA4's rolling `30d` row), so
-// slicing stored rows can't re-window it. It's derived instead from the
-// stored per-day rows (GA4 backfills them), summed over the selected range.
-// Fallback when no daily rows exist yet: the default 30-day range keeps the
-// vendor's own 30d total (that IS the 30-day answer); other ranges have no
-// honest number, so null (rendered as a dash) rather than a mislabelled 30d.
+// slicing stored rows can't re-window it. At the default 30-day range the
+// vendor's own total IS the exact answer, so it wins whenever it exists
+// (a partially backfilled daily series must never undercut it). Other
+// ranges are derived from the stored per-day rows (GA4 backfills them),
+// summed over the selected range; thin history just sums fewer days, per
+// the issue. No daily rows at all means no honest number: null (a dash).
 function resolveSessionsTotal(
-  metricRows: MetricSnapshotRow[],
+  vendorTotal: RollupTotal,
   seriesRows: MetricSnapshotRow[],
   slugs: string[],
   range: OverviewRangeDays,
 ): RollupTotal {
-  const vendorTotal = metricRollupWithSplit(
-    metricRows,
-    slugs,
-    METRIC_SESSIONS,
-    PERIOD_30D,
-  );
+  if (range === DEFAULT_OVERVIEW_RANGE && vendorTotal.value !== null) {
+    return vendorTotal;
+  }
   const derived = windowedTotalAcrossApps(
     seriesRows,
     slugs,
@@ -96,18 +94,14 @@ function resolveSessionsTotal(
     PERIOD_DAILY,
     range,
   );
-  if (derived !== null) {
-    return {
-      value: derived,
-      period: `${range}d`,
-      capturedAt: vendorTotal.capturedAt,
-    };
+  if (derived === null) {
+    return { value: null, period: null, capturedAt: null };
   }
-  if (range === DEFAULT_OVERVIEW_RANGE) {
-    const { value, period, capturedAt } = vendorTotal;
-    return { value, period, capturedAt };
-  }
-  return { value: null, period: null, capturedAt: null };
+  return {
+    value: derived,
+    period: `${range}d`,
+    capturedAt: vendorTotal.capturedAt,
+  };
 }
 
 // Named field-by-field (not spreading metricRollupWithSplit): its `byApp`
@@ -129,14 +123,27 @@ function buildSessionsRollup(
     METRIC_SESSIONS,
     PERIOD_30D,
   );
+  const total = resolveSessionsTotal(
+    {
+      value: vendorTotal.value,
+      period: vendorTotal.period,
+      capturedAt: vendorTotal.capturedAt,
+    },
+    seriesRows,
+    slugs,
+    range,
+  );
+  const withRangeDelta = withDelta(total, {
+    seriesRows,
+    slugs,
+    metric: METRIC_SESSIONS,
+    period: PERIOD_30D,
+    windowDays: range,
+  });
   return {
-    ...withDelta(resolveSessionsTotal(metricRows, seriesRows, slugs, range), {
-      seriesRows,
-      slugs,
-      metric: METRIC_SESSIONS,
-      period: PERIOD_30D,
-      windowDays: range,
-    }),
+    // No total means nothing for a delta to sit beside.
+    ...withRangeDelta,
+    delta: total.value === null ? null : withRangeDelta.delta,
     bySource: trafficChannelSplitAcrossApps(
       breakdownRows,
       metricRows,

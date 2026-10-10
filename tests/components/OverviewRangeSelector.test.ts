@@ -22,7 +22,9 @@ describe("OverviewRangeSelector", () => {
     expect(pressed.map((option) => option.attributes("aria-label"))).toEqual([
       `Last ${selected} days`,
     ]);
-    expect(options.filter((o) => o.classes("active"))).toHaveLength(1);
+    expect(options.filter((option) => option.classes("active"))).toHaveLength(
+      1,
+    );
   });
 
   it("emits the clicked range", async () => {

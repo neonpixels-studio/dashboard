@@ -17,7 +17,7 @@
       :stroke-width="2.6"
       filled
       fill-color="color-mix(in srgb, #f2f2f5 8%, transparent)"
-      aria-label="Monthly recurring revenue across all apps over the last 30 days"
+      :aria-label="`Monthly recurring revenue across all apps over the last ${rangeDays} days`"
     />
     <p v-else class="rollup-empty">
       Not enough synced data for a trend line yet.
@@ -35,5 +35,6 @@ defineProps<{
   deltaTone: "ok" | "muted";
   hasSparkline: boolean;
   sparklinePath: string;
+  rangeDays: number;
 }>();
 </script>
