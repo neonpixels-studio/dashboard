@@ -1,4 +1,6 @@
 import type Stripe from "stripe";
+import { ACTIVITY_LOOKBACK_DAYS } from "./activity";
+import { MILLISECONDS_PER_SECOND } from "./mrr";
 import { NO_DEADLINE, type FetchDeadline } from "../types";
 import {
   createStripeSdkClient,
@@ -13,9 +15,7 @@ import type {
 } from "./types";
 
 const EVENTS_PAGE_SIZE = 100;
-const ACTIVITY_LOOKBACK_DAYS = 30;
 const SECONDS_PER_DAY = 24 * 60 * 60;
-const MILLISECONDS_PER_SECOND = 1000;
 const DEFAULT_SUBSCRIPTION_QUANTITY = 1;
 
 const SUBSCRIPTION_EVENT_KINDS: Record<string, StripeActivityKind> = {
@@ -51,8 +51,10 @@ function subscriptionLines(
   return subscription.items.data.map((item) => ({
     productId: idOf(item.price.product),
     amountCents:
-      (item.price.unit_amount ?? 0) *
-      (item.quantity ?? DEFAULT_SUBSCRIPTION_QUANTITY),
+      item.price.unit_amount === null
+        ? null
+        : item.price.unit_amount *
+          (item.quantity ?? DEFAULT_SUBSCRIPTION_QUANTITY),
   }));
 }
 

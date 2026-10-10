@@ -63,6 +63,22 @@ describe("toActivityEvent", () => {
     });
   });
 
+  it("gives a tiered/metered item a null amount instead of a fake zero", () => {
+    const tiered = {
+      ...SUBSCRIPTION,
+      items: {
+        data: [
+          { quantity: 1, price: { unit_amount: null, product: "prod_pro" } },
+        ],
+      },
+    };
+
+    expect(
+      toActivityEvent(stripeEvent("customer.subscription.created", tiered))
+        ?.lines,
+    ).toEqual([{ productId: "prod_pro", amountCents: null }]);
+  });
+
   it("maps subscription.deleted to a canceled event", () => {
     expect(
       toActivityEvent(

@@ -1,4 +1,4 @@
-import { BILLING_CURRENCY } from "./mrr";
+import { BILLING_CURRENCY, MILLISECONDS_PER_SECOND } from "./mrr";
 import type { StripeEventInput } from "../types";
 import type {
   StripeActivityEvent,
@@ -10,8 +10,10 @@ import type {
 // capping the pages walked only ever trims the OLDEST events from the
 // "recent activity" list; it can never hide a newer one.
 export const MAX_ACTIVITY_PAGES = 5;
+// Stripe only keeps 30 days of events; stored rows older than this are pruned
+// because they could never be re-fetched.
+export const ACTIVITY_LOOKBACK_DAYS = 30;
 
-const MILLISECONDS_PER_SECOND = 1000;
 const MASK = "••••";
 const MASK_FALLBACK_LOCAL_LENGTH = 2;
 
@@ -80,6 +82,19 @@ function planNameFor(
   return [...new Set(names)].join(" + ");
 }
 
+// Null when any matching line has no flat amount (tiered/metered pricing), so
+// the panel shows a dash instead of a misleading partial or zero total.
+function totalAmountCents(lines: StripeActivityLine[]): number | null {
+  let total = 0;
+  for (const line of lines) {
+    if (line.amountCents === null) {
+      return null;
+    }
+    total += line.amountCents;
+  }
+  return total;
+}
+
 async function resolveEmail(
   event: StripeActivityEvent,
   source: Pick<StripeDetailSource, "getCustomerEmail">,
@@ -106,7 +121,7 @@ async function toEventRow(
     occurredAt: new Date(event.occurredAt * MILLISECONDS_PER_SECOND),
     emailMasked: maskEmail(await resolveEmail(event, source)),
     planName: planNameFor(lines, planNames),
-    amountCents: lines.reduce((sum, line) => sum + line.amountCents, 0),
+    amountCents: totalAmountCents(lines),
     objectId: event.objectId,
   };
 }
@@ -114,17 +129,23 @@ async function toEventRow(
 /**
  * Keeps only the events that touch `productIds` (the Stripe account is shared
  * across apps) and shapes them into stripe_event rows with the customer email
- * masked. Customer lookups happen only for matching subscription events.
+ * masked. Customer lookups happen only for matching subscription events, one
+ * at a time (they are memoized per customer) so a busy account can't burst
+ * Stripe's rate limit.
  */
-export function buildEventRows(
+export async function buildEventRows(
   events: StripeActivityEvent[],
   productIds: Set<string>,
   planNames: Map<string, string>,
   source: Pick<StripeDetailSource, "getCustomerEmail">,
 ): Promise<StripeEventInput[]> {
-  const rows = events.flatMap((event) => {
+  const rows: StripeEventInput[] = [];
+  for (const event of events) {
     const lines = matchingLines(event, productIds);
-    return lines.length ? [toEventRow(event, lines, planNames, source)] : [];
-  });
-  return Promise.all(rows);
+    if (!lines.length) {
+      continue;
+    }
+    rows.push(await toEventRow(event, lines, planNames, source));
+  }
+  return rows;
 }

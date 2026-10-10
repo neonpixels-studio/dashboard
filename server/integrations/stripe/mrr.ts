@@ -23,12 +23,12 @@ import type {
 // wired up) — see the PR's follow-up suggestions for adding real conversion
 // if the account ever prices in more than one currency.
 export const BILLING_CURRENCY = "usd";
-const CENTS_PER_DOLLAR = 100;
+export const CENTS_PER_DOLLAR = 100;
 const MONTHS_PER_YEAR = 12;
 const WEEKS_PER_MONTH = 52 / MONTHS_PER_YEAR;
 const DAYS_PER_MONTH = 30;
 const MINIMUM_INTERVAL_COUNT = 1;
-const MILLISECONDS_PER_SECOND = 1000;
+export const MILLISECONDS_PER_SECOND = 1000;
 
 // PRODUCT DECISIONS (issue #73) - flip these to change what MRR means.
 // Subscription statuses that count toward MRR and the subscriber count.

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { H3Event } from "h3";
 
 const mockRequireUser = vi.fn();
@@ -117,6 +117,10 @@ describe("GET /api/apps/[slug]", () => {
       updatedAt: new Date("2026-01-01T00:00:00Z"),
     };
 
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
     beforeEach(() => {
       mockFetchIntegrationConfigs.mockResolvedValue([STRIPE_CONFIG]);
       mockFetchStripePlanRevenue.mockResolvedValue([
@@ -162,7 +166,6 @@ describe("GET /api/apps/[slug]", () => {
           },
         ],
       });
-      vi.unstubAllEnvs();
     });
 
     it("uses live-mode links and a production environment for a live key", async () => {
@@ -174,7 +177,6 @@ describe("GET /api/apps/[slug]", () => {
       expect(result.stripe?.dashboardUrl).toBe(
         "https://dashboard.stripe.com/products/prod_pro",
       );
-      vi.unstubAllEnvs();
     });
   });
 

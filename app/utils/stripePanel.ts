@@ -32,7 +32,7 @@ const EVENT_LABELS: Record<StripeEventKind, string> = {
   payment_failed: "Payment failed",
 };
 
-const CENTS_CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
+const DOLLAR_AMOUNT_FORMATTER = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 });
@@ -51,7 +51,7 @@ export interface StripeEventRowView {
   email: string;
   plan: string;
   amount: string;
-  // Payment failures render muted/warning; every other kind is normal.
+  // Payment failures render as warnings; anything other than "new" renders muted.
   failed: boolean;
   muted: boolean;
   url: string | null;
@@ -111,7 +111,7 @@ function eventAmount(event: StripeRecentEvent): string {
   if (event.amount === null) {
     return "—";
   }
-  const formatted = CENTS_CURRENCY_FORMATTER.format(event.amount);
+  const formatted = DOLLAR_AMOUNT_FORMATTER.format(event.amount);
   return event.kind === "new" ? `+${formatted}` : `${MINUS_SIGN}${formatted}`;
 }
 

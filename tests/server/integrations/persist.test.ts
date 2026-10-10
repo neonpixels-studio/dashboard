@@ -585,8 +585,35 @@ describe("persistProviderResult stripe detail", () => {
     expect(values).toHaveBeenCalledWith([{ ...PLAN, slug: "basin" }]);
     expect(values).toHaveBeenCalledWith([{ ...EVENT, slug: "basin" }]);
     expect(onConflictDoNothing).toHaveBeenCalledTimes(1);
-    // delete + plan insert + event insert land atomically in one batch.
-    expect(batch.mock.calls[0]![0]).toHaveLength(3);
+    // plan delete + event prune + plan insert + event insert land atomically
+    // in one batch.
+    expect(batch.mock.calls[0]![0]).toHaveLength(4);
+  });
+
+  it("prunes the app's events older than Stripe's 30 day window", async () => {
+    const { db, deleteFrom, deleteWhere } = createFakeDb();
+    const before = Date.now();
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), {
+      ...BASE,
+      stripeDetail: { planRevenue: [], events: [] },
+    });
+
+    expect(deleteFrom).toHaveBeenCalledWith(stripeEvent);
+    const eventDeleteIndex = deleteFrom.mock.calls.findIndex(
+      ([table]) => table === stripeEvent,
+    );
+    const [slug, cutoff] = renderSqlParams(
+      deleteWhere.mock.calls[eventDeleteIndex]![0] as SQL,
+    ) as [string, string];
+    expect(slug).toBe("basin");
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(new Date(cutoff).getTime()).toBeGreaterThanOrEqual(
+      before - thirtyDaysMs - 1000,
+    );
+    expect(new Date(cutoff).getTime()).toBeLessThanOrEqual(
+      Date.now() - thirtyDaysMs + 1000,
+    );
   });
 
   it("still clears stale plan rows when the app now has no plans or events", async () => {
@@ -598,7 +625,10 @@ describe("persistProviderResult stripe detail", () => {
     });
 
     expect(deleteFrom).toHaveBeenCalledWith(stripePlanRevenue);
-    const condition = deleteWhere.mock.calls[0]![0] as SQL;
+    const planDeleteIndex = deleteFrom.mock.calls.findIndex(
+      ([table]) => table === stripePlanRevenue,
+    );
+    const condition = deleteWhere.mock.calls[planDeleteIndex]![0] as SQL;
     expect(renderSqlParams(condition)).toEqual(["basin"]);
     expect(insert).not.toHaveBeenCalled();
   });

@@ -86,10 +86,12 @@ export type ListActiveSubscriptions = (
 export type StripeActivityKind = "new" | "canceled" | "payment_failed";
 
 // One priced line an activity event touched, already reduced to the product
-// it belongs to and its amount in the currency's smallest unit.
+// it belongs to. `amountCents` is the undiscounted per-billing-cycle amount in
+// the currency's smallest unit (not a monthly figure), or null when the price
+// has no flat unit amount (tiered/metered).
 export interface StripeActivityLine {
   productId: string;
-  amountCents: number;
+  amountCents: number | null;
 }
 
 // A subscription-created / subscription-deleted / invoice-payment-failed

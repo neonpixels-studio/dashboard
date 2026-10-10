@@ -1,4 +1,5 @@
 import {
+  MILLISECONDS_PER_SECOND,
   matchSubscriptionsToProducts,
   normalizeItemToMonthlyDollars,
   roundToCents,
@@ -6,8 +7,6 @@ import {
 } from "./mrr";
 import type { StripePlanRevenueInput } from "../types";
 import type { StripeSubscription, StripeSubscriptionItem } from "./types";
-
-const MILLISECONDS_PER_SECOND = 1000;
 
 interface PlanTotals {
   monthlyRevenue: number;

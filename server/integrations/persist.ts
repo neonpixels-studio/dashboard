@@ -2,7 +2,16 @@
 // orchestration loop in orchestrator.ts — the loop takes these as injected
 // functions, so it never imports this module (or drizzle) directly, and
 // this module never needs a fake provider or a fake clock to be exercised.
-import { and, eq, getTableColumns, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  getTableColumns,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
   integrationConfig,
@@ -13,6 +22,7 @@ import {
   syndicationPost,
   trafficBreakdown,
 } from "../db/schema";
+import { ACTIVITY_LOOKBACK_DAYS } from "./stripe/activity";
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
 import type { SyncHealthRow } from "./staleVendorAlert";
@@ -139,7 +149,17 @@ export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
 // Stripe's detail rows. Plan revenue is replaced wholesale (delete + insert,
 // atomic inside the caller's db.batch) so a plan with no subscribers left
 // disappears; events are insert-if-new on the Stripe event id, so re-fetching
-// the same 30-day window is a no-op for rows already stored.
+// the same 30-day window is a no-op for rows already stored. Events older than
+// that window are pruned in the same batch: Stripe can't return them again, so
+// the table (and the panel's "recent" list) stays bounded to the window.
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function stripeEventCutoff(now: Date = new Date()): Date {
+  return new Date(
+    now.getTime() - ACTIVITY_LOOKBACK_DAYS * MILLISECONDS_PER_DAY,
+  );
+}
+
 function stripeDetailWrites(
   db: DrizzleDb,
   slug: string,
@@ -152,6 +172,14 @@ function stripeDetailWrites(
   );
   return [
     db.delete(stripePlanRevenue).where(eq(stripePlanRevenue.slug, slug)),
+    db
+      .delete(stripeEvent)
+      .where(
+        and(
+          eq(stripeEvent.slug, slug),
+          lt(stripeEvent.occurredAt, stripeEventCutoff()),
+        ),
+      ),
     ...(planRows.length ? [db.insert(stripePlanRevenue).values(planRows)] : []),
     ...(eventRows.length
       ? [db.insert(stripeEvent).values(eventRows).onConflictDoNothing()]

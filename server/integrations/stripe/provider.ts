@@ -3,6 +3,7 @@ import {
   METRIC_MRR,
   PERIOD_CURRENT,
 } from "../../utils/dashboardMetrics";
+import { reportError } from "../../utils/errorReporting";
 import { NO_DEADLINE } from "../types";
 import type {
   FetchDeadline,
@@ -14,38 +15,15 @@ import { createStripeSubscriptionLister } from "./stripeClient";
 import { createStripeDetailSource } from "./stripeDetailClient";
 import { buildEventRows, fetchActivityEvents } from "./activity";
 import { computePlanRevenue } from "./planRevenue";
-import {
-  computeMrrForProducts,
-  fetchAllActiveSubscriptions,
-  parseProductIds,
-} from "./mrr";
+import { computeMrrForProducts, fetchAllActiveSubscriptions } from "./mrr";
+import { configuredProductIds } from "./productIds";
 import type {
   ListActiveSubscriptions,
   StripeDetailSource,
   StripeSubscription,
 } from "./types";
-import { readIntegrationEnv } from "../integrationEnv";
 
 const STRIPE_VENDOR = "stripe";
-
-/**
- * Per the issue's account model, an app's product ids can live in either of
- * two places: `integration_config.external_id` (a per-row, DB-driven value
- * — set this way once an admin path for editing rows exists) or the shared
- * studio env var `NUXT_STRIPE_PRODUCT_ID_<SLUG>` (the deploy-time default —
- * see .env.example, and nuxt.config.ts's runtimeConfig for why each app's
- * var is declared there even though it's read here via `process.env`
- * directly, not `useRuntimeConfig()`). The DB row wins when set, mirroring
- * config.ts's own row-overrides-shared-default precedent.
- */
-function resolveProductIdsSource(config: IntegrationConfig): string | null {
-  const externalId = config.externalId?.trim();
-  if (externalId) {
-    return externalId;
-  }
-  const envVarName = `NUXT_STRIPE_PRODUCT_ID_${config.slug.toUpperCase()}`;
-  return readIntegrationEnv(envVarName) ?? null;
-}
 
 async function resolvePlanNames(
   productIds: Set<string>,
@@ -74,6 +52,23 @@ async function fetchStripeDetail(
   };
 }
 
+// The revenue-by-plan / events enrichment must never cost the core MRR
+// metrics: a key without Events read, a customer lookup failing, or a
+// non-USD event would otherwise fail the whole Stripe sync. A failure here is
+// reported to Sentry and leaves the previously stored detail untouched
+// (`stripeDetail` omitted) while the metrics still persist.
+async function fetchStripeDetailSafely(
+  slug: string,
+  ...detailArguments: Parameters<typeof fetchStripeDetail>
+): Promise<ProviderResult["stripeDetail"]> {
+  try {
+    return await fetchStripeDetail(...detailArguments);
+  } catch (error) {
+    reportError("stripe: detail fetch failed", error, { slug });
+    return undefined;
+  }
+}
+
 /**
  * Core fetch logic, decoupled from the real Stripe client so it can be unit
  * tested against a fixture-backed `ListActiveSubscriptions` with no network
@@ -97,7 +92,7 @@ export async function fetchStripeMetrics(
   listActiveSubscriptions: ListActiveSubscriptions,
   detailSource?: StripeDetailSource,
 ): Promise<ProviderResult> {
-  const productIds = parseProductIds(resolveProductIdsSource(config));
+  const productIds = configuredProductIds(config);
   if (!productIds.length) {
     return { metrics: [], trafficBreakdown: [], syndicationPosts: [] };
   }
@@ -112,7 +107,8 @@ export async function fetchStripeMetrics(
   );
   const capturedAt = new Date();
   const stripeDetail = detailSource
-    ? await fetchStripeDetail(
+    ? await fetchStripeDetailSafely(
+        config.slug,
         subscriptions,
         productIdSet,
         detailSource,

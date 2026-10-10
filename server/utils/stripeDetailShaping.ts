@@ -1,5 +1,7 @@
 // Pure shaping of the stripe_plan_revenue / stripe_event rows into the Stripe
 // panel's response (StripeDetail). No `db` here, same as dashboardShaping.ts.
+import { CENTS_PER_DOLLAR } from "../integrations/stripe/mrr";
+import { configuredProductIds } from "../integrations/stripe/productIds";
 import type {
   IntegrationEnvironment,
   StripeDetail,
@@ -13,7 +15,6 @@ import type {
 
 const STRIPE_VENDOR = "stripe";
 const STRIPE_DASHBOARD_URL = "https://dashboard.stripe.com";
-const CENTS_PER_DOLLAR = 100;
 
 // Stripe object id prefix -> dashboard path segment. An id with any other
 // prefix gets no link rather than a guessed one.
@@ -32,8 +33,9 @@ export function stripeDashboardBase(
     : STRIPE_DASHBOARD_URL;
 }
 
-// One plan links straight to its product page; several (or none yet) link to
-// the product list, since the shared studio account has no per-app page.
+// An app configured with one product links straight to its product page;
+// several (or none) link to the product list, since the shared studio account
+// has no per-app page.
 export function stripeAppDashboardUrl(
   environment: IntegrationEnvironment | null,
   productIds: string[],
@@ -75,11 +77,11 @@ function toRecentEvent(
   };
 }
 
-function hasEnabledStripe(
+function enabledStripeConfig(
   configRows: IntegrationConfigRow[],
   slug: string,
-): boolean {
-  return configRows.some(
+): IntegrationConfigRow | undefined {
+  return configRows.find(
     (row) => row.slug === slug && row.vendor === STRIPE_VENDOR && row.enabled,
   );
 }
@@ -91,14 +93,15 @@ export function stripeDetailForApp(
   slug: string,
   environment: IntegrationEnvironment | null,
 ): StripeDetail | null {
-  if (!hasEnabledStripe(configRows, slug)) {
+  const stripeConfig = enabledStripeConfig(configRows, slug);
+  if (!stripeConfig) {
     return null;
   }
   return {
     environment,
     dashboardUrl: stripeAppDashboardUrl(
       environment,
-      planRows.map((row) => row.productId),
+      configuredProductIds(stripeConfig),
     ),
     plans: planRows.map((row) => ({
       productId: row.productId,

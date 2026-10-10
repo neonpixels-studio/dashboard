@@ -18,6 +18,10 @@ const { mockSubscriptionsList, mockEventsList, mockProductsRetrieve } =
     mockEventsList: vi.fn(),
     mockProductsRetrieve: vi.fn(),
   }));
+const { mockReportError } = vi.hoisted(() => ({ mockReportError: vi.fn() }));
+vi.mock("../../../../server/utils/errorReporting", () => ({
+  reportError: mockReportError,
+}));
 vi.mock("stripe", () => ({
   default: class MockStripe {
     static API_VERSION = "mock-api-version";
@@ -33,6 +37,7 @@ afterEach(() => {
   mockSubscriptionsList.mockReset();
   mockEventsList.mockReset();
   mockProductsRetrieve.mockReset();
+  mockReportError.mockReset();
 });
 
 describe("stripeProvider", () => {
@@ -388,6 +393,32 @@ describe("fetchStripeMetrics stripe detail", () => {
     );
 
     expect(result.stripeDetail).toEqual({ planRevenue: [], events: [] });
+  });
+
+  it("still returns the MRR metrics, reports the error, and omits stripeDetail when the detail fetch fails", async () => {
+    const result = await fetchStripeMetrics(
+      config,
+      async () => subscriptionPage,
+      {
+        getProductName: async () => {
+          throw new Error("restricted key cannot read products");
+        },
+        getCustomerEmail: vi.fn(),
+        listActivityEvents: vi.fn(),
+      },
+    );
+
+    expect(
+      result.metrics.find((metric) => metric.metric === "mrr")?.value,
+    ).toBe(4);
+    expect(result).not.toHaveProperty("stripeDetail");
+    expect(mockReportError).toHaveBeenCalledWith(
+      "stripe: detail fetch failed",
+      expect.objectContaining({
+        message: "restricted key cannot read products",
+      }),
+      { slug: "basin" },
+    );
   });
 
   it("does not build detail for an unconfigured app", async () => {

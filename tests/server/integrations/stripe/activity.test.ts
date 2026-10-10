@@ -186,6 +186,50 @@ describe("buildEventRows", () => {
     expect(row?.emailMasked).toBeNull();
   });
 
+  it("gives a null amount, not a partial or zero total, when a matching line has no flat price", async () => {
+    const [row] = await buildEventRows(
+      [
+        activityEvent({
+          customerId: null,
+          lines: [
+            { productId: "prod_pro", amountCents: 400 },
+            { productId: "prod_pro", amountCents: null },
+          ],
+        }),
+      ],
+      PRODUCT_IDS,
+      PLAN_NAMES,
+      { getCustomerEmail: vi.fn() },
+    );
+
+    expect(row?.amountCents).toBeNull();
+  });
+
+  it("looks customers up one at a time so a busy account can't burst Stripe's rate limit", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const getCustomerEmail = vi.fn(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return "a@b.co";
+    });
+
+    await buildEventRows(
+      [
+        activityEvent({ id: "evt_1", customerId: "cus_1" }),
+        activityEvent({ id: "evt_2", customerId: "cus_2" }),
+        activityEvent({ id: "evt_3", customerId: "cus_3" }),
+      ],
+      PRODUCT_IDS,
+      PLAN_NAMES,
+      { getCustomerEmail },
+    );
+
+    expect(maxInFlight).toBe(1);
+  });
+
   it("fails loud on a non-USD event rather than showing the wrong currency", async () => {
     await expect(
       buildEventRows(

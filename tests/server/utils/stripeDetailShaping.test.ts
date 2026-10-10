@@ -129,13 +129,40 @@ describe("stripeDetailForApp", () => {
 
   it("is empty-but-present (not null) for a configured app with nothing synced", () => {
     expect(
-      stripeDetailForApp([], [], [configRow()], "basin", "production"),
+      stripeDetailForApp(
+        [],
+        [],
+        [configRow({ externalId: "prod_a,prod_b" })],
+        "basin",
+        "production",
+      ),
     ).toEqual({
       environment: "production",
       dashboardUrl: "https://dashboard.stripe.com/products",
       plans: [],
       events: [],
     });
+  });
+
+  it("links the configured product even before it has any subscribers, not whichever plans happen to have some", () => {
+    const detail = stripeDetailForApp(
+      [planRow({ productId: "prod_a" })],
+      [],
+      [configRow({ externalId: "prod_a, prod_b" })],
+      "basin",
+      "production",
+    );
+
+    expect(detail?.dashboardUrl).toBe("https://dashboard.stripe.com/products");
+    expect(
+      stripeDetailForApp(
+        [],
+        [],
+        [configRow({ externalId: "prod_solo" })],
+        "basin",
+        "production",
+      )?.dashboardUrl,
+    ).toBe("https://dashboard.stripe.com/products/prod_solo");
   });
 
   it("shapes plans and events, converting cents to dollars and linking events by environment", () => {
@@ -152,7 +179,7 @@ describe("stripeDetailForApp", () => {
           emailMasked: null,
         }),
       ],
-      [configRow()],
+      [configRow({ externalId: "prod_pro" })],
       "basin",
       "development",
     );
