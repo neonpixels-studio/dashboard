@@ -46,4 +46,15 @@ describe("ga4PropertyIdForApp", () => {
       ga4PropertyIdForApp([row({ externalId: null })], "basin"),
     ).toBeNull();
   });
+  it("prefers the row's external id over the env var, matching the sync", () => {
+    vi.stubEnv("NUXT_GA4_PROPERTY_ID_BASIN", "222");
+    expect(ga4PropertyIdForApp([row({})], "basin")).toBe("111");
+  });
+
+  it("stays null for a disabled row even when the env var is set", () => {
+    vi.stubEnv("NUXT_GA4_PROPERTY_ID_BASIN", "222");
+    expect(
+      ga4PropertyIdForApp([row({ enabled: false, externalId: null })], "basin"),
+    ).toBeNull();
+  });
 });
