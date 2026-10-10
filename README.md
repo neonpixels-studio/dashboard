@@ -361,6 +361,13 @@ in Netlify (Site configuration → Environment variables), not just Builds.
 Without it the function throws on every run rather than running with
 still-encrypted values.
 
+## Deploys
+
+- **Production** deploys weekly, Mondays 14:00 UTC, via a Netlify build hook called by `.github/workflows/weekly-production-deploy.yml`. The run first applies Drizzle migrations to the production database, then triggers the hook. It requires CI to be green on `main` HEAD, and scheduled runs skip when `main` has no commits in the last 7 days. Merging to `main` does not deploy or migrate on its own.
+- **Pull requests** get a Netlify Deploy Preview built against `.env.dev` (a non-production database).
+- **Hotfix:** Actions tab > Weekly production deploy > Run workflow. Manual runs always migrate and deploy.
+- Required repo secrets: `NETLIFY_BUILD_HOOK_URL` (build hook on `main`) and `DOTENV_PRIVATE_KEY_PRODUCTION`.
+
 ## Scripts
 
 | Script             | What it does                                  |
