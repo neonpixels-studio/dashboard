@@ -58,7 +58,7 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
 
   return {
     slug,
-    status: computeAppStatus(syncRows, configRows, slug),
+    status: computeAppStatus(syncRows, configRows, slug, latestMetricRows),
     metrics: latestMetricsBySlug(latestMetricRows, slug),
     series: metricSeriesBySlug(seriesMetricRows, slug, latestMetricRows),
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),

@@ -25,7 +25,15 @@ import type {
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
 import type { PropertySessions } from "../../shared/types/overviewSessions";
-import { METRIC_SESSIONS, PERIOD_30D, PERIOD_DAILY } from "./dashboardMetrics";
+import { sentryStatusChip } from "../integrations/sentry/mapping";
+import {
+  METRIC_FATAL_ISSUES,
+  METRIC_OPEN_ISSUES,
+  METRIC_SESSIONS,
+  PERIOD_30D,
+  PERIOD_CURRENT,
+  PERIOD_DAILY,
+} from "./dashboardMetrics";
 import {
   integrationEnvironmentKey,
   type IntegrationEnvironmentMap,
@@ -718,13 +726,60 @@ function activeSyncRowsForApp(
     });
 }
 
+const SENTRY_VENDOR = "sentry";
+
+function latestSentryValue(
+  metricRows: MetricSnapshotRow[],
+  slug: string,
+  metric: string,
+): number | null {
+  const matches = metricRows.filter(
+    (row) =>
+      row.slug === slug &&
+      row.vendor === SENTRY_VENDOR &&
+      row.metric === metric &&
+      row.period === PERIOD_CURRENT,
+  );
+  if (!matches.length) {
+    return null;
+  }
+  return maxByCapturedAt(matches).value;
+}
+
+// Null when Sentry hasn't reported both counts for this app, so an app with
+// no Sentry data (grimicorn.dev, neonpixels.dev, or not yet synced) keeps its
+// sync-health chip rather than a fabricated "OK".
+function sentryChipForApp(
+  metricRows: MetricSnapshotRow[],
+  slug: string,
+): AppStatus | null {
+  const openIssuesCount = latestSentryValue(
+    metricRows,
+    slug,
+    METRIC_OPEN_ISSUES,
+  );
+  const fatalIssuesCount = latestSentryValue(
+    metricRows,
+    slug,
+    METRIC_FATAL_ISSUES,
+  );
+  if (openIssuesCount === null || fatalIssuesCount === null) {
+    return null;
+  }
+  return sentryStatusChip(openIssuesCount, fatalIssuesCount);
+}
+
 // No *active* sync_status rows at all means nothing has ever polled for this
 // app (providers/sync aren't built yet, per the issue, or every configured
 // vendor has been disabled) — distinct from every integration being healthy.
+// Failing syncs (danger) always win, since stale data makes any Sentry chip
+// untrustworthy; only when every sync is healthy does the Sentry issue chip
+// replace the generic LIVE label.
 export function computeAppStatus(
   syncRows: SyncStatusRow[],
   configRows: IntegrationConfigRow[],
   slug: string,
+  metricRows: MetricSnapshotRow[] = [],
 ): AppStatus {
   const activeRows = activeSyncRowsForApp(syncRows, configRows, slug);
   if (!activeRows.length) {
@@ -733,7 +788,7 @@ export function computeAppStatus(
 
   const failing = activeRows.filter((row) => !row.ok);
   if (!failing.length) {
-    return { label: "LIVE", tone: "ok" };
+    return sentryChipForApp(metricRows, slug) ?? { label: "LIVE", tone: "ok" };
   }
 
   const count = failing.length;

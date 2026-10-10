@@ -37,7 +37,7 @@ export default defineEventHandler(async (event): Promise<AppsResponse> => {
 
   return slugs.map((slug) => ({
     slug,
-    status: computeAppStatus(syncRows, configRows, slug),
+    status: computeAppStatus(syncRows, configRows, slug, latestMetricRows),
     metrics: latestMetricsBySlug(latestMetricRows, slug),
     sparklines: metricSeriesBySlug(seriesMetricRows, slug, latestMetricRows),
     integrations: integrationHealthForApp(

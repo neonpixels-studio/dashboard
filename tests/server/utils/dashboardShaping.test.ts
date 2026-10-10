@@ -915,6 +915,90 @@ describe("computeAppStatus", () => {
   });
 });
 
+describe("computeAppStatus with Sentry metrics", () => {
+  const healthySync = [syncRow({ vendor: "sentry", ok: true })];
+
+  function sentryRows(open: number, fatal: number): MetricSnapshotRow[] {
+    return [
+      metricRow({ vendor: "sentry", metric: "open_issues", value: open }),
+      metricRow({ vendor: "sentry", metric: "fatal_issues", value: fatal }),
+    ];
+  }
+
+  it("shows the fatal chip (danger) over LIVE when fatal issues exist", () => {
+    expect(
+      computeAppStatus(healthySync, [], "basin", sentryRows(5, 1)),
+    ).toEqual({ label: "1 FATAL", tone: "danger" });
+  });
+
+  it("shows the open chip (warn) when only non-fatal issues exist", () => {
+    expect(
+      computeAppStatus(healthySync, [], "basin", sentryRows(4, 0)),
+    ).toEqual({ label: "4 OPEN", tone: "warn" });
+  });
+
+  it("shows OK when Sentry reports zero issues", () => {
+    expect(
+      computeAppStatus(healthySync, [], "basin", sentryRows(0, 0)),
+    ).toEqual({ label: "OK", tone: "ok" });
+  });
+
+  it("falls back to LIVE when only one of the two Sentry counts exists", () => {
+    const rows = [
+      metricRow({ vendor: "sentry", metric: "open_issues", value: 3 }),
+    ];
+    expect(computeAppStatus(healthySync, [], "basin", rows)).toEqual({
+      label: "LIVE",
+      tone: "ok",
+    });
+  });
+
+  it("ignores another app's Sentry metrics", () => {
+    const rows = sentryRows(9, 2).map((row) => ({ ...row, slug: "markpost" }));
+    expect(computeAppStatus(healthySync, [], "basin", rows)).toEqual({
+      label: "LIVE",
+      tone: "ok",
+    });
+  });
+
+  it("uses the most recent snapshot per metric", () => {
+    const rows = [
+      ...sentryRows(0, 0),
+      metricRow({
+        vendor: "sentry",
+        metric: "open_issues",
+        value: 7,
+        capturedAt: new Date("2026-09-02T00:00:00Z"),
+      }),
+      metricRow({
+        vendor: "sentry",
+        metric: "fatal_issues",
+        value: 0,
+        capturedAt: new Date("2026-09-02T00:00:00Z"),
+      }),
+    ];
+    expect(computeAppStatus(healthySync, [], "basin", rows)).toEqual({
+      label: "7 OPEN",
+      tone: "warn",
+    });
+  });
+
+  it("keeps failing-sync danger over the Sentry chip", () => {
+    const rows = [syncRow({ vendor: "stripe", ok: false })];
+    expect(computeAppStatus(rows, [], "basin", sentryRows(0, 0))).toEqual({
+      label: "1 ISSUE",
+      tone: "danger",
+    });
+  });
+
+  it("keeps NOT SYNCED when nothing has polled, despite Sentry rows", () => {
+    expect(computeAppStatus([], [], "basin", sentryRows(0, 0))).toEqual({
+      label: "NOT SYNCED",
+      tone: "muted",
+    });
+  });
+});
+
 describe("integrationHealthForApp", () => {
   it("returns null health fields for a configured vendor that's never synced", () => {
     const configRows = [

@@ -113,9 +113,8 @@ const NO_ISSUES = 0;
  * its own (a "3 FATAL, 12 OPEN" combined label is left for a future issue's
  * UI, not invented here).
  *
- * @todo #19 wires this into the read API / PropertyCard.vue's status chip —
- * not called from anywhere yet. It's exported and unit-tested now so that
- * wiring is a pure plumbing change, not new logic.
+ * Called from server/utils/dashboardShaping.ts's computeAppStatus, which
+ * feeds the property card and app detail status chip.
  */
 export function sentryStatusChip(
   openIssuesCount: number,
