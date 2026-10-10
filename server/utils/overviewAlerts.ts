@@ -48,7 +48,8 @@ function toStaleVendorAlert(staleVendor: StaleVendor): OverviewAlert {
     slug: staleVendor.slug,
     source: staleVendor.vendor,
     message: staleMessage(staleVendor),
-    occurredAt: staleVendor.lastRunAt,
+    // Last good sync, not last run: lastRunAt advances every tick.
+    occurredAt: staleVendor.lastSuccessAt,
     href: propertyHref(staleVendor.slug),
   };
 }

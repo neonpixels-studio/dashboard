@@ -82,7 +82,7 @@ describe("buildSyncAlerts", () => {
         slug: "basin",
         source: "ga4",
         message: "No successful sync in 8h",
-        occurredAt: hoursAgo(0.25).toISOString(),
+        occurredAt: hoursAgo(8).toISOString(),
         href: "/apps/basin",
       },
     ]);
@@ -103,6 +103,21 @@ describe("buildSyncAlerts", () => {
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]!.id).toBe("sync-failed:basin:stripe");
+  });
+
+  it("keeps a stale alert for a different vendor on the same property as a failing one", () => {
+    const alerts = buildSyncAlerts(
+      [
+        row({ ok: false, error: "boom" }),
+        row({ vendor: "ga4", lastSuccessAt: hoursAgo(8) }),
+      ],
+      NOW,
+    );
+
+    expect(alerts.map((alert) => alert.id).sort()).toEqual([
+      "sync-failed:basin:stripe",
+      "sync-stale:basin:ga4",
+    ]);
   });
 
   it("keeps same-vendor alerts on different properties separate", () => {
@@ -142,8 +157,8 @@ describe("buildSyncAlerts", () => {
         }),
         row({
           vendor: "untimed",
-          lastRunAt: null,
-          lastSuccessAt: hoursAgo(9),
+          lastRunAt: hoursAgo(0.1),
+          lastSuccessAt: null,
         }),
       ],
       NOW,
