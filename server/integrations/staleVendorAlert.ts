@@ -6,8 +6,9 @@ import { reportError, reportErrorCondition } from "../utils/errorReporting";
 // enough that a dead credential doesn't go unnoticed for days. A time bound
 // rather than a consecutive-failure count because sync_status keeps no
 // failure counter, and a row skipped for hours (stale last success) must
-// alert too. Slow-cadence providers (Medium, once per 24h) don't trip it: a
-// guard-skipped tick still records ok=true, which advances last_success_at.
+// alert too. Slow-cadence providers (Medium, once per 24h) don't trip it
+// while healthy: a guard-skipped tick advances last_success_at as long as the
+// last real attempt was ok (see persist.ts's recordSkippedSyncStatus).
 // Known gaps: an enabled row with no sync_status run recorded at
 // all is not judged, and a never-succeeded row alerts as soon as it has run.
 const MS_PER_HOUR = 60 * 60 * 1_000;

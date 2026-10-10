@@ -17,6 +17,8 @@ export interface SyncStatusWrite {
   runAt: Date;
   ok: boolean;
   error: string | null;
+  // The provider's guard skipped the real fetch (ProviderResult.skipped).
+  skipped?: boolean;
 }
 
 // What one (slug, vendor) sync attempt stamps to integration_config
@@ -358,6 +360,7 @@ async function syncOneIntegration(
   await recordAttemptBestEffort(deps, { ...identity, runAt });
 
   let resolvedConfig: IntegrationConfig | undefined;
+  let skipped = false;
 
   try {
     const provider = deps.registry.get(row.vendor);
@@ -372,6 +375,7 @@ async function syncOneIntegration(
       deadline,
     );
     await deps.persistProviderResult(row, result);
+    skipped = result.skipped === true;
   } catch (cause) {
     console.error(`Sync failed for ${row.slug}:${row.vendor}`, cause);
     const redactedMessage = redactSecrets(
@@ -396,6 +400,7 @@ async function syncOneIntegration(
     runAt,
     ok: true,
     error: null,
+    ...(skipped ? { skipped } : {}),
   });
   return { ...identity, ok: true };
 }

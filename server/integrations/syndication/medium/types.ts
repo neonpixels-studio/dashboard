@@ -32,6 +32,10 @@ export interface MediumArticleInfo {
   // returns (see the file comment above), so mapping.ts's toSyndicationSourcePost
   // handles both rather than betting on either.
   published_at: number | string;
+  // Lifetime views as of this request (verified 2026-10-10 against Medium's
+  // own stats page). Optional so a response missing it maps to no count
+  // rather than a fabricated zero.
+  views?: number;
 }
 
 // The seams provider.ts's core logic is tested against instead of real

@@ -64,12 +64,13 @@ export function buildSyndicationResult(
       syncedAt: post.publishedAt,
       views: post.views ?? null,
       externalId: post.externalId ?? null,
+      fetchedAt: capturedAt,
     })),
   };
 }
 
 // Null when no post carries a view count, so a platform that doesn't report
-// views (Medium) gets no `views` metric at all rather than a fabricated zero.
+// views gets no `views` metric at all rather than a fabricated zero.
 // A platform with zero posts also gets none; its `posts` metric already says 0.
 function sumReportedViews(posts: SyndicationSourcePost[]): number | null {
   const reported = posts

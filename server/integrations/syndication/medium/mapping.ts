@@ -67,5 +67,10 @@ export function toSyndicationSourcePost(
     postRef: toPostRef(info.unique_slug),
     publishedAt,
     externalId: info.id,
+    ...(isViewCount(info.views) ? { views: info.views } : {}),
   };
+}
+
+function isViewCount(views: unknown): views is number {
+  return typeof views === "number" && Number.isInteger(views) && views >= 0;
 }

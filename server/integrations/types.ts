@@ -62,6 +62,12 @@ export interface ProviderResult {
   metrics: MetricSnapshotInput[];
   trafficBreakdown: TrafficBreakdownInput[];
   syndicationPosts: SyndicationPostInput[];
+  // True when the provider's own guard decided no real fetch was due this
+  // tick (Medium's once-per-24h rate limit). The orchestrator then records
+  // the run without overwriting the last real attempt's ok/error, so a
+  // failure stays visible until the next real attempt instead of being
+  // masked by the skipped ticks after it.
+  skipped?: boolean;
 }
 
 // Shared per-run deadline threaded into every provider.fetch call (see

@@ -22,7 +22,8 @@ export const METRIC_NEW_USERS = "new_users";
 // template's "POSTS" card) is that consumer's concern, not this provider's.
 export const METRIC_POSTS = "posts";
 // Lifetime views summed across one platform's posts, reported alongside
-// `posts` only by platforms that expose per-post views (not Medium).
+// `posts` only by platforms whose sync sees every post's views (not Medium,
+// which fetches a couple of articles per sync).
 export const METRIC_VIEWS = "views";
 
 // Canonical `metric_snapshot.period` values (schema: "e.g. \"30d\", \"current\"").

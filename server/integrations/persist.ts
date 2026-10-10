@@ -222,6 +222,7 @@ export function persistProviderResult(
                 syncedAt: sql`excluded.synced_at`,
                 views: sql`excluded.views`,
                 externalId: sql`excluded.external_id`,
+                fetchedAt: sql`excluded.fetched_at`,
               },
             }),
         ]
@@ -315,6 +316,9 @@ export function recordSyncStatus(
   db: DrizzleDb,
   status: SyncStatusWrite,
 ): Promise<unknown> {
+  if (status.skipped) {
+    return recordSkippedSyncStatus(db, status);
+  }
   return db
     .insert(syncStatus)
     .values({
@@ -334,6 +338,36 @@ export function recordSyncStatus(
         lastSuccessAt: status.ok
           ? status.runAt
           : sql`${syncStatus.lastSuccessAt}`,
+      },
+    });
+}
+
+// A guard-skipped tick (ProviderResult.skipped) made no real attempt, so it
+// must not overwrite the last real attempt's ok/error: doing so is what hid
+// Medium's aborted 01:50 sync behind a row of ok=true skips. It still bumps
+// last_run_at, and bumps last_success_at only while that last real attempt
+// was ok, so a healthy slow-cadence provider never trips the stale-vendor
+// alert while a failing one does. A first-ever row has no real attempt to
+// preserve, so it inserts as a success, same as before skips were flagged.
+function recordSkippedSyncStatus(
+  db: DrizzleDb,
+  status: SyncStatusWrite,
+): Promise<unknown> {
+  return db
+    .insert(syncStatus)
+    .values({
+      slug: status.slug,
+      vendor: status.vendor,
+      lastRunAt: status.runAt,
+      lastSuccessAt: status.runAt,
+      ok: true,
+      error: null,
+    })
+    .onConflictDoUpdate({
+      target: [syncStatus.slug, syncStatus.vendor],
+      set: {
+        lastRunAt: status.runAt,
+        lastSuccessAt: sql`case when ${syncStatus.ok} then excluded.last_success_at else ${syncStatus.lastSuccessAt} end`,
       },
     });
 }

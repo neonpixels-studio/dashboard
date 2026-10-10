@@ -222,13 +222,17 @@ export const syndicationPost = pgTable(
     postRef: text("post_ref").notNull(),
     status: syndicationStatus("status").notNull(),
     syncedAt: timestamp("synced_at", { withTimezone: true }),
-    // Lifetime view count as of the last sync. Null when the platform doesn't
-    // report per-post views (Medium via RapidAPI), never a fabricated zero.
+    // Lifetime view count as of the last time this row was fetched. Null when
+    // the platform didn't report one, never a fabricated zero.
     views: integer("views"),
     // The platform's own article id, when its listing is keyed by an id the
     // stripped postRef can't recover (Medium). Lets the Medium provider skip
     // articles it already has rows for and backfill older ones instead.
     externalId: text("external_id"),
+    // When this row was last written by a sync. Medium's provider refreshes
+    // the stalest rows first once its backfill is done, since each sync can
+    // only afford to fetch a couple of articles.
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("syndication_post_slug_platform_post_ref_idx").on(

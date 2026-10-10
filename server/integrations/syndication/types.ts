@@ -22,7 +22,7 @@ export interface SyndicationSourcePost {
   // outcome, not a crash.
   postRef: string;
   publishedAt: Date;
-  // Lifetime views. Omitted by platforms that don't report them (Medium).
+  // Lifetime views. Omitted when the platform didn't report a usable count.
   views?: number;
   // The platform's own article id. Only Medium sets it; see
   // syndication_post.external_id in server/db/schema.ts.
@@ -39,4 +39,10 @@ export interface SyndicationSourcePost {
  */
 export function emptySyndicationResult(): ProviderResult {
   return { metrics: [], trafficBreakdown: [], syndicationPosts: [] };
+}
+
+// What a provider returns when its own guard skipped the real fetch. See
+// ProviderResult.skipped for how the orchestrator records it.
+export function skippedSyndicationResult(): ProviderResult {
+  return { ...emptySyndicationResult(), skipped: true };
 }

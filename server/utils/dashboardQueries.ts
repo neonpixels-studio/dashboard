@@ -205,17 +205,21 @@ export function fetchSyndicationPosts(
     .orderBy(desc(syndicationPost.syncedAt), asc(syndicationPost.platform));
 }
 
-// The platform article ids already stored for a (slug, platform), so the
-// Medium provider can spend its capped detail requests on articles it has no
-// row for yet. Rows without an external id (every non-Medium platform) are
+// Every stored external id (Medium's article id) for one (slug, platform),
+// mapped to when its row was last fetched, so the Medium provider can spend
+// its capped detail requests on articles with no row yet, then on the
+// stalest ones. Rows without an external id (every non-Medium platform) are
 // skipped.
-export async function fetchSyndicationExternalIds(
+export async function fetchSyndicationFetchedAtByExternalId(
   db: DrizzleDb,
   slug: string,
   platform: string,
-): Promise<Set<string>> {
+): Promise<Map<string, Date | null>> {
   const rows = await db
-    .select({ externalId: syndicationPost.externalId })
+    .select({
+      externalId: syndicationPost.externalId,
+      fetchedAt: syndicationPost.fetchedAt,
+    })
     .from(syndicationPost)
     .where(
       and(
@@ -224,11 +228,14 @@ export async function fetchSyndicationExternalIds(
         isNotNull(syndicationPost.externalId),
       ),
     );
-  return new Set(
-    rows
-      .map((row) => row.externalId)
-      .filter((externalId): externalId is string => externalId !== null),
-  );
+  const fetchedAtByExternalId = new Map<string, Date | null>();
+  for (const row of rows) {
+    if (row.externalId === null) {
+      continue;
+    }
+    fetchedAtByExternalId.set(row.externalId, row.fetchedAt);
+  }
+  return fetchedAtByExternalId;
 }
 
 // Powers server/integrations/syndication/medium's rate-limit guard: the

@@ -346,6 +346,10 @@ describe("persistProviderResult", () => {
     expect(conflictArgs.set.externalId.queryChunks[0].value).toEqual([
       "excluded.external_id",
     ]);
+    expect(conflictArgs.set.fetchedAt).toBeInstanceOf(SQL);
+    expect(conflictArgs.set.fetchedAt.queryChunks[0].value).toEqual([
+      "excluded.fetched_at",
+    ]);
   });
 
   it("upserts metric_snapshot on (slug, vendor, metric, period, captured_at) instead of duplicating a re-run backfill row", async () => {
@@ -581,6 +585,40 @@ describe("recordSyncStatus", () => {
     expect(conflictArgs.set.lastSuccessAt).toBeInstanceOf(SQL);
     expect(conflictArgs.set.lastSuccessAt.queryChunks).toContain(
       syncStatus.lastSuccessAt,
+    );
+  });
+
+  it("leaves ok and error untouched on a skipped tick, bumping lastSuccessAt only while the last real attempt was ok", async () => {
+    const { db, values, onConflictDoUpdate } = createFakeDb();
+    const runAt = new Date("2026-09-20T12:00:00Z");
+
+    await recordSyncStatus(db, {
+      slug: "danholloran",
+      vendor: "medium",
+      runAt,
+      ok: true,
+      error: null,
+      skipped: true,
+    });
+
+    expect(values).toHaveBeenCalledWith({
+      slug: "danholloran",
+      vendor: "medium",
+      lastRunAt: runAt,
+      lastSuccessAt: runAt,
+      ok: true,
+      error: null,
+    });
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    expect(conflictArgs.target).toEqual([syncStatus.slug, syncStatus.vendor]);
+    expect(Object.keys(conflictArgs.set).sort()).toEqual([
+      "lastRunAt",
+      "lastSuccessAt",
+    ]);
+    expect(conflictArgs.set.lastRunAt).toBe(runAt);
+    expect(conflictArgs.set.lastSuccessAt).toBeInstanceOf(SQL);
+    expect(conflictArgs.set.lastSuccessAt.queryChunks).toEqual(
+      expect.arrayContaining([syncStatus.ok, syncStatus.lastSuccessAt]),
     );
   });
 });

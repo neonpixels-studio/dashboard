@@ -1,9 +1,9 @@
 import { useDb } from "../../../db";
-import { METRIC_POSTS } from "../../../utils/dashboardMetrics";
+import { METRIC_POSTS, METRIC_VIEWS } from "../../../utils/dashboardMetrics";
 import {
   fetchLastAttemptedSyncAt,
   fetchLatestMetricCapturedAt,
-  fetchSyndicationExternalIds,
+  fetchSyndicationFetchedAtByExternalId,
 } from "../../../utils/dashboardQueries";
 import { recordSyncAttempt } from "../../persist";
 import { NO_DEADLINE } from "../../types";
@@ -15,7 +15,7 @@ import type {
 } from "../../types";
 import { resolveExternalIdOrEnvVar } from "../configResolution";
 import { buildSyndicationResult } from "../normalize";
-import { emptySyndicationResult, type SyndicationSourcePost } from "../types";
+import { skippedSyndicationResult, type SyndicationSourcePost } from "../types";
 import {
   createMediumArticleIdLister,
   createMediumArticleInfoFetcher,
@@ -37,10 +37,10 @@ const MEDIUM_VENDOR = "medium";
 // `posts` metric itself still reports the platform's true total
 // (articleIds.length, free — already in hand from the id listing) so it's
 // never stale/undercounted; only the syndication_post rows (and therefore
-// the matrix) are bounded to the MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC
-// newest articles that have no row yet each sync (see
-// selectArticleIdsToFetch), so new posts land first and older ones backfill
-// a couple per day.
+// the matrix) are bounded to MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC articles
+// each sync (see selectArticleIdsToFetch): new posts land first, older ones
+// backfill a couple per day, and once every article has a row the same
+// budget refreshes the stalest rows' view counts.
 export const MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC = 2;
 
 /**
@@ -76,17 +76,44 @@ function dedupeByPostRefKeepingLatest(
   return [...latestByPostRef.values()];
 }
 
-// The listing is newest first, so this picks up new posts before older ones.
+// Article id -> when its syndication_post row was last fetched (null for
+// rows written before fetched_at existed).
+export type KnownMediumArticles = ReadonlyMap<string, Date | null>;
+
+// Never-fetched rows sort first so they get a view count before any row is
+// refreshed a second time.
+function lastFetchedTime(
+  knownArticles: KnownMediumArticles,
+  articleId: string,
+): number {
+  return knownArticles.get(articleId)?.getTime() ?? Number.NEGATIVE_INFINITY;
+}
+
+// The listing is newest first, so unseen articles land newest first, and any
+// slots they leave go to the stalest known rows (stable sort, so ties keep
+// that newest-first order). Only listed ids are refreshed, so an article
+// deleted from Medium never spends a request.
 // @todo an article that loses dedupeByPostRefKeepingLatest's title collision
-// never gets a row, so it stays "unseen" and spends a detail request every
-// sync; track fetched ids separately if that ever shows up.
+// never gets a row, so it stays "unseen" and takes a detail slot every sync,
+// halving the refresh rate; track fetched ids separately if that shows up.
 function selectArticleIdsToFetch(
   articleIds: string[],
-  knownArticleIds: ReadonlySet<string>,
+  knownArticles: KnownMediumArticles,
 ): string[] {
-  return articleIds
-    .filter((articleId) => !knownArticleIds.has(articleId))
-    .slice(0, MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC);
+  const unseenIds = articleIds.filter(
+    (articleId) => !knownArticles.has(articleId),
+  );
+  const stalestKnownIds = articleIds
+    .filter((articleId) => knownArticles.has(articleId))
+    .sort(
+      (first, second) =>
+        lastFetchedTime(knownArticles, first) -
+        lastFetchedTime(knownArticles, second),
+    );
+  return [...unseenIds, ...stalestKnownIds].slice(
+    0,
+    MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC,
+  );
 }
 
 async function fetchArticleDetails(
@@ -117,17 +144,28 @@ async function fetchArticleDetails(
 export async function fetchMediumSyndication(
   listArticleIds: ListMediumArticleIds,
   fetchArticleInfo: FetchMediumArticleInfo,
-  knownArticleIds: ReadonlySet<string> = new Set(),
+  knownArticles: KnownMediumArticles = new Map(),
 ): Promise<ProviderResult> {
   const articleIds = await listArticleIds();
   const posts = await fetchArticleDetails(
-    selectArticleIdsToFetch(articleIds, knownArticleIds),
+    selectArticleIdsToFetch(articleIds, knownArticles),
     fetchArticleInfo,
   );
   // The `posts` metric reports the platform's true total (articleIds.length)
   // even though `posts` (the syndication_post rows) is bounded — see
   // MEDIUM_MAX_ARTICLE_DETAILS_PER_SYNC's comment.
-  return buildSyndicationResult(MEDIUM_VENDOR, posts, articleIds.length);
+  return withoutViewsMetric(
+    buildSyndicationResult(MEDIUM_VENDOR, posts, articleIds.length),
+  );
+}
+
+// Per-post views are kept on each row, but a summed `views` metric would
+// only cover the couple of articles fetched this sync, not the account.
+function withoutViewsMetric(result: ProviderResult): ProviderResult {
+  return {
+    ...result,
+    metrics: result.metrics.filter((metric) => metric.metric !== METRIC_VIEWS),
+  };
 }
 
 async function defaultGetLastSuccessfulSyncAt(
@@ -147,8 +185,10 @@ async function defaultGetLastAttemptedSyncAt(
   return fetchLastAttemptedSyncAt(useDb(), slug, MEDIUM_VENDOR);
 }
 
-async function defaultGetKnownArticleIds(slug: string): Promise<Set<string>> {
-  return fetchSyndicationExternalIds(useDb(), slug, MEDIUM_VENDOR);
+async function defaultGetKnownArticles(
+  slug: string,
+): Promise<KnownMediumArticles> {
+  return fetchSyndicationFetchedAtByExternalId(useDb(), slug, MEDIUM_VENDOR);
 }
 
 // Deliberately not best-effort (unlike orchestrator.ts's
@@ -181,7 +221,7 @@ export interface CreateMediumProviderOptions {
   // Returns false when another concurrent call already claimed this
   // attempt window — see defaultRecordAttempt's comment.
   recordAttempt?: (slug: string, attemptedAt: Date) => Promise<boolean>;
-  getKnownArticleIds?: (slug: string) => Promise<ReadonlySet<string>>;
+  getKnownArticles?: (slug: string) => Promise<KnownMediumArticles>;
   now?: () => Date;
 }
 
@@ -202,8 +242,7 @@ export function createMediumProvider(
   const getLastAttemptedSyncAt =
     options.getLastAttemptedSyncAt ?? defaultGetLastAttemptedSyncAt;
   const recordAttempt = options.recordAttempt ?? defaultRecordAttempt;
-  const getKnownArticleIds =
-    options.getKnownArticleIds ?? defaultGetKnownArticleIds;
+  const getKnownArticles = options.getKnownArticles ?? defaultGetKnownArticles;
   const now = options.now ?? (() => new Date());
 
   return {
@@ -222,11 +261,11 @@ export function createMediumProvider(
       // provisioned," not a bug — the same way a property with no Clerk
       // instance configured shows no Clerk data instead of failing sync.
       if (!config.secret) {
-        return emptySyndicationResult();
+        return skippedSyndicationResult();
       }
       const username = resolveUsername(config);
       if (!username) {
-        return emptySyndicationResult();
+        return skippedSyndicationResult();
       }
 
       // Read once and reused for both the guard check and the watermark
@@ -240,7 +279,7 @@ export function createMediumProvider(
       if (
         !isMediumSyncDue(attemptAt, lastSuccessfulSyncAt, lastAttemptedSyncAt)
       ) {
-        return emptySyndicationResult();
+        return skippedSyndicationResult();
       }
 
       // Claimed BEFORE the real network calls below (fetchMediumSyndication),
@@ -254,7 +293,7 @@ export function createMediumProvider(
       // an ordinary "not due yet" rather than also making the Medium call.
       const claimedAttempt = await recordAttempt(config.slug, attemptAt);
       if (!claimedAttempt) {
-        return emptySyndicationResult();
+        return skippedSyndicationResult();
       }
 
       const listArticleIds = createMediumArticleIdLister(
@@ -271,7 +310,7 @@ export function createMediumProvider(
       return fetchMediumSyndication(
         listArticleIds,
         fetchArticleInfo,
-        await getKnownArticleIds(config.slug),
+        await getKnownArticles(config.slug),
       );
     },
   };

@@ -123,6 +123,7 @@ describe("fetchZyvopSyndication", () => {
         platform: "zyvop",
         postRef: "map-getorinsert-stop-writing-the-has-get-set-dance",
         status: "synced",
+        fetchedAt: expect.any(Date),
         syncedAt: new Date("2026-10-09T10:13:07.261Z"),
         views: 3,
         externalId: null,
@@ -132,6 +133,7 @@ describe("fetchZyvopSyndication", () => {
         postRef:
           "astro-live-content-collections-fresh-cms-data-without-a-rebuild",
         status: "synced",
+        fetchedAt: expect.any(Date),
         syncedAt: new Date("2026-10-06T10:13:01.440Z"),
         views: 10,
         externalId: null,

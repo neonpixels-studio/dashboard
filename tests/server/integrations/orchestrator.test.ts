@@ -147,6 +147,29 @@ describe("runSync", () => {
     ]);
   });
 
+  it("flags a guard-skipped fetch on the sync_status write so the last real attempt's outcome isn't overwritten", async () => {
+    const row = configRow({ slug: "danholloran", vendor: "medium" });
+    const fetch = vi.fn().mockResolvedValue({ ...EMPTY_RESULT, skipped: true });
+    const deps = createDeps({
+      listEnabledConfigRows: async () => [row],
+      registry: { get: () => stubProvider("medium", fetch) },
+    });
+
+    const summary = await runSync(deps);
+
+    expect(deps.recordSyncStatus).toHaveBeenCalledWith({
+      slug: "danholloran",
+      vendor: "medium",
+      runAt: new Date("2026-09-20T12:00:00Z"),
+      ok: true,
+      error: null,
+      skipped: true,
+    } satisfies SyncStatusWrite);
+    expect(summary.outcomes).toEqual([
+      { slug: "danholloran", vendor: "medium", ok: true },
+    ]);
+  });
+
   it("isolates a failing vendor: records its failure without persisting, while a sibling vendor still succeeds", async () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")

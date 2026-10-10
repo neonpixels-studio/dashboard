@@ -1,0 +1,1 @@
+ALTER TABLE "syndication_post" ADD COLUMN "fetched_at" timestamp with time zone;

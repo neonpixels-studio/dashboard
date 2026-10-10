@@ -45,6 +45,30 @@ describe("toSyndicationSourcePost (medium)", () => {
     });
   });
 
+  it("carries the article's view count when it is a non-negative integer", () => {
+    const post = toSyndicationSourcePost({
+      id: "1a2b3c4d5e6f",
+      unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+      published_at: 1798108800000,
+      views: 0,
+    });
+
+    expect(post.views).toBe(0);
+  });
+
+  it("omits views rather than storing a missing or malformed count", () => {
+    for (const views of [undefined, -1, 1.5, "12"]) {
+      const post = toSyndicationSourcePost({
+        id: "1a2b3c4d5e6f",
+        unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+        published_at: 1798108800000,
+        views: views as number | undefined,
+      });
+
+      expect(post).not.toHaveProperty("views");
+    }
+  });
+
   it("also handles a bare 'YYYY-MM-DD HH:mm:ss' UTC string published_at (the other documented shape)", () => {
     const post = toSyndicationSourcePost({
       id: "1a2b3c4d5e6f",
