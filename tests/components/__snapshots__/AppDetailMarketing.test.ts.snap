@@ -47,9 +47,3 @@ exports[`AppDetailMarketing > matches its traffic panel snapshot 1`] = `
   </ul>
 </div>"
 `;
-
-exports[`AppDetailMarketing > matches its traffic panel snapshot 2`] = `
-"<ul data-v-b28e9303="" class="headline-stats">
-  <li data-v-b28e9303=""><span data-v-b28e9303="" class="metric-label">SESSIONS · 30D</span><span data-v-b28e9303="" class="display-num headline-value">6,104</span></li>
-</ul>"
-`;

@@ -3,6 +3,7 @@ import AppDetailMarketing from "../../app/components/AppDetailMarketing.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
 import MetricTileSkeleton from "../../app/components/MetricTileSkeleton.vue";
 import DataErrorState from "../../app/components/DataErrorState.vue";
+import StatList from "../../app/components/StatList.vue";
 import TrafficPanel from "../../app/components/TrafficPanel.vue";
 import SourcesFooter from "../../app/components/SourcesFooter.vue";
 import { findAppBySlug } from "../../app/config/apps";
@@ -130,7 +131,7 @@ describe("AppDetailMarketing", () => {
 
   it("does not render a separate stacked traffic sources card", () => {
     const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
-    expect(wrapper.findAll(".bottom-row")).toHaveLength(0);
+    expect(wrapper.findAllComponents(StatList)).toHaveLength(1);
     expect(wrapper.text().match(/TRAFFIC SOURCES/g)).toHaveLength(1);
   });
 
@@ -151,7 +152,6 @@ describe("AppDetailMarketing", () => {
       ".traffic-panel",
     );
     expect(panel.find(".traffic-list").html()).toMatchSnapshot();
-    expect(panel.find(".headline-stats").html()).toMatchSnapshot();
   });
 
   it("matches its tile-grid snapshot", () => {

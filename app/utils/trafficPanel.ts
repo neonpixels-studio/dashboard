@@ -1,7 +1,7 @@
 // Builds TrafficPanel's props from a real AppDetailResponse (issue #20),
 // shared by every detail template (product, writing, marketing), each of
-// which renders a TrafficPanel. `stats`/`lists` only ever include entries backed by
-// real data: GA4 traffic_breakdown has no per-page or per-referrer
+// which renders a TrafficPanel. `stats`/`lists` only ever include entries
+// backed by real data: GA4 traffic_breakdown has no per-page or per-referrer
 // dimension (only a channel split), so the original design's "TOP PAGES" /
 // "TOP REFERRERS" lists have no honest source and aren't reproduced here —
 // the one real list (channel split) renders as "TRAFFIC SOURCES" instead.
