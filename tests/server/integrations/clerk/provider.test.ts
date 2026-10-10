@@ -365,7 +365,7 @@ describe("fetchClerkMetrics", () => {
       ).toBe(2);
     });
 
-    it("stamps every current-period scan metric with the same capturedAt as users", async () => {
+    it("stamps every non-daily metric with the same capturedAt instance as users", async () => {
       const { metrics } = await fetchWithScan({
         users: SCANNED_USERS,
         totalCount: 3,
@@ -375,10 +375,9 @@ describe("fetchClerkMetrics", () => {
       const usersStamp = metrics.find(
         (row) => row.metric === "users",
       )?.capturedAt;
-      const verifiedStamp = metrics.find(
-        (row) => row.metric === "verified_users",
-      )?.capturedAt;
-      expect(verifiedStamp).toBe(usersStamp);
+      const nonDaily = metrics.filter((row) => row.period !== "daily");
+      expect(nonDaily.length).toBeGreaterThan(5);
+      expect(nonDaily.every((row) => row.capturedAt === usersStamp)).toBe(true);
     });
 
     it("omits every scan-derived metric when the scan did not see all users, keeping users + new_users", async () => {

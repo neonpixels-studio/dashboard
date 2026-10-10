@@ -158,6 +158,30 @@ describe("buildAuthPanelData", () => {
     expect(data?.signups).toBeNull();
   });
 
+  it("hides a same-day signups series when the current sync wrote no scan metrics", () => {
+    const data = buildAuthPanelData(
+      appDetailFixture({
+        metrics: [
+          metric("users", "current", 9_000),
+          metric("verified_users", "current", 1, "2026-09-20T09:00:00.000Z"),
+        ],
+        series: [{ metric: "signups", period: "daily", points: days([1, 2]) }],
+      }),
+    );
+
+    expect(data?.signups).toBeNull();
+  });
+
+  it("shows no new-users delta for zero signups rather than a positive-looking +0", () => {
+    const data = buildAuthPanelData(
+      appDetailFixture({
+        metrics: [metric("users", "current", 9), metric("new_users", "30d", 0)],
+      }),
+    );
+
+    expect(data?.newUsersLabel).toBeNull();
+  });
+
   it("omits converted-to-paid when subscribers exceed users (ratio not derivable)", () => {
     const data = buildAuthPanelData(
       appDetailFixture({
@@ -174,7 +198,10 @@ describe("buildAuthPanelData", () => {
   it("omits the best-day footer when no signups happened in the window", () => {
     const data = buildAuthPanelData(
       appDetailFixture({
-        metrics: [metric("users", "current", 2)],
+        metrics: [
+          metric("users", "current", 2),
+          metric("verified_users", "current", 2),
+        ],
         series: [{ metric: "signups", period: "daily", points: days([0, 0]) }],
       }),
     );

@@ -99,7 +99,11 @@ function hasVerifiedEmail(user: User): boolean {
  * Clerk's user object can't tell those apart from each other.
  */
 export function classifySignInMethod(user: User): string {
-  const provider = user.externalAccounts[0]?.provider;
+  // Only a verified link counts: an abandoned OAuth attempt is not how the
+  // user signs in.
+  const provider = user.externalAccounts.find(
+    (account) => account.verification?.status === VERIFIED_STATUS,
+  )?.provider;
   if (provider) {
     return provider.startsWith(OAUTH_PROVIDER_PREFIX)
       ? provider.slice(OAUTH_PROVIDER_PREFIX.length)

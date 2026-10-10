@@ -4,7 +4,7 @@
     <div class="method-bars">
       <BarMeter
         v-for="method in methods"
-        :key="method.label"
+        :key="method.method"
         :label="method.label"
         :pct-label="method.pctLabel"
         :pct="method.pct"

@@ -85,8 +85,22 @@ function buildUser(overrides: Record<string, unknown> = {}): User {
 
 describe("classifySignInMethod", () => {
   it.each([
-    [{ externalAccounts: [{ provider: "oauth_github" }] }, "github"],
-    [{ externalAccounts: [{ provider: "google" }] }, "google"],
+    [
+      {
+        externalAccounts: [
+          { provider: "oauth_github", verification: { status: "verified" } },
+        ],
+      },
+      "github",
+    ],
+    [
+      {
+        externalAccounts: [
+          { provider: "google", verification: { status: "verified" } },
+        ],
+      },
+      "google",
+    ],
     [{ enterpriseAccounts: [{}], passwordEnabled: true }, "sso"],
     [{ web3Wallets: [{}] }, "web3"],
     [{ externalAccounts: [], passwordEnabled: true }, "password"],
@@ -95,9 +109,23 @@ describe("classifySignInMethod", () => {
     expect(classifySignInMethod(buildUser(overrides))).toBe(expected);
   });
 
+  it("ignores an unverified (abandoned) social link and falls through to password", () => {
+    const user = buildUser({
+      externalAccounts: [
+        { provider: "oauth_github", verification: { status: "unverified" } },
+        { provider: "oauth_google", verification: null },
+      ],
+      passwordEnabled: true,
+    });
+
+    expect(classifySignInMethod(user)).toBe("password");
+  });
+
   it("prefers a linked social provider over a password", () => {
     const user = buildUser({
-      externalAccounts: [{ provider: "oauth_google" }],
+      externalAccounts: [
+        { provider: "oauth_google", verification: { status: "verified" } },
+      ],
       passwordEnabled: true,
     });
 

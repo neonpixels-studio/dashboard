@@ -46,6 +46,7 @@ const METHOD_LABELS: Record<string, string> = {
 const CUSTOM_PROVIDER_PREFIX = "custom_";
 
 export interface AuthMethodShare {
+  method: string;
   label: string;
   pct: number;
   pctLabel: string;
@@ -91,6 +92,14 @@ function fromSameSync(
   return metric && metric.capturedAt === users.capturedAt ? metric : null;
 }
 
+// "+0 in 30d" in the positive-delta style would read as good news.
+function newUsersLabel(newUsers: CurrentMetric | undefined): string | null {
+  if (!newUsers || newUsers.value === 0) {
+    return null;
+  }
+  return `+${formatCount(newUsers.value)} in 30d`;
+}
+
 function countLabel(metric: CurrentMetric | null): string | null {
   return metric ? formatCount(metric.value) : null;
 }
@@ -110,12 +119,14 @@ function buildMethodShares(
     return [];
   }
   return methodMetrics
-    .map((metric) => ({
-      label: formatMethodLabel(
-        metric.metric.slice(METRIC_AUTH_METHOD_PREFIX.length),
-      ),
-      pct: (metric.value / total) * PERCENT,
-    }))
+    .map((metric) => {
+      const method = metric.metric.slice(METRIC_AUTH_METHOD_PREFIX.length);
+      return {
+        method,
+        label: formatMethodLabel(method),
+        pct: (metric.value / total) * PERCENT,
+      };
+    })
     .sort((first, second) => second.pct - first.pct)
     .map((share) => ({
       ...share,
@@ -195,20 +206,21 @@ export function buildAuthPanelData(
   }
   const { metrics } = detail;
   const newUsers = findMetric(metrics, METRIC_NEW_USERS, PERIOD_30D);
+  const verifiedUsers = fromSameSync(
+    findMetric(metrics, METRIC_VERIFIED_USERS, PERIOD_CURRENT),
+    users,
+  );
   return {
     totalUsers: users.value,
-    newUsersLabel: newUsers ? `+${formatCount(newUsers.value)} in 30d` : null,
-    verifiedEmail: countLabel(
-      fromSameSync(
-        findMetric(metrics, METRIC_VERIFIED_USERS, PERIOD_CURRENT),
-        users,
-      ),
-    ),
+    newUsersLabel: newUsersLabel(newUsers),
+    verifiedEmail: countLabel(verifiedUsers),
     activeLast7d: countLabel(
       fromSameSync(findMetric(metrics, METRIC_ACTIVE_USERS, PERIOD_7D), users),
     ),
     convertedToPaid: buildConvertedToPaid(metrics, users),
-    signups: buildSignups(detail, users),
+    // verified_users is written by the same scan as the signups rows, so
+    // its absence from the current sync means the series is stale.
+    signups: verifiedUsers ? buildSignups(detail, users) : null,
     methods: buildMethodShares(metrics, users),
     environment: clerkEnvironment(detail),
     clerkUsersUrl: detail.clerkUsersUrl,
