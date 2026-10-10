@@ -366,6 +366,7 @@ still-encrypted values.
 - **Production** deploys weekly, Mondays 14:00 UTC, via a Netlify build hook called by `.github/workflows/weekly-production-deploy.yml`. The run first applies Drizzle migrations to the production database, then triggers the hook (migrations must stay backward compatible with the code still live until the build finishes). It requires CI to be green on `main` HEAD, and scheduled runs skip when `main` has no commits in the last 7 days. Merging to `main` does not deploy or migrate on its own.
 - **Pull requests** get a Netlify Deploy Preview built against `.env.dev` (a non-production database).
 - **Hotfix:** Actions tab > Weekly production deploy > Run workflow. Manual runs always migrate and deploy.
+- Production builds started from the Netlify UI are cancelled on purpose. The build hook cannot pin a commit, so a merge landing between the workflow's checks and Netlify's clone is a narrowed, not closed, race. A failed Netlify build does not fail the workflow run; watch Netlify's deploy notifications.
 - Required repo secrets: `NETLIFY_BUILD_HOOK_URL` (build hook on `main`) and `DOTENV_PRIVATE_KEY_PRODUCTION`.
 
 ## Scripts
