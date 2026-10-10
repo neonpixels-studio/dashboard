@@ -31,10 +31,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Require build hook secret
+      - name: Require secrets
         env:
           NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
         run: |
+          if [ -z "$DOTENV_PRIVATE_KEY_PRODUCTION" ]; then
+            echo "::error::DOTENV_PRIVATE_KEY_PRODUCTION is not set. Production migrations cannot run; add the repo secret."
+            exit 1
+          fi
           if [ -z "$NETLIFY_BUILD_HOOK_URL" ]; then
             echo "::error::NETLIFY_BUILD_HOOK_URL is not set. Production would never deploy; add the repo secret."
             exit 1
@@ -99,8 +104,8 @@ jobs:
           NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          # A build hook can't pin a commit; fail if main moved since CI and
-          # migrations were checked so unchecked code is never deployed.
+          # A build hook can't pin a commit; narrow the race by failing if main
+          # moved since CI and migrations were checked.
           remote_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
           if [ "$remote_sha" != "$(git rev-parse HEAD)" ]; then
             echo "::error::main moved during the run (now $remote_sha). Migrations were applied but no deploy was triggered; re-run the workflow."
