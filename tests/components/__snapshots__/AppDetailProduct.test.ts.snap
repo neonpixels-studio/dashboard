@@ -1,5 +1,62 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`AppDetailProduct > USERS & AUTH panel > matches its live-data snapshot 1`] = `
+"<div data-v-ccc97805="" data-v-12a7c813="" class="auth-body">
+  <div data-v-ccc97805="" class="auth-meta"><span data-v-ccc97805="" class="env-chip"> development </span><a data-v-ccc97805="" class="clerk-link" href="https://dashboard.clerk.com/~/users" target="_blank" rel="noopener noreferrer"> View users in Clerk </a></div>
+  <div data-v-ccc97805="" class="auth-grid">
+    <div data-v-ccc97805="" class="card auth-card">
+      <div data-v-b2c101a0="" data-v-ccc97805="" class="panel-head"><span data-v-b2c101a0="" class="panel-title">Total users</span>
+        <!--v-if-->
+      </div>
+      <div data-v-ccc97805="" class="big-value-row"><span data-v-ccc97805="" class="display-num big-value">1,204</span><span data-v-ccc97805="" class="delta ok">+38 in 30d</span></div>
+      <ul data-v-5cd44a83="" data-v-ccc97805="" class="stat-list auth-list">
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Verified email</span><span data-v-5cd44a83="" class="value">1,147</span>
+          <!--v-if-->
+        </li>
+        <li data-v-5cd44a83="" class="stat-row">
+          <!--v-if--><span data-v-5cd44a83="" class="label">Active last 7d</span><span data-v-5cd44a83="" class="value">418</span>
+          <!--v-if-->
+        </li>
+      </ul>
+    </div>
+    <div data-v-6b7b022c="" data-v-ccc97805="" class="card signups-card">
+      <div data-v-b2c101a0="" data-v-6b7b022c="" class="panel-head"><span data-v-b2c101a0="" class="panel-title">Signups</span><span data-v-b2c101a0="" class="panel-meta">DAILY · 30D</span></div><svg data-v-6b7b022c="" width="100%" height="76" viewBox="0 0 300 60" preserveAspectRatio="none" role="img" aria-label="basin.fm daily signups over the last 30 days">
+        <!--v-if-->
+        <path d="M0.00 56.00 L150.00 4.00 L300.00 50.62" fill="none" stroke="#FFB020" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <div data-v-5654670f="" data-v-6b7b022c="" class="axis-row"><span data-v-5654670f="">17 SEP</span><span data-v-5654670f="">18 SEP</span><span data-v-5654670f="">19 SEP</span></div>
+      <div data-v-6b7b022c="" class="card-foot"><span data-v-6b7b022c="" class="foot-label">Best day · 18 SEP</span><span data-v-6b7b022c="" class="foot-value">31 signups </span></div>
+    </div>
+    <div data-v-f2fc97e6="" data-v-ccc97805="" class="card methods-card">
+      <div data-v-b2c101a0="" data-v-f2fc97e6="" class="panel-head"><span data-v-b2c101a0="" class="panel-title">Sign-in method</span>
+        <!--v-if-->
+      </div>
+      <div data-v-f2fc97e6="" class="method-bars">
+        <div data-v-f350e699="" data-v-f2fc97e6="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head">
+            <!--v-if--><span data-v-f350e699="" class="label">GitHub</span>
+            <!--v-if--><span data-v-f350e699="" class="pct">75%</span>
+          </div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 75%; background: #FFB020;"></div>
+          </div>
+        </div>
+        <div data-v-f350e699="" data-v-f2fc97e6="" class="bar-meter">
+          <div data-v-f350e699="" class="bar-head">
+            <!--v-if--><span data-v-f350e699="" class="label">Google</span>
+            <!--v-if--><span data-v-f350e699="" class="pct">25%</span>
+          </div>
+          <div data-v-f350e699="" class="track">
+            <div data-v-f350e699="" class="fill" style="width: 25%; background: #FFB020;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>"
+`;
+
 exports[`AppDetailProduct > matches its tile-grid snapshot 1`] = `
 "<div data-v-71379453="" data-v-12a7c813="" class="tile-grid">
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">

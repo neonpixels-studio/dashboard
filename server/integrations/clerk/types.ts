@@ -35,3 +35,25 @@ export interface ClerkUserCountRequest {
 export type GetClerkUserCount = (
   request: ClerkUserCountRequest,
 ) => Promise<ClerkUserCountResponse>;
+
+// One user reduced to the only fields the auth-panel metrics need — no PII
+// (names, emails, ids) ever leaves clerkClient.ts. `signInMethod` is one
+// classification per user (see clerkClient.ts's classifySignInMethod) so the
+// per-method counts sum to the scanned total.
+export interface ClerkUserSummary {
+  createdAt: number;
+  lastActiveAt: number | null;
+  hasVerifiedEmail: boolean;
+  signInMethod: string;
+}
+
+// `totalCount` is Clerk's own count for the listing; `users.length` is how
+// many rows were actually paged in. They differ when the scan hit its page
+// cap (or users changed mid-scan), and mapping.ts treats any mismatch as an
+// incomplete scan — scan-derived metrics are then omitted, not extrapolated.
+export interface ClerkUserScan {
+  users: ClerkUserSummary[];
+  totalCount: number;
+}
+
+export type ScanClerkUsers = () => Promise<ClerkUserScan>;

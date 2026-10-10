@@ -78,7 +78,28 @@ describe("GET /api/apps/[slug]", () => {
       alerts: [],
       sources: [],
       lastSyncedAt: null,
+      clerkUsersUrl: null,
     });
+  });
+
+  it("links to the Clerk dashboard users page when the app has an enabled clerk integration", async () => {
+    mockFetchIntegrationConfigs.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "clerk",
+        enabled: true,
+        externalId: "app_2abc/ins_9xyz",
+        secretRef: null,
+        encryptedSecret: null,
+      },
+    ]);
+
+    const result = await appDetailHandler(makeEvent("basin"));
+
+    expect(result.clerkUsersUrl).toBe(
+      "https://dashboard.clerk.com/apps/app_2abc/instances/ins_9xyz/users",
+    );
   });
 
   it("scopes every fetch to the requested slug", async () => {

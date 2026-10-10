@@ -162,4 +162,7 @@ export interface AppDetailResponse {
   alerts: AppAlert[];
   sources: SyncSource[];
   lastSyncedAt: string | null;
+  // The Users page of the app's Clerk dashboard; null when the app has no
+  // enabled Clerk integration (see server/integrations/clerk/dashboardLink.ts).
+  clerkUsersUrl: string | null;
 }

@@ -2,7 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   assertNonNegativeCount,
   computeNewUsersWindowStart,
+  countActiveSince,
+  countBySignInMethod,
+  countDailySignups,
+  countVerifiedEmailUsers,
+  isCompleteScan,
 } from "../../../../server/integrations/clerk/mapping";
+import type { ClerkUserSummary } from "../../../../server/integrations/clerk/types";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function user(overrides: Partial<ClerkUserSummary> = {}): ClerkUserSummary {
+  return {
+    createdAt: Date.UTC(2026, 8, 1),
+    lastActiveAt: null,
+    hasVerifiedEmail: true,
+    signInMethod: "github",
+    ...overrides,
+  };
+}
 
 describe("computeNewUsersWindowStart", () => {
   it("returns the epoch ms exactly windowDays before now", () => {
@@ -50,5 +68,90 @@ describe("assertNonNegativeCount", () => {
     expect(() =>
       assertNonNegativeCount(undefined as unknown as number, "new users"),
     ).toThrow(/must be a non-negative integer, got undefined/);
+  });
+});
+
+describe("isCompleteScan", () => {
+  it("is true only when every counted user was scanned", () => {
+    expect(isCompleteScan({ users: [user(), user()], totalCount: 2 })).toBe(
+      true,
+    );
+    expect(isCompleteScan({ users: [user()], totalCount: 2 })).toBe(false);
+  });
+});
+
+describe("countVerifiedEmailUsers", () => {
+  it("counts only users with a verified email", () => {
+    expect(
+      countVerifiedEmailUsers([
+        user(),
+        user({ hasVerifiedEmail: false }),
+        user(),
+      ]),
+    ).toBe(2);
+  });
+});
+
+describe("countActiveSince", () => {
+  it("counts users active at or after the cutoff and ignores never-active users", () => {
+    const since = Date.UTC(2026, 8, 13);
+
+    expect(
+      countActiveSince(
+        [
+          user({ lastActiveAt: since }),
+          user({ lastActiveAt: since - 1 }),
+          user({ lastActiveAt: null }),
+        ],
+        since,
+      ),
+    ).toBe(1);
+  });
+});
+
+describe("countBySignInMethod", () => {
+  it("counts each user once under their single classified method", () => {
+    const counts = countBySignInMethod([
+      user({ signInMethod: "github" }),
+      user({ signInMethod: "github" }),
+      user({ signInMethod: "password" }),
+    ]);
+
+    expect(Object.fromEntries(counts)).toEqual({ github: 2, password: 1 });
+  });
+});
+
+describe("countDailySignups", () => {
+  const now = new Date("2026-09-20T15:30:00.000Z");
+
+  it("returns one oldest-first entry per UTC day ending today, zero-filling empty days", () => {
+    const result = countDailySignups(
+      [
+        user({ createdAt: Date.UTC(2026, 8, 20, 1) }),
+        user({ createdAt: Date.UTC(2026, 8, 20, 23) }),
+        user({ createdAt: Date.UTC(2026, 8, 18) }),
+      ],
+      now,
+      3,
+    );
+
+    expect(
+      result.map(({ dayStart, count }) => [dayStart.toISOString(), count]),
+    ).toEqual([
+      ["2026-09-18T00:00:00.000Z", 1],
+      ["2026-09-19T00:00:00.000Z", 0],
+      ["2026-09-20T00:00:00.000Z", 2],
+    ]);
+  });
+
+  it("ignores users created before the window", () => {
+    const result = countDailySignups(
+      [user({ createdAt: now.getTime() - 40 * DAY_MS })],
+      now,
+      30,
+    );
+
+    expect(result).toHaveLength(30);
+    expect(result.every(({ count }) => count === 0)).toBe(true);
   });
 });

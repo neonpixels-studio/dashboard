@@ -1,6 +1,7 @@
 import { getRouterParam } from "h3";
 import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
+import { clerkDashboardUsersUrl } from "../../integrations/clerk/dashboardLink";
 import { integrationEnvironments } from "../../integrations/credentialEnvironment";
 import { requireUser } from "../../utils/auth";
 import {
@@ -70,5 +71,6 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
       integrationEnvironments(configRows),
     ),
     lastSyncedAt: latestSyncedAt(syncRows),
+    clerkUsersUrl: clerkDashboardUsersUrl(configRows),
   };
 });
