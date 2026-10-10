@@ -193,6 +193,13 @@ describe("isMetricIntegrated", () => {
     expect(isMetricIntegrated(METRIC_OPEN_ISSUES, sentryOnly)).toBe(true);
   });
 
+  it("treats a configured-but-disabled vendor as integrated", () => {
+    const disabledSentry = [
+      { vendor: "sentry", enabled: false },
+    ] as IntegrationHealth[];
+    expect(isMetricIntegrated(METRIC_OPEN_ISSUES, disabledSentry)).toBe(true);
+  });
+
   it("is false when the metric's vendor is not configured", () => {
     expect(isMetricIntegrated(METRIC_USERS, sentryOnly)).toBe(false);
     expect(isMetricIntegrated(METRIC_OPEN_ISSUES, [])).toBe(false);
