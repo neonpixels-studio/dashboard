@@ -13,7 +13,7 @@ import {
 } from "../db/schema";
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
-import type { SyncAlertRow } from "../utils/overviewAlerts";
+import type { SyncAlertRow } from "./staleVendorAlert";
 import type { IntegrationConfigRow, ProviderResult } from "./types";
 
 // Stamps the orchestrator's own slug onto every row a provider returned

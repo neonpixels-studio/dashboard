@@ -68,6 +68,21 @@ describe("OverviewAlertsPanel", () => {
     expect(wrapper.find(".alerts-clear").exists()).toBe(false);
   });
 
+  it("keeps showing loaded alerts during a refresh instead of flashing a skeleton", () => {
+    const wrapper = mountPanel({ pending: true });
+
+    expect(wrapper.findComponent(SkeletonBlock).exists()).toBe(false);
+    expect(wrapper.findAll(".alert-row")).toHaveLength(2);
+  });
+
+  it("omits the time for an unparseable timestamp", () => {
+    const wrapper = mountPanel({
+      alerts: [{ ...ALERTS[0], occurredAt: "garbage" }],
+    });
+
+    expect(wrapper.find("time").exists()).toBe(false);
+  });
+
   it("shows an error state on failure, never all-clear, and emits retry", async () => {
     const wrapper = mountPanel({ alerts: [], hasError: true });
 

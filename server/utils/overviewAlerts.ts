@@ -2,16 +2,8 @@ import type { OverviewAlert } from "../../shared/types/alerts";
 import {
   findStaleVendors,
   type StaleVendor,
-  type SyncHealthRow,
+  type SyncAlertRow,
 } from "../integrations/staleVendorAlert";
-
-// sync_status columns the Alerts panel needs on top of what the stale-vendor
-// check reads (see SyncHealthRow).
-export interface SyncAlertRow extends SyncHealthRow {
-  ok: boolean;
-  error: string | null;
-  lastAttemptedAt: Date | null;
-}
 
 const FAILED_SYNC_FALLBACK_MESSAGE = "Sync failed";
 const NEVER_SUCCEEDED_MESSAGE = "No successful sync yet";
@@ -71,7 +63,7 @@ function byNewestFirst(a: OverviewAlert, b: OverviewAlert): number {
   if (b.occurredAt === null) {
     return -1;
   }
-  return a.occurredAt < b.occurredAt ? 1 : -1;
+  return Date.parse(b.occurredAt) - Date.parse(a.occurredAt);
 }
 
 // Failing rows plus stale vendors (via findStaleVendors, so the rule stays in

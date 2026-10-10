@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildSyncAlerts,
-  type SyncAlertRow,
-} from "../../../server/utils/overviewAlerts";
+import { buildSyncAlerts } from "../../../server/utils/overviewAlerts";
+import type { SyncAlertRow } from "../../../server/integrations/staleVendorAlert";
 
 const NOW = new Date("2026-10-10T12:00:00Z");
 const hoursAgo = (hours: number) =>
@@ -142,10 +140,20 @@ describe("buildSyncAlerts", () => {
           lastAttemptedAt: null,
           lastRunAt: new Date(NOW.getTime() - 3 * 3_600_000),
         }),
+        row({
+          vendor: "untimed",
+          lastRunAt: null,
+          lastSuccessAt: hoursAgo(9),
+        }),
       ],
       NOW,
     );
 
-    expect(alerts.map((alert) => alert.source)).toEqual(["b", "c", "a"]);
+    expect(alerts.map((alert) => alert.source)).toEqual([
+      "b",
+      "c",
+      "a",
+      "untimed",
+    ]);
   });
 });

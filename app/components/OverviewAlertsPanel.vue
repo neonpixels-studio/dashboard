@@ -6,7 +6,7 @@
       <span v-if="alerts.length" class="panel-count">{{ alerts.length }}</span>
     </div>
 
-    <SkeletonBlock v-if="pending" height="40px" />
+    <SkeletonBlock v-if="pending && !alerts.length" height="40px" />
     <DataErrorState
       v-else-if="hasError"
       message="Couldn't load alerts."
@@ -16,16 +16,16 @@
       All clear. No sync failures or stale vendors.
     </p>
     <ul v-else class="alert-list">
-      <li v-for="alert in alerts" :key="alert.id" class="alert-row">
+      <li v-for="alert in rows" :key="alert.id" class="alert-row">
         <span class="alert-property">{{ nameFor(alert.slug) }}</span>
         <span class="alert-source">{{ alert.source }}</span>
         <span class="alert-message">{{ alert.message }}</span>
         <time
-          v-if="alert.occurredAt"
+          v-if="alert.timeLabel"
           class="alert-time"
-          :datetime="alert.occurredAt"
+          :datetime="alert.occurredAt ?? undefined"
         >
-          {{ formatAlertTime(alert.occurredAt) }}
+          {{ alert.timeLabel }}
         </time>
         <NuxtLink :to="alert.href" class="alert-link">View</NuxtLink>
       </li>
@@ -41,13 +41,22 @@ import type { OverviewAlert } from "#shared/types/alerts";
 // The "/" overview Alerts panel (and the top nav's #alerts target). Renders
 // whatever source-agnostic OverviewAlert[] GET /api/overview/alerts returns,
 // so new alert sources never touch this component.
-defineProps<{
+const props = defineProps<{
   alerts: OverviewAlert[];
   pending: boolean;
   hasError: boolean;
 }>();
 
 const emit = defineEmits<{ retry: [] }>();
+
+// Only rows whose timestamp actually formats get a <time>, so an unparseable
+// value never renders an empty element.
+const rows = computed(() =>
+  props.alerts.map((alert) => ({
+    ...alert,
+    timeLabel: formatAlertTime(alert.occurredAt),
+  })),
+);
 
 function nameFor(slug: string): string {
   return findRollupSourceBySlug(slug)?.name ?? slug;

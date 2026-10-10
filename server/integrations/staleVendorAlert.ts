@@ -26,6 +26,14 @@ export interface SyncHealthRow {
   lastSuccessAt: Date | null;
 }
 
+// sync_status columns the overview Alerts panel needs on top of what the
+// stale-vendor check reads (see server/utils/overviewAlerts.ts).
+export interface SyncAlertRow extends SyncHealthRow {
+  ok: boolean;
+  error: string | null;
+  lastAttemptedAt: Date | null;
+}
+
 export interface StaleVendor {
   slug: string;
   vendor: string;

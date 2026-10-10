@@ -743,7 +743,34 @@ describe("index.vue alerts panel", () => {
     expect(wrapper.find("#integrations").exists()).toBe(false);
   });
 
-  it("passes the fetched alerts through and wires retry to refresh", async () => {
+  it("passes the fetched alerts to the panel", () => {
+    const alerts = [
+      {
+        id: "sync-failed:basin:stripe",
+        slug: "basin",
+        source: "stripe",
+        message: "stripe: 401 unauthorized",
+        occurredAt: "2026-10-10T14:05:00.000Z",
+        href: "/apps/basin",
+      },
+    ];
+    mockUseOverviewAlerts.mockReturnValue({
+      data: ref(alerts),
+      pending: ref(false),
+      error: ref(null),
+      refresh: vi.fn(),
+    });
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findComponent(OverviewAlertsPanel).props("alerts")).toEqual(
+      alerts,
+    );
+    expect(wrapper.findAll(".alert-row")).toHaveLength(1);
+  });
+
+  it("wires the panel's retry to the composable's refresh", async () => {
     const refresh = vi.fn();
     mockUseOverviewAlerts.mockReturnValue({
       data: ref(null),
