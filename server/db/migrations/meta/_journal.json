@@ -57,6 +57,13 @@
       "when": 1791415770746,
       "tag": "0007_add_captured_at_indexes_for_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791599611495,
+      "tag": "0008_add_zyvop_vendor",
+      "breakpoints": true
     }
   ]
 }

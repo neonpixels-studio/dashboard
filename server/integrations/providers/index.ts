@@ -8,6 +8,7 @@ import {
   devtoProvider,
   hashnodeProvider,
   mediumProvider,
+  zyvopProvider,
 } from "../syndication";
 
 // Adding a real vendor provider is: one file (or, once a vendor needs more
@@ -23,4 +24,5 @@ export const PROVIDERS: IntegrationProvider[] = [
   hashnodeProvider,
   devtoProvider,
   mediumProvider,
+  zyvopProvider,
 ];

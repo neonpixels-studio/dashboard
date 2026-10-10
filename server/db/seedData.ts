@@ -14,7 +14,7 @@ const SENTRY_VENDOR: IntegrationVendor = "sentry";
 // instead of silently falling through to "no vendors".
 const VENDORS_BY_TEMPLATE: Record<AppTemplate, IntegrationVendor[]> = {
   product: ["stripe", "clerk", "sentry"],
-  writing: ["medium", "hashnode", "devto"],
+  writing: ["medium", "hashnode", "devto", "zyvop"],
   marketing: [],
 };
 

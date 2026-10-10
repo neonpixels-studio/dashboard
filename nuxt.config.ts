@@ -146,6 +146,7 @@ export default defineNuxtConfig({
     devtoApiKey: process.env.NUXT_DEVTO_API_KEY || "",
     mediumRapidapiKey: process.env.NUXT_MEDIUM_RAPIDAPI_KEY || "",
     mediumUsername: process.env.NUXT_MEDIUM_USERNAME || "",
+    zyvopToken: process.env.NUXT_ZYVOP_TOKEN || "",
     public: {
       // Baked at build so sentry.client.config.ts can read it via
       // useRuntimeConfig().public.sentry.dsn. The DSN is not secret (it ships

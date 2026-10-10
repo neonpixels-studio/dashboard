@@ -43,6 +43,7 @@ export const integrationVendor = pgEnum("integration_vendor", [
   "medium",
   "hashnode",
   "devto",
+  "zyvop",
 ]);
 
 export const syndicationStatus = pgEnum("syndication_status", [

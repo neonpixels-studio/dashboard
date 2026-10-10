@@ -8,7 +8,7 @@ import { APPS, INTERNAL_APPS } from "../../../app/config/apps";
 import { buildIntegrationConfigSeed } from "../../../server/db/seedData";
 
 const PRODUCT_VENDORS = ["stripe", "clerk", "sentry"];
-const WRITING_VENDORS = ["medium", "hashnode", "devto"];
+const WRITING_VENDORS = ["medium", "hashnode", "devto", "zyvop"];
 
 function vendorsForSlug(
   rows: ReturnType<typeof buildIntegrationConfigSeed>,
@@ -56,7 +56,7 @@ describe("buildIntegrationConfigSeed", () => {
     );
   });
 
-  it("gives a writing app GA4 plus medium/hashnode/devto, nothing else", () => {
+  it("gives a writing app GA4 plus medium/hashnode/devto/zyvop, nothing else", () => {
     const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
     expect(vendorsForSlug(rows, "fixture-writing").sort()).toEqual(
       ["ga4", ...WRITING_VENDORS].sort(),
@@ -104,7 +104,7 @@ describe("buildIntegrationConfigSeed", () => {
       }
     });
 
-    it("gives every writing-template app medium/hashnode/devto", () => {
+    it("gives every writing-template app medium/hashnode/devto/zyvop", () => {
       const rows = buildIntegrationConfigSeed(APPS);
       const writingApps = APPS.filter((app) => app.template === "writing");
       expect(writingApps.length).toBeGreaterThan(0);

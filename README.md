@@ -230,6 +230,11 @@ suffix, since there's only one writing-template app today).
 - **DEV.to** — <https://dev.to/settings/extensions> → DEV API Keys → Generate
   API Key (`NUXT_DEVTO_API_KEY`). No separate publication id: the key alone
   identifies the account.
+- **ZyVOP** — <https://zyvop.com> → Settings → Integrations → ZyVOP API, CLI
+  & MCP → generate a personal developer token (`NUXT_ZYVOP_TOKEN`, starts
+  with `zv_`). ZyVOP has no read REST endpoint, so the provider calls the
+  `zyvop_list_posts` tool on its hosted MCP server (<https://zyvop.com/mcp>)
+  as plain JSON-RPC. The token alone identifies the author.
 - **Medium** — Medium retired its own publish API and has no supported read
   endpoint either, so this reads via RapidAPI's unofficial "medium2" API
   (aka mediumapi.com — <https://docs.mediumapi.com/>), a **paid** add-on.
