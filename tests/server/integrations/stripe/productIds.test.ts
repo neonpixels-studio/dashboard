@@ -6,6 +6,7 @@ import {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("configuredProductIds", () => {
@@ -35,6 +36,5 @@ describe("configuredProductIds", () => {
     expect(configuredProductIds({ slug: "basin", externalId: null })).toEqual(
       [],
     );
-    vi.unstubAllGlobals();
   });
 });

@@ -16,6 +16,7 @@ import {
   max,
   or,
 } from "drizzle-orm";
+import { activityCutoff } from "../integrations/stripe/activity";
 import type { InferSelectModel } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/neon-http";
 import type * as schema from "../db/schema";
@@ -229,7 +230,12 @@ export function fetchRecentStripeEvents(
   return db
     .select()
     .from(stripeEvent)
-    .where(eq(stripeEvent.slug, slug))
+    .where(
+      and(
+        eq(stripeEvent.slug, slug),
+        gte(stripeEvent.occurredAt, activityCutoff()),
+      ),
+    )
     .orderBy(desc(stripeEvent.occurredAt))
     .limit(RECENT_STRIPE_EVENT_LIMIT);
 }

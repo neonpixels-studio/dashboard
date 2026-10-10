@@ -304,9 +304,14 @@ describe("fetchRecentStripeEvents", () => {
     const { db, where, limit } = createLimitedFakeDb(rows as never);
 
     await expect(fetchRecentStripeEvents(db, "basin")).resolves.toEqual(rows);
-    expect(renderSqlCondition(where.mock.calls[0]![0] as SQL).params).toEqual([
-      "basin",
-    ]);
+    const [slug, cutoff] = renderSqlCondition(where.mock.calls[0]![0] as SQL)
+      .params as [string, string];
+    expect(slug).toBe("basin");
+    // Events outside Stripe's 30 day window are never shown, even if a failing
+    // detail fetch left them unpruned.
+    const ageMs = Date.now() - new Date(cutoff).getTime();
+    expect(ageMs).toBeGreaterThan(29.9 * 24 * 60 * 60 * 1000);
+    expect(ageMs).toBeLessThan(30.1 * 24 * 60 * 60 * 1000);
     expect(limit).toHaveBeenCalledWith(RECENT_STRIPE_EVENT_LIMIT);
   });
 });

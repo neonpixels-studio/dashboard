@@ -167,7 +167,8 @@ dashboard.
 
 1. Secret key — <https://dashboard.stripe.com/apikeys> (restricted,
    read-only: Subscriptions, Customers, Products, Events) →
-   `NUXT_STRIPE_SECRET_KEY`. A key without Events read fails the Stripe sync.
+   `NUXT_STRIPE_SECRET_KEY`. A key without Events read still syncs MRR, but the revenue-by-plan and
+   events sections stop updating (the failure is reported to Sentry).
 2. Per-property product ID(s) — <https://dashboard.stripe.com/products> → the
    product → copy its `prod_...` ID → `NUXT_STRIPE_PRODUCT_ID_*`. A comma-
    separated list scopes MRR across several tiers/products for the same app

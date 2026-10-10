@@ -97,7 +97,12 @@ export interface SyndicationMatrixRow {
   cells: SyndicationMatrixCell[];
 }
 
-export type StripeEventKind = "new" | "canceled" | "payment_failed";
+export const STRIPE_EVENT_KINDS = [
+  "new",
+  "canceled",
+  "payment_failed",
+] as const;
+export type StripeEventKind = (typeof STRIPE_EVENT_KINDS)[number];
 
 // Current MRR attributed to one Stripe product ("plan") of an app, in dollars.
 export interface StripePlanRevenue {

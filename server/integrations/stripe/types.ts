@@ -83,7 +83,9 @@ export type ListActiveSubscriptions = (
   startingAfter?: string,
 ) => Promise<StripeSubscriptionPage>;
 
-export type StripeActivityKind = "new" | "canceled" | "payment_failed";
+import type { StripeEventKind } from "../../../shared/types/dashboard";
+
+export type StripeActivityKind = StripeEventKind;
 
 // One priced line an activity event touched, already reduced to the product
 // it belongs to. `amountCents` is the undiscounted per-billing-cycle amount in

@@ -14,8 +14,16 @@ export const MAX_ACTIVITY_PAGES = 5;
 // because they could never be re-fetched.
 export const ACTIVITY_LOOKBACK_DAYS = 30;
 
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const MASK = "••••";
 const MASK_FALLBACK_LOCAL_LENGTH = 2;
+
+/** Events older than this are outside Stripe's window and are not shown. */
+export function activityCutoff(now: Date = new Date()): Date {
+  return new Date(
+    now.getTime() - ACTIVITY_LOOKBACK_DAYS * MILLISECONDS_PER_DAY,
+  );
+}
 
 /**
  * "m••••a@hey.com": first and last character of the local part, domain kept.

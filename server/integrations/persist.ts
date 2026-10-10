@@ -22,7 +22,7 @@ import {
   syndicationPost,
   trafficBreakdown,
 } from "../db/schema";
-import { ACTIVITY_LOOKBACK_DAYS } from "./stripe/activity";
+import { activityCutoff } from "./stripe/activity";
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
 import type { SyncHealthRow } from "./staleVendorAlert";
@@ -152,14 +152,6 @@ export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
 // the same 30-day window is a no-op for rows already stored. Events older than
 // that window are pruned in the same batch: Stripe can't return them again, so
 // the table (and the panel's "recent" list) stays bounded to the window.
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function stripeEventCutoff(now: Date = new Date()): Date {
-  return new Date(
-    now.getTime() - ACTIVITY_LOOKBACK_DAYS * MILLISECONDS_PER_DAY,
-  );
-}
-
 function stripeDetailWrites(
   db: DrizzleDb,
   slug: string,
@@ -177,7 +169,7 @@ function stripeDetailWrites(
       .where(
         and(
           eq(stripeEvent.slug, slug),
-          lt(stripeEvent.occurredAt, stripeEventCutoff()),
+          lt(stripeEvent.occurredAt, activityCutoff()),
         ),
       ),
     ...(planRows.length ? [db.insert(stripePlanRevenue).values(planRows)] : []),

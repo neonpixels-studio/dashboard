@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { STRIPE_EVENT_KINDS } from "../../shared/types/dashboard";
 import {
   boolean,
   check,
@@ -47,11 +48,7 @@ export const integrationVendor = pgEnum("integration_vendor", [
   "zyvop",
 ]);
 
-export const stripeEventKind = pgEnum("stripe_event_kind", [
-  "new",
-  "canceled",
-  "payment_failed",
-]);
+export const stripeEventKind = pgEnum("stripe_event_kind", STRIPE_EVENT_KINDS);
 
 export const syndicationStatus = pgEnum("syndication_status", [
   "synced",
