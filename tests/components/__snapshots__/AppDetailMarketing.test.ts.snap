@@ -47,3 +47,18 @@ exports[`AppDetailMarketing > matches its traffic panel snapshot 1`] = `
   </ul>
 </div>"
 `;
+
+exports[`AppDetailMarketing > matches its traffic sources list snapshot 1`] = `
+"<div data-v-b28e9303="" class="traffic-list"><span data-v-b28e9303="" class="metric-label">TRAFFIC SOURCES</span>
+  <ul data-v-5cd44a83="" data-v-b28e9303="" class="stat-list divided">
+    <li data-v-5cd44a83="" class="stat-row">
+      <!--v-if--><span data-v-5cd44a83="" class="label">Direct</span><span data-v-5cd44a83="" class="value">38%</span>
+      <!--v-if-->
+    </li>
+    <li data-v-5cd44a83="" class="stat-row">
+      <!--v-if--><span data-v-5cd44a83="" class="label">Organic search</span><span data-v-5cd44a83="" class="value">17%</span>
+      <!--v-if-->
+    </li>
+  </ul>
+</div>"
+`;

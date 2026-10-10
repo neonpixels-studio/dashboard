@@ -149,10 +149,11 @@ describe("AppDetailMarketing", () => {
     ]);
   });
 
-  it("matches its traffic panel snapshot", () => {
+  it("matches its traffic sources list snapshot", () => {
     const panel = mountDetail("grimicorn", { detail: LOADED_DETAIL }).find(
       ".traffic-panel",
     );
+    expect(panel.exists()).toBe(true);
     expect(panel.find(".traffic-list").html()).toMatchSnapshot();
   });
 
