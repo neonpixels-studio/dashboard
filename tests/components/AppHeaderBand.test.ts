@@ -67,15 +67,20 @@ describe("AppHeaderBand", () => {
     expect(wrapper.html()).toMatchSnapshot();
   });
 
-  it.each(["product", "writing", "marketing"] as const)(
+  it.each([
+    ["product", 2],
+    ["writing", 3],
+    ["marketing", 2],
+  ] as const)(
     "renders new-tab links with real hrefs for the %s template",
-    (template) => {
+    (template, linkCount) => {
       const templateApp = APPS.find(
         (candidate) => candidate.template === template,
-      )!;
+      );
+      expect(templateApp).toBeDefined();
       const wrapper = mountBand(null, templateApp);
       const links = wrapper.findAll("a.secondary-btn");
-      expect(links.length).toBeGreaterThanOrEqual(2);
+      expect(links).toHaveLength(linkCount);
       for (const link of links) {
         expect(link.attributes("href")).toMatch(/^https:\/\//);
         expect(link.attributes("target")).toBe("_blank");

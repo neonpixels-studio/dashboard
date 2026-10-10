@@ -1,6 +1,8 @@
 import type { DashboardApp } from "~/config/apps";
 import { netlifyLogsUrl, netlifySettingsUrl } from "~/utils/netlify";
 
+const POSTS_PATH = "/posts/";
+
 export interface HeaderLink {
   label: string;
   href: string;
@@ -16,7 +18,7 @@ export function buildHeaderLinks(
     { label: "Settings", href: netlifySettingsUrl(app.url) },
   ];
   if (app.template === "writing") {
-    links.push({ label: "Posts", href: new URL("/posts/", app.url).href });
+    links.push({ label: "Posts", href: new URL(POSTS_PATH, app.url).href });
   }
   return links;
 }

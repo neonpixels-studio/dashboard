@@ -3,11 +3,19 @@ import { buildHeaderLinks } from "../../app/utils/headerLinks";
 import { APPS } from "../../app/config/apps";
 
 describe("buildHeaderLinks", () => {
-  it.each(APPS.map((app) => [app.slug, app] as const))(
-    "gives %s Logs and Settings pointing at its Netlify project",
-    (_slug, app) => {
-      const project = new URL(app.url).hostname.replaceAll(".", "-");
-      const links = buildHeaderLinks(app);
+  it.each([
+    ["basin", "basin-fm"],
+    ["markpost", "markpost-io"],
+    ["farflung", "farflung-io"],
+    ["danholloran", "danholloran-me"],
+    ["grimicorn", "grimicorn-dev"],
+    ["neonpixels", "neonpixels-dev"],
+  ])(
+    "gives %s Logs and Settings pointing at Netlify project %s",
+    (slug, project) => {
+      const app = APPS.find((candidate) => candidate.slug === slug);
+      expect(app).toBeDefined();
+      const links = buildHeaderLinks(app!);
       expect(links.find((link) => link.label === "Logs")?.href).toBe(
         `https://app.netlify.com/projects/${project}/analytics-and-metrics/observability`,
       );
@@ -24,10 +32,11 @@ describe("buildHeaderLinks", () => {
       );
       expect(Boolean(posts)).toBe(app.template === "writing");
     }
-    const writing = APPS.find((app) => app.template === "writing")!;
-    expect(writing.url).toBe("https://danholloran.me");
+    const writing = APPS.find((app) => app.template === "writing");
+    expect(writing).toBeDefined();
+    expect(writing!.url).toBe("https://danholloran.me");
     expect(
-      buildHeaderLinks(writing).find((link) => link.label === "Posts")?.href,
+      buildHeaderLinks(writing!).find((link) => link.label === "Posts")?.href,
     ).toBe("https://danholloran.me/posts/");
   });
 
