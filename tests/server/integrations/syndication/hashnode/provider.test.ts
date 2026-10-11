@@ -188,6 +188,9 @@ describe("fetchHashnodeSyndication", () => {
         syncedAt: new Date("2026-09-01T12:00:00.000Z"),
         views: null,
         externalId: null,
+        url: "https://danholloran.hashnode.dev/shipping-a-nuxt-dashboard",
+        likes: 3,
+        comments: 1,
       },
       {
         platform: "hashnode",
@@ -197,6 +200,9 @@ describe("fetchHashnodeSyndication", () => {
         syncedAt: new Date("2026-08-15T09:30:00.000Z"),
         views: null,
         externalId: null,
+        url: "https://danholloran.hashnode.dev/landscape-photography-in-iceland",
+        likes: 0,
+        comments: 0,
       },
     ]);
     expect(result.trafficBreakdown).toEqual([]);

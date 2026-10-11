@@ -1,7 +1,7 @@
 <template>
   <div class="page-shell">
     <h1 class="sr-only">Dashboard</h1>
-    <ControlTopBar />
+    <ControlTopBar :range="range" @update:range="setRange" />
 
     <main class="overview-body">
       <SectionLabel label="ALL PROPERTIES" :meta="syncMeta" />
@@ -26,6 +26,7 @@
             :delta-tone="mrrDeltaTone"
             :has-sparkline="hasMrrSparkline"
             :sparkline-path="mrrSparklinePath"
+            :range-days="range"
           />
           <RollupStatTile
             label="ACTIVE SUBSCRIBERS"
@@ -36,7 +37,7 @@
             empty-message="No subscriber data synced yet."
           />
           <RollupStatTile
-            label="SESSIONS · 30 DAYS"
+            :label="`SESSIONS · ${range} DAYS`"
             :value-label="sessionsValueLabel"
             :delta-label="sessionsDeltaLabel"
             :delta-tone="sessionsDeltaTone"
@@ -52,6 +53,13 @@
         </template>
       </div>
 
+      <OverviewAlertsPanel
+        :alerts="alertsData ?? []"
+        :pending="alertsPending"
+        :has-error="!!alertsError"
+        @retry="refreshAlerts"
+      />
+
       <SessionsByPropertyPanel
         :properties="sessionsData ?? []"
         :pending="sessionsPending"
@@ -66,7 +74,7 @@
         class="section-gap"
       />
 
-      <div id="integrations" class="property-grid">
+      <div class="property-grid">
         <PropertyCard
           v-for="app in cardViewModels"
           :key="app.slug"
@@ -83,7 +91,9 @@
 import { APPS, findRollupSourceBySlug, sortByAppOrder } from "~/config/apps";
 import { toAppCardViewModel } from "~/utils/appViewModel";
 import { useOverview } from "~/composables/useOverview";
+import { useOverviewRange } from "~/composables/useOverviewRange";
 import { useApps } from "~/composables/useApps";
+import { useOverviewAlerts } from "~/composables/useOverviewAlerts";
 import { useOverviewSessions } from "~/composables/useOverviewSessions";
 import { formatRelativeTime } from "~/utils/relativeTime";
 import { buildSparklinePath } from "~/utils/sparklinePath";
@@ -174,12 +184,14 @@ function nameFor(slug: string): string {
   return findRollupSourceBySlug(slug)?.name ?? slug;
 }
 
+const { range, setRange } = useOverviewRange();
+
 const {
   data: overview,
   pending: overviewPending,
   error: overviewError,
   refresh: refreshOverview,
-} = useOverview();
+} = useOverview(range);
 
 const hasMrrSparkline = computed(
   () => (overview.value?.mrr.series.length ?? 0) >= MIN_SPARKLINE_POINTS,
@@ -326,6 +338,13 @@ const {
   error: sessionsError,
   refresh: refreshSessions,
 } = useOverviewSessions();
+
+const {
+  data: alertsData,
+  pending: alertsPending,
+  error: alertsError,
+  refresh: refreshAlerts,
+} = useOverviewAlerts();
 </script>
 
 <style scoped>

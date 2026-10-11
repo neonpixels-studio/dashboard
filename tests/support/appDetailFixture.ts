@@ -16,7 +16,10 @@ export function appDetailFixture(
     alerts: [],
     sources: [],
     stripe: null,
+    integrations: [],
     lastSyncedAt: null,
+    clerkUsersUrl: null,
+    ga4PropertyId: null,
     ...overrides,
   };
 }

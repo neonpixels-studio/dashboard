@@ -1,6 +1,6 @@
 {
   "id": "9c023740-bb49-4d0a-b33d-2dc4e8608eff",
-  "prevId": "783b48e9-26ab-4a41-82e7-c3facf5af227",
+  "prevId": "7c0cf334-2922-4baa-8dc6-2f3be6f7a9d1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -575,6 +575,24 @@
         "fetched_at": {
           "name": "fetched_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "likes": {
+          "name": "likes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comments": {
+          "name": "comments",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         }

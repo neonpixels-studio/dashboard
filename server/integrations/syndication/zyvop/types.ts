@@ -7,6 +7,11 @@ export interface ZyvopPost {
   slug: string;
   publishedAt: string;
   views: number;
+  // Confirmed 2026-10-10 against zyvop_list_posts: url is
+  // https://zyvop.com/<slug> and the tool reports no comment count. Still
+  // optional because mapping.ts reads each only when present and well-formed.
+  url?: string;
+  likes?: number;
 }
 
 // The seam provider.ts's core logic is tested against instead of a real

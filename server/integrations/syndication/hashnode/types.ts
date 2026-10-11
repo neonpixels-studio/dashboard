@@ -7,6 +7,9 @@ export interface HashnodePostNode {
   id: string;
   slug: string;
   publishedAt: string;
+  url: string;
+  reactionCount: number;
+  responseCount: number;
 }
 
 export interface HashnodePostsPage {

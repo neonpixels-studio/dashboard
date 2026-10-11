@@ -25,6 +25,13 @@ describe("MetricTile", () => {
     expect(wrapper.find(".sub").text()).toBe("$387 last month");
   });
 
+  it.each([[""], ["—"], ["— 0"], ["— 0.0%"]])(
+    "does not render the delta element for %j",
+    (delta) => {
+      expect(mountTile({ delta }).find(".delta").exists()).toBe(false);
+    },
+  );
+
   it("defaults deltaTone to ok", () => {
     expect(mountTile().find(".delta").classes()).toContain("ok");
     expect(mountTile().find(".delta").classes()).not.toContain("muted");

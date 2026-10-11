@@ -18,10 +18,10 @@ afterEach(() => {
 });
 
 describe("loadEnv", () => {
-  it("decrypts .env.production in strict mode", async () => {
+  it("decrypts .env.production in strict mode for the production deploy", async () => {
     const { loadEnv } = await importFreshEnvModule();
 
-    loadEnv();
+    loadEnv("production");
 
     expect(configMock).toHaveBeenCalledWith({
       path: ".env.production",
@@ -29,11 +29,25 @@ describe("loadEnv", () => {
     });
   });
 
+  it.each(["deploy-preview", "branch-deploy"])(
+    "decrypts .env.dev in strict mode for a %s",
+    async (deployContext) => {
+      const { loadEnv } = await importFreshEnvModule();
+
+      loadEnv(deployContext);
+
+      expect(configMock).toHaveBeenCalledWith({
+        path: ".env.dev",
+        strict: true,
+      });
+    },
+  );
+
   it("only decrypts once per function instance", async () => {
     const { loadEnv } = await importFreshEnvModule();
 
-    loadEnv();
-    loadEnv();
+    loadEnv("production");
+    loadEnv("production");
 
     expect(configMock).toHaveBeenCalledOnce();
   });
@@ -44,8 +58,8 @@ describe("loadEnv", () => {
     });
     const { loadEnv } = await importFreshEnvModule();
 
-    expect(() => loadEnv()).toThrow("MISSING_PRIVATE_KEY");
-    loadEnv();
+    expect(() => loadEnv("production")).toThrow("MISSING_PRIVATE_KEY");
+    loadEnv("production");
 
     expect(configMock).toHaveBeenCalledTimes(2);
   });

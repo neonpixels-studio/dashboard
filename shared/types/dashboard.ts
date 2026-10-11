@@ -88,6 +88,11 @@ export interface SyndicationMatrixCell {
   status: "synced" | "pending" | "failed";
   syncedAt: string | null;
   views: number | null;
+  // The platform's own address for the post and its engagement counts. Each is
+  // null when the platform didn't report it, never a fabricated zero.
+  url: string | null;
+  likes: number | null;
+  comments: number | null;
 }
 
 // One row of the syndication matrix: a single local post and its status on
@@ -202,5 +207,15 @@ export interface AppDetailResponse {
   sources: SyncSource[];
   // Null when the app has no enabled Stripe integration.
   stripe: StripeDetail | null;
+  // Every configured integration, whether or not it has synced yet — the
+  // only way the detail page can tell "not configured" from "not synced".
+  integrations: IntegrationHealth[];
   lastSyncedAt: string | null;
+  // The Users page of the app's Clerk dashboard; null when the app has no
+  // enabled Clerk integration (see server/integrations/clerk/dashboardLink.ts).
+  clerkUsersUrl: string | null;
+  // The GA4 property id behind this app's traffic panels as configured (not a
+  // secret; the client validates it before building a link), or null when GA4
+  // isn't enabled for it.
+  ga4PropertyId: string | null;
 }

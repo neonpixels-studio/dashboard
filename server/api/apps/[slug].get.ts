@@ -1,6 +1,8 @@
 import { getRouterParam } from "h3";
 import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
+import { clerkDashboardUsersUrl } from "../../integrations/clerk/dashboardLink";
+import { ga4PropertyIdForApp } from "../../integrations/ga4/propertyId";
 import {
   integrationEnvironmentKey,
   integrationEnvironments,
@@ -19,6 +21,7 @@ import {
 import {
   alertsForApp,
   computeAppStatus,
+  integrationHealthForApp,
   latestMetricsBySlug,
   latestSyncedAt,
   metricSeriesBySlug,
@@ -83,6 +86,14 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
       slug,
       environments.get(integrationEnvironmentKey(slug, "stripe")) ?? null,
     ),
+    integrations: integrationHealthForApp(
+      syncRows,
+      configRows,
+      slug,
+      environments,
+    ),
     lastSyncedAt: latestSyncedAt(syncRows),
+    clerkUsersUrl: clerkDashboardUsersUrl(configRows),
+    ga4PropertyId: ga4PropertyIdForApp(configRows, slug),
   };
 });

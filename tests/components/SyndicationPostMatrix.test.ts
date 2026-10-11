@@ -7,20 +7,78 @@ const platforms = ["Medium", "Hashnode", "dev.to", "ZyVOP"];
 const posts = [
   {
     title: "Shipping a Nuxt site with an agent that never sleeps",
+    url: "https://danholloran.me/posts/shipping-a-nuxt-site",
     cells: [
-      { label: "✓ LIVE", tone: "live" as const, views: "1,204 views" },
-      { label: "✓ LIVE", tone: "live" as const, views: null },
-      { label: "✓ LIVE", tone: "live" as const, views: "88 views" },
-      { label: "✗ FAILED", tone: "failed" as const, views: null },
+      {
+        label: "✓ LIVE",
+        tone: "live" as const,
+        views: "1,204 views",
+        likes: "30 likes",
+        comments: "2 comments",
+        url: "https://medium.com/@grimicorn/shipping-1a2b3c4d5e6f",
+      },
+      {
+        label: "✓ LIVE",
+        tone: "live" as const,
+        views: null,
+        likes: null,
+        comments: null,
+        url: null,
+      },
+      {
+        label: "✓ LIVE",
+        tone: "live" as const,
+        views: "88 views",
+        likes: null,
+        comments: null,
+        url: null,
+      },
+      {
+        label: "✗ FAILED",
+        tone: "failed" as const,
+        views: null,
+        likes: null,
+        comments: null,
+        url: null,
+      },
     ],
   },
   {
     title: "Three days in the Missouri Ozarks",
+    url: "https://danholloran.me/posts/missouri-ozarks",
     cells: [
-      { label: "✓ LIVE", tone: "live" as const, views: "3 views" },
-      { label: "— NOT POSTED", tone: "off" as const, views: null },
-      { label: "— NOT POSTED", tone: "off" as const, views: null },
-      { label: "• QUEUED", tone: "queued" as const, views: null },
+      {
+        label: "✓ LIVE",
+        tone: "live" as const,
+        views: "3 views",
+        likes: null,
+        comments: null,
+        url: null,
+      },
+      {
+        label: "— NOT POSTED",
+        tone: "off" as const,
+        views: null,
+        likes: null,
+        comments: null,
+        url: null,
+      },
+      {
+        label: "— NOT POSTED",
+        tone: "off" as const,
+        views: null,
+        likes: null,
+        comments: null,
+        url: null,
+      },
+      {
+        label: "• QUEUED",
+        tone: "queued" as const,
+        views: null,
+        likes: null,
+        comments: null,
+        url: null,
+      },
     ],
   },
 ];
@@ -50,13 +108,51 @@ describe("SyndicationPostMatrix", () => {
       props: { platforms, posts },
     });
     const cells = wrapper.findAll(".matrix-row")[0].findAll(".col-cell");
-    expect(cells.map((cell) => cell.find(".cell-views").exists())).toEqual([
-      true,
-      false,
-      true,
-      false,
+    expect(
+      cells.map((cell) => cell.find(".cell-stat--views").exists()),
+    ).toEqual([true, false, true, false]);
+    expect(cells[0].find(".cell-stat--views").text()).toBe("1,204 views");
+  });
+
+  it("links the title to the canonical post in a new tab", () => {
+    const wrapper = mount(SyndicationPostMatrix, {
+      props: { platforms, posts },
+    });
+    const link = wrapper.findAll(".matrix-row")[0].find(".post-link");
+    expect(link.attributes("href")).toBe(
+      "https://danholloran.me/posts/shipping-a-nuxt-site",
+    );
+    expect(link.attributes("rel")).toBe("noopener noreferrer");
+    expect(link.text()).toBe(posts[0].title);
+  });
+
+  it("links only cells that carry a url, with an accessible name", () => {
+    const wrapper = mount(SyndicationPostMatrix, {
+      props: { platforms, posts },
+    });
+    const cells = wrapper.findAll(".matrix-row")[0].findAll(".cell-pill");
+    expect(cells.map((cell) => cell.element.tagName)).toEqual([
+      "A",
+      "SPAN",
+      "SPAN",
+      "SPAN",
     ]);
-    expect(cells[0].find(".cell-views").text()).toBe("1,204 views");
+    expect(cells[0].attributes("href")).toBe(
+      "https://medium.com/@grimicorn/shipping-1a2b3c4d5e6f",
+    );
+    expect(cells[0].attributes("aria-label")).toBe(
+      `${posts[0].title} on Medium, ✓ LIVE`,
+    );
+  });
+
+  it("renders likes and comments lines only where the platform reported them", () => {
+    const wrapper = mount(SyndicationPostMatrix, {
+      props: { platforms, posts },
+    });
+    const cells = wrapper.findAll(".matrix-row")[0].findAll(".col-cell");
+    expect(cells[0].text()).toContain("30 likes");
+    expect(cells[0].text()).toContain("2 comments");
+    expect(cells[1].text()).not.toMatch(/like|comment/);
   });
 
   it("tones each platform cell pill from the post's own cell status", () => {

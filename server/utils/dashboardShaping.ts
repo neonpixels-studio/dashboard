@@ -24,6 +24,7 @@ import type {
   SyndicationMatrixRow,
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
+import { DEFAULT_OVERVIEW_RANGE } from "../../shared/constants/overviewRange";
 import type { PropertySessions } from "../../shared/types/overviewSessions";
 import { sentryStatusChip } from "../integrations/sentry/mapping";
 import {
@@ -435,7 +436,7 @@ export function metricRollupWithSplit(
 // Default comparison window for the overview rollup sparkline/deltas —
 // matches the "over the last 30 days" framing the MRR sparkline's aria-label
 // already used before this was wired to real data.
-export const ROLLUP_WINDOW_DAYS = 30;
+export const ROLLUP_WINDOW_DAYS: number = DEFAULT_OVERVIEW_RANGE;
 
 // Rounds down to the start of the UTC day `windowDays - 1` days before
 // `now`, so "windowDays=2" genuinely means "today and yesterday" (two whole
@@ -600,6 +601,52 @@ export function rollupSeriesAcrossApps(
       return row ? [row] : [];
     }),
   );
+}
+
+// Total of one metric's stored per-day rows across `slugs` for the UTC
+// calendar days in the window (today included). Re-windowable, unlike a
+// vendor-aggregated total (e.g. GA4's rolling 30d sessions), because each
+// day is its own row. One row per (app, day) counts — a re-synced day is
+// upserted server-side, but the latest capturedAt wins here regardless.
+// Null when no row lands in the window: unknown, not a fabricated zero.
+export function windowedTotalAcrossApps(
+  rows: MetricSnapshotRow[],
+  slugs: string[],
+  metric: string,
+  period: string,
+  windowDays: number,
+  now: Date = new Date(),
+): number | null {
+  const firstDayKey = toUtcDayKey(windowStart(windowDays, now));
+  const lastDayKey = toUtcDayKey(now);
+  const latestPerAppDay = new Map<string, MetricSnapshotRow>();
+  rows
+    .filter(
+      (row) =>
+        slugs.includes(row.slug) &&
+        row.metric === metric &&
+        row.period === period,
+    )
+    .forEach((row) => {
+      const dayKey = toUtcDayKey(row.capturedAt);
+      if (dayKey < firstDayKey || dayKey > lastDayKey) {
+        return;
+      }
+      const key = `${row.slug}::${dayKey}`;
+      const existing = latestPerAppDay.get(key);
+      if (!existing || row.capturedAt > existing.capturedAt) {
+        latestPerAppDay.set(key, row);
+      }
+    });
+
+  if (!latestPerAppDay.size) {
+    return null;
+  }
+  const total = [...latestPerAppDay.values()].reduce(
+    (sum, row) => sum + row.value,
+    0,
+  );
+  return roundTo2(total);
 }
 
 // Change from the earliest to the latest point of a rollup series — the
@@ -922,6 +969,9 @@ export function syndicationMatrixForApp(
       status: row.status,
       syncedAt: toIsoOrNull(row.syncedAt),
       views: row.views,
+      url: row.url,
+      likes: row.likes,
+      comments: row.comments,
     })),
   }));
 }

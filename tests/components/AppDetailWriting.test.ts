@@ -1,3 +1,4 @@
+import type { SyndicationMatrixPostView } from "../../app/utils/syndicationMatrix";
 import { describe, expect, it, vi } from "vitest";
 import AppDetailWriting from "../../app/components/AppDetailWriting.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
@@ -13,6 +14,7 @@ import {
   mountDetailTemplate,
   type MountDetailOptions,
 } from "./support/mountDetailTemplate";
+import { expectGa4Links } from "../support/ga4Links";
 import { appDetailFixture } from "../support/appDetailFixture";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
@@ -59,25 +61,42 @@ const LOADED_DETAIL = appDetailFixture({
           status: "synced",
           syncedAt: "2026-09-19T00:00:00.000Z",
           views: null,
+          url: null,
+          likes: null,
+          comments: null,
         },
         {
           platform: "hashnode",
           status: "synced",
           syncedAt: "2026-09-19T00:00:00.000Z",
           views: 4321,
+          url: null,
+          likes: null,
+          comments: null,
         },
         {
           platform: "zyvop",
           status: "failed",
           syncedAt: "2026-09-18T00:00:00.000Z",
           views: 0,
+          url: null,
+          likes: null,
+          comments: null,
         },
       ],
     },
     {
       postRef: "missouri-ozarks",
       cells: [
-        { platform: "medium", status: "pending", syncedAt: null, views: null },
+        {
+          platform: "medium",
+          status: "pending",
+          syncedAt: null,
+          views: null,
+          url: null,
+          likes: null,
+          comments: null,
+        },
       ],
     },
   ],
@@ -118,6 +137,7 @@ describe("AppDetailWriting", () => {
         .findAllComponents(SectionLabel)
         .map((node) => node.props("label")),
     ).toEqual(["REACH", "TRAFFIC"]);
+    expect(wrapper.text()).not.toContain("NO STRIPE OR CLERK");
   });
 
   it("renders sessions, posts, views, and platforms-live tiles from real data", () => {
@@ -161,6 +181,9 @@ describe("AppDetailWriting", () => {
               status: "synced",
               syncedAt: "2026-09-19T00:00:00.000Z",
               views: null,
+              url: null,
+              likes: null,
+              comments: null,
             },
           ],
         },
@@ -190,12 +213,10 @@ describe("AppDetailWriting", () => {
     const wrapper = mountDetail({ detail: LOADED_DETAIL });
     const posts = wrapper
       .findComponent(SyndicationPostMatrix)
-      .props("posts") as {
-      title: string;
-      cells: { label: string; tone: string; views: string | null }[];
-    }[];
+      .props("posts") as SyndicationMatrixPostView[];
     expect(posts).toHaveLength(2);
     expect(posts[0]!.title).toBe("shipping-a-nuxt-site");
+    expect(posts[0]!.url).toBe(`${app.url}/posts/shipping-a-nuxt-site`);
     // Column order matches platforms: hashnode, medium, zyvop.
     expect(posts[0]!.cells.map((cell) => cell.tone)).toEqual([
       "live",
@@ -241,5 +262,16 @@ describe("AppDetailWriting", () => {
     expect(
       mountDetail({ detail: LOADED_DETAIL }).find(".tile-grid").html(),
     ).toMatchSnapshot();
+  });
+  it("links to the GA4 property in a new tab when one is configured", () => {
+    const wrapper = mountDetail({
+      detail: appDetailFixture({ ga4PropertyId: "412345678" }),
+    });
+    expectGa4Links(wrapper, 1);
+  });
+
+  it("omits the GA4 link when no property id is configured", () => {
+    const wrapper = mountDetail({ detail: appDetailFixture() });
+    expectGa4Links(wrapper, 0);
   });
 });

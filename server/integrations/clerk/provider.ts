@@ -1,19 +1,37 @@
 import {
+  METRIC_ACTIVE_USERS,
+  METRIC_AUTH_METHOD_PREFIX,
   METRIC_NEW_USERS,
+  METRIC_SIGNUPS,
   METRIC_USERS,
+  METRIC_VERIFIED_USERS,
   PERIOD_30D,
+  PERIOD_7D,
   PERIOD_CURRENT,
+  PERIOD_DAILY,
 } from "../../utils/dashboardMetrics";
 import type {
   IntegrationConfig,
   IntegrationProvider,
+  MetricSnapshotInput,
   ProviderResult,
 } from "../types";
-import { createClerkUserCountGetter } from "./clerkClient";
-import { assertNonNegativeCount, computeNewUsersWindowStart } from "./mapping";
-import type { GetClerkUserCount } from "./types";
+import {
+  createClerkUserCountGetter,
+  createClerkUserScanner,
+} from "./clerkClient";
+import {
+  assertNonNegativeCount,
+  computeWindowStart,
+  countActiveSince,
+  countBySignInMethod,
+  countDailySignups,
+  countVerifiedEmailUsers,
+  isCompleteScan,
+} from "./mapping";
+import { CLERK_VENDOR } from "./types";
+import type { ClerkUserScan, GetClerkUserCount, ScanClerkUsers } from "./types";
 
-const CLERK_VENDOR = "clerk";
 // How far back the new-users delta looks: a rolling 30×24h window ending at
 // capturedAt. NOT calendar-aligned the same way GA4's 30d sessions total is
 // (server/integrations/ga4/provider.ts's REPORT_START_DATE/REPORT_END_DATE
@@ -22,6 +40,8 @@ const CLERK_VENDOR = "clerk";
 // "last 30 days" figures are close but not guaranteed to cover the exact
 // same instants.
 const NEW_USERS_WINDOW_DAYS = 30;
+const ACTIVE_USERS_WINDOW_DAYS = 7;
+const SIGNUPS_WINDOW_DAYS = 30;
 
 // A fresh object per call — a single shared module-level constant here
 // would let a caller that mutates its `metrics`/`trafficBreakdown`/
@@ -29,6 +49,59 @@ const NEW_USERS_WINDOW_DAYS = 30;
 // mutation into every later unconfigured-app sync's "no rows" result.
 function buildEmptyProviderResult(): ProviderResult {
   return { metrics: [], trafficBreakdown: [], syndicationPosts: [] };
+}
+
+function clerkMetric(
+  metric: string,
+  value: number,
+  period: string,
+  capturedAt: Date,
+): MetricSnapshotInput {
+  return { vendor: CLERK_VENDOR, metric, value, period, capturedAt };
+}
+
+// Everything derived from walking the user list. Empty (not zeros) for an
+// incomplete scan: see mapping.ts's isCompleteScan.
+function buildScanMetrics(
+  scan: ClerkUserScan,
+  capturedAt: Date,
+): MetricSnapshotInput[] {
+  if (!isCompleteScan(scan)) {
+    return [];
+  }
+  const activeSince = computeWindowStart(capturedAt, ACTIVE_USERS_WINDOW_DAYS);
+  const methodMetrics = [...countBySignInMethod(scan.users)].map(
+    ([method, count]) =>
+      clerkMetric(
+        `${METRIC_AUTH_METHOD_PREFIX}${method}`,
+        count,
+        PERIOD_CURRENT,
+        capturedAt,
+      ),
+  );
+  const signupMetrics = countDailySignups(
+    scan.users,
+    capturedAt,
+    SIGNUPS_WINDOW_DAYS,
+  ).map(({ dayStart, count }) =>
+    clerkMetric(METRIC_SIGNUPS, count, PERIOD_DAILY, dayStart),
+  );
+  return [
+    clerkMetric(
+      METRIC_VERIFIED_USERS,
+      countVerifiedEmailUsers(scan.users),
+      PERIOD_CURRENT,
+      capturedAt,
+    ),
+    clerkMetric(
+      METRIC_ACTIVE_USERS,
+      countActiveSince(scan.users, activeSince),
+      PERIOD_7D,
+      capturedAt,
+    ),
+    ...methodMetrics,
+    ...signupMetrics,
+  ];
 }
 
 /**
@@ -53,20 +126,22 @@ function buildEmptyProviderResult(): ProviderResult {
 export async function fetchClerkMetrics(
   config: IntegrationConfig,
   getClerkUserCount: GetClerkUserCount,
+  scanClerkUsers: ScanClerkUsers,
 ): Promise<ProviderResult> {
   if (!config.secret) {
     return buildEmptyProviderResult();
   }
 
   const capturedAt = new Date();
-  const newUsersWindowStart = computeNewUsersWindowStart(
+  const newUsersWindowStart = computeWindowStart(
     capturedAt,
     NEW_USERS_WINDOW_DAYS,
   );
 
-  const [totalUsersResponse, newUsersResponse] = await Promise.all([
+  const [totalUsersResponse, newUsersResponse, scan] = await Promise.all([
     getClerkUserCount({}),
     getClerkUserCount({ createdAtAfter: newUsersWindowStart }),
+    scanClerkUsers(),
   ]);
   const totalUsers = assertNonNegativeCount(
     totalUsersResponse.totalCount,
@@ -79,20 +154,9 @@ export async function fetchClerkMetrics(
 
   return {
     metrics: [
-      {
-        vendor: CLERK_VENDOR,
-        metric: METRIC_USERS,
-        value: totalUsers,
-        period: PERIOD_CURRENT,
-        capturedAt,
-      },
-      {
-        vendor: CLERK_VENDOR,
-        metric: METRIC_NEW_USERS,
-        value: newUsers,
-        period: PERIOD_30D,
-        capturedAt,
-      },
+      clerkMetric(METRIC_USERS, totalUsers, PERIOD_CURRENT, capturedAt),
+      clerkMetric(METRIC_NEW_USERS, newUsers, PERIOD_30D, capturedAt),
+      ...buildScanMetrics(scan, capturedAt),
     ],
     trafficBreakdown: [],
     syndicationPosts: [],
@@ -106,6 +170,7 @@ export const clerkProvider: IntegrationProvider = {
       return buildEmptyProviderResult();
     }
     const getClerkUserCount = createClerkUserCountGetter(config.secret);
-    return fetchClerkMetrics(config, getClerkUserCount);
+    const scanClerkUsers = createClerkUserScanner(config.secret);
+    return fetchClerkMetrics(config, getClerkUserCount, scanClerkUsers);
   },
 };

@@ -8,7 +8,10 @@ import { loadFixture } from "../../../../server/integrations/testing/loadFixture
 import type {
   ClerkUserCountRequest,
   ClerkUserCountResponse,
+  ClerkUserScan,
+  ClerkUserSummary,
   GetClerkUserCount,
+  ScanClerkUsers,
 } from "../../../../server/integrations/clerk/types";
 
 // Only clerkProvider.fetch's own two-line wiring (guard + delegate to
@@ -42,6 +45,23 @@ function buildGetClerkUserCount(
   return vi.fn(async (request: ClerkUserCountRequest) =>
     request.createdAtAfter === undefined ? totalUsers : newUsers,
   );
+}
+
+const EMPTY_SCAN: ClerkUserScan = {
+  users: [],
+  totalCount: 0,
+  consistent: true,
+};
+// Clerk counts users the scan never saw (page cap hit) — scan-derived
+// metrics must be omitted, not computed from the partial sample.
+const INCOMPLETE_SCAN: ClerkUserScan = {
+  users: [],
+  totalCount: 5,
+  consistent: true,
+};
+
+function buildScanClerkUsers(scan: ClerkUserScan = EMPTY_SCAN): ScanClerkUsers {
+  return vi.fn(async () => scan);
 }
 
 describe("clerkProvider", () => {
@@ -133,7 +153,11 @@ describe("fetchClerkMetrics", () => {
       const config = createTestIntegrationConfig({ vendor: "clerk", secret });
       const getClerkUserCount = vi.fn();
 
-      const result = await fetchClerkMetrics(config, getClerkUserCount);
+      const result = await fetchClerkMetrics(
+        config,
+        getClerkUserCount,
+        buildScanClerkUsers(),
+      );
 
       expect(result).toEqual({
         metrics: [],
@@ -163,7 +187,11 @@ describe("fetchClerkMetrics", () => {
       secret: "sk_test_basin",
     });
 
-    const result = await fetchClerkMetrics(config, getClerkUserCount);
+    const result = await fetchClerkMetrics(
+      config,
+      getClerkUserCount,
+      buildScanClerkUsers(INCOMPLETE_SCAN),
+    );
 
     expect(result.trafficBreakdown).toEqual([]);
     expect(result.syndicationPosts).toEqual([]);
@@ -206,7 +234,11 @@ describe("fetchClerkMetrics", () => {
     });
 
     const before = Date.now();
-    const result = await fetchClerkMetrics(config, getClerkUserCount);
+    const result = await fetchClerkMetrics(
+      config,
+      getClerkUserCount,
+      buildScanClerkUsers(INCOMPLETE_SCAN),
+    );
     const after = Date.now();
 
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
@@ -239,10 +271,148 @@ describe("fetchClerkMetrics", () => {
       secret: "sk_test_basin",
     });
 
-    const result = await fetchClerkMetrics(config, getClerkUserCount);
+    const result = await fetchClerkMetrics(
+      config,
+      getClerkUserCount,
+      buildScanClerkUsers(),
+    );
 
-    expect(result.metrics).toHaveLength(2);
+    // users + new_users + verified + active + 30 daily signup days.
+    expect(result.metrics).toHaveLength(34);
     expect(result.metrics.every((metric) => metric.value === 0)).toBe(true);
+  });
+
+  describe("scan-derived auth metrics", () => {
+    const NOW = new Date("2026-09-20T12:00:00.000Z");
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    function user(overrides: Partial<ClerkUserSummary>): ClerkUserSummary {
+      return {
+        createdAt: NOW.getTime() - 100 * DAY_MS,
+        lastActiveAt: null,
+        hasVerifiedEmail: true,
+        signInMethod: "github",
+        ...overrides,
+      };
+    }
+
+    const SCANNED_USERS: ClerkUserSummary[] = [
+      user({ lastActiveAt: NOW.getTime() - DAY_MS }),
+      user({
+        createdAt: NOW.getTime() - 2 * DAY_MS,
+        lastActiveAt: NOW.getTime() - 8 * DAY_MS,
+        signInMethod: "google",
+      }),
+      user({
+        createdAt: NOW.getTime() - 2 * DAY_MS,
+        hasVerifiedEmail: false,
+        signInMethod: "password",
+      }),
+    ];
+    const config = createTestIntegrationConfig({
+      slug: "basin",
+      vendor: "clerk",
+      secret: "sk_test_basin",
+    });
+
+    async function fetchWithScan(scan: ClerkUserScan) {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+      try {
+        return await fetchClerkMetrics(
+          config,
+          buildGetClerkUserCount({ totalCount: 3 }, { totalCount: 2 }),
+          buildScanClerkUsers(scan),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+
+    function metricValue(
+      metrics: Awaited<ReturnType<typeof fetchWithScan>>["metrics"],
+      metric: string,
+      period: string,
+    ) {
+      return metrics.find(
+        (row) => row.metric === metric && row.period === period,
+      )?.value;
+    }
+
+    it("derives verified, 7-day active, sign-in method counts and 30 daily signup rows from a complete scan", async () => {
+      const { metrics } = await fetchWithScan({
+        users: SCANNED_USERS,
+        totalCount: 3,
+        consistent: true,
+      });
+
+      expect(metricValue(metrics, "verified_users", "current")).toBe(2);
+      expect(metricValue(metrics, "active_users", "7d")).toBe(1);
+      expect(metricValue(metrics, "auth_method:github", "current")).toBe(1);
+      expect(metricValue(metrics, "auth_method:google", "current")).toBe(1);
+      expect(metricValue(metrics, "auth_method:password", "current")).toBe(1);
+
+      const signups = metrics.filter((row) => row.metric === "signups");
+      expect(signups).toHaveLength(30);
+      expect(signups.every((row) => row.period === "daily")).toBe(true);
+      expect(signups.at(-1)?.capturedAt.toISOString()).toBe(
+        "2026-09-20T00:00:00.000Z",
+      );
+      expect(
+        signups.find(
+          (row) => row.capturedAt.toISOString() === "2026-09-18T00:00:00.000Z",
+        )?.value,
+      ).toBe(2);
+    });
+
+    it("stamps every non-daily metric with the same capturedAt instance as users", async () => {
+      const { metrics } = await fetchWithScan({
+        users: SCANNED_USERS,
+        totalCount: 3,
+        consistent: true,
+      });
+
+      const usersStamp = metrics.find(
+        (row) => row.metric === "users",
+      )?.capturedAt;
+      const nonDaily = metrics.filter((row) => row.period !== "daily");
+      expect(nonDaily.length).toBeGreaterThan(5);
+      expect(nonDaily.every((row) => row.capturedAt === usersStamp)).toBe(true);
+    });
+
+    it("omits every scan-derived metric when the scan did not see all users, keeping users + new_users", async () => {
+      const { metrics } = await fetchWithScan({
+        users: SCANNED_USERS,
+        totalCount: 4_000,
+        consistent: true,
+      });
+
+      expect(metrics.map((row) => row.metric)).toEqual(["users", "new_users"]);
+    });
+
+    it("omits scan-derived metrics when the scan saw a shifting total, even if counts line up", async () => {
+      const { metrics } = await fetchWithScan({
+        users: SCANNED_USERS,
+        totalCount: 3,
+        consistent: false,
+      });
+
+      expect(metrics.map((row) => row.metric)).toEqual(["users", "new_users"]);
+    });
+
+    it("rejects when the user scan fails instead of returning partial metrics", async () => {
+      const failingScan: ScanClerkUsers = vi.fn(async () => {
+        throw new Error("Clerk 429: rate limited");
+      });
+
+      await expect(
+        fetchClerkMetrics(
+          config,
+          buildGetClerkUserCount({ totalCount: 3 }, { totalCount: 2 }),
+          failingScan,
+        ),
+      ).rejects.toThrow(/rate limited/);
+    });
   });
 
   it("propagates an invalid (negative) count as a thrown error instead of reporting it", async () => {
@@ -253,8 +423,8 @@ describe("fetchClerkMetrics", () => {
       secret: "sk_test_basin",
     });
 
-    await expect(fetchClerkMetrics(config, getClerkUserCount)).rejects.toThrow(
-      /must be a non-negative integer/,
-    );
+    await expect(
+      fetchClerkMetrics(config, getClerkUserCount, buildScanClerkUsers()),
+    ).rejects.toThrow(/must be a non-negative integer/);
   });
 });

@@ -183,10 +183,15 @@ dashboard.
 
 ### Per-app Clerk
 
-Reports total user count (`users`, current) and a new-signups delta over the
-trailing 30 days (`new_users`, `30d`) for each product-template app's own
-Clerk instance — separate from this dashboard's own Clerk app configured
-above — see `server/integrations/clerk/provider.ts`. Unlike Stripe/GA4's one
+Reports, for each product-template app's own Clerk instance (separate from
+this dashboard's own Clerk app configured above — see
+`server/integrations/clerk/provider.ts`): total users (`users`, current), a
+new-signups delta over the trailing 30 days (`new_users`, `30d`), and — from
+a paged scan of the user list (up to 5,000 users) — `verified_users`,
+`active_users` (`7d`), 30 daily `signups` rows, and one `auth_method:<method>`
+count per primary sign-in method. These feed the USERS & AUTH panel. If the
+instance has more users than the scan cap, the scan-derived metrics are
+omitted for that sync (never extrapolated). Unlike Stripe/GA4's one
 shared studio-wide credential, each app has its own Clerk instance, so
 there's no shared default: the secret key itself is what identifies which
 app's data is being read, and an app with no secret configured anywhere
@@ -197,6 +202,12 @@ simply produces no rows (not a zeroed metric, not a thrown error).
 2. An `integration_config` row (`vendor: "clerk"`) with `secret_ref` pointing
    at that var is what actually resolves the key into `config.secret` at
    sync time (`server/integrations/config.ts`'s `resolveSecret`).
+3. Optional: set that row's `external_id` to `app_xxx/ins_xxx` (the two ids
+   in the instance's Clerk dashboard URL) so the panel's "View users in
+   Clerk" link opens that exact instance. Without it the link falls back to
+   Clerk's last-active-instance Users shortcut. The Backend API exposes
+   neither id, so they can't be derived from the secret key. A key's
+   `sk_test_` prefix tags the panel `development`.
 
 ### Sentry
 
@@ -231,7 +242,10 @@ Reads post counts + per-post cross-post status for the writing template
 (danholloran; the only app with `template: "writing"` in
 `app/config/apps.ts`) — see `server/integrations/syndication`. Publishing
 itself happens outside this app; these providers only read what's already
-live on each platform. One shared account per platform (no per-slug env var
+live on each platform. Each also stores the post's platform URL plus likes
+(reactions/claps) and comment counts where the response carries them, which
+the writing template's matrix shows as links and counts; a platform that
+doesn't report one shows nothing for it, never a zero. One shared account per platform (no per-slug env var
 suffix, since there's only one writing-template app today).
 
 - **Hashnode** — <https://hashnode.com/settings/developer> → generate a
@@ -245,7 +259,8 @@ suffix, since there's only one writing-template app today).
   posts and views to `POST /api/ingest/hashnode` instead, with
   `Authorization: Bearer $NUXT_HASHNODE_INGEST_SECRET` and a body of
   `{ "app": "danholloran", "posts": [{ "slug", "publishedAt", "views" }] }`.
-  `posts` must be the full list. The row must exist (it can stay disabled).
+  Each post may also carry optional `url`, `likes` and `comments`; omit what
+  the scraper can't read. `posts` must be the full list. The row must exist (it can stay disabled).
 - **DEV.to** — <https://dev.to/settings/extensions> → DEV API Keys → Generate
   API Key (`NUXT_DEVTO_API_KEY`). No separate publication id: the key alone
   identifies the account. Per-article views come from `page_views_count`.
@@ -283,7 +298,7 @@ suffix, since there's only one writing-template app today).
 ### Cross-app sync trigger
 
 `NUXT_SYNC_TRIGGER_SECRET` — shared secret a sibling app (or
-`netlify/functions/scheduled-sync.ts`, the 15-minute poller) presents on
+`netlify/functions/scheduled-sync.ts`, the hourly poller) presents on
 `POST /api/sync`'s `Authorization: Bearer` header to trigger a dashboard
 refresh. Generate with `openssl rand -hex 32`; no external account needed.
 
@@ -292,8 +307,14 @@ it's a separate bundle built by Netlify's own Functions build step (not the
 Nuxt app), so it decrypts that file itself at invoke time via
 `netlify/functions/env.ts` (bundled through `netlify.toml`'s
 `[functions] included_files`). No separate Netlify env var needed, but see
-"Netlify Functions env" below for the one key that must be scoped to
+"Netlify Functions env" below for the keys that must be scoped to
 Functions.
+
+"Run now" on `scheduled-sync` in the Netlify UI syncs the deploy it belongs
+to: on a deploy preview or branch deploy it decrypts `.env.dev` and posts to
+that deploy's own permalink, so it runs the branch's code against the
+`development` database. Netlify never runs the schedule itself outside
+production.
 
 ### Snapshot retention
 
@@ -301,7 +322,7 @@ Every `POST /api/sync` ends with a bounded prune
 (`server/integrations/retention.ts`) of `metric_snapshot` and
 `traffic_breakdown`. Rows older than `SNAPSHOT_RETENTION_DAYS` (the sparkline
 window plus 30 days) are deleted, at most `PRUNE_BATCH_LIMIT` per table per
-run, so a backlog drains over several 15-minute syncs. The newest row per
+run, so a backlog drains over several hourly syncs. The newest row per
 `(slug, vendor, metric, period)` and each slug's latest traffic batch are
 always kept, because the current-value tiles read them with no time bound.
 No new env vars or services; migration `0007` adds `captured_at` indexes so
@@ -343,7 +364,7 @@ function logs.
 `scheduled-sync.ts` also sends Sentry Cron check-ins
 (`netlify/functions/cronMonitor.ts`): `in_progress` at the start, then `ok` or
 `error` (non-2xx response or a throw). The first check-in upserts a
-`scheduled-sync` monitor (every 15 minutes, 5 minute margin), so there is no
+`scheduled-sync` monitor (hourly, 5 minute margin), so there is no
 manual setup in Sentry; Sentry alerts when a check-in is missed, i.e. when the
 scheduler stops invoking the function entirely. It needs only `SENTRY_DSN` and
 no-ops without it. If the schedule in `scheduled-sync.ts` changes, update
@@ -365,17 +386,19 @@ from `.env.production` at runtime, so it lives only in the dotenvx file.
 
 ### Netlify Functions env
 
-Standalone functions in `netlify/functions/` decrypt `.env.production` at
-runtime (`netlify/functions/env.ts`, same pattern as basin), so
+Standalone functions in `netlify/functions/` decrypt `.env.production`
+(or `.env.dev` outside production) at runtime (`netlify/functions/env.ts`, same pattern as basin), so
 `DOTENV_PRIVATE_KEY_PRODUCTION` must be available to the **Functions** scope
 in Netlify (Site configuration → Environment variables), not just Builds.
+`DOTENV_PRIVATE_KEY_DEV` needs the Functions scope too, for "Run now" on
+deploy previews and branch deploys (they decrypt `.env.dev`).
 Without it the function throws on every run rather than running with
 still-encrypted values.
 
 ## Deploys
 
 - **Production** deploys weekly, Mondays 14:00 UTC, via a Netlify build hook called by `.github/workflows/weekly-production-deploy.yml`. The run first applies Drizzle migrations to the production database, then triggers the hook (migrations must stay backward compatible with the code still live until the build finishes). It requires CI to be green on `main` HEAD, and scheduled runs skip when `main` has no commits in the last 7 days. Merging to `main` does not deploy or migrate on its own.
-- **Pull requests and branch deploys** get a Netlify build against `.env.dev` (`npm run build:dev`), sharing the `development` Neon branch, a child of `production` you can refresh with Neon's "Reset from parent". `.env.dev` shares `NUXT_INTEGRATION_ENCRYPTION_KEY` with production, so a sync triggered on a preview or locally decrypts the real vendor tokens and spends real API quota. Per-PR Neon branches (`npm run build:preview`, `scripts/neon-preview-branch.js`, cleaned up by `.github/workflows/neon-preview-cleanup.yml`) are built but disabled in `netlify.toml`: Neon's free plan caps a project at 10 branches, and each open PR would hold one. To re-enable, swap `build:dev` for `build:preview` in both Netlify contexts; each PR then gets `preview/pr-<n>` (or `branch/<git branch>`) forked from `production`, migrated, and deleted when the PR closes or the branch is deleted.
+- **Pull requests and branch deploys** get a Netlify build against `.env.dev` (`npm run build:dev`), sharing the `development` Neon branch, a child of `production` you can refresh with Neon's "Reset from parent". Each build applies its branch's pending migrations to `development` first, so a PR's migration lands on the shared branch before merge. Drizzle only applies migrations newer than the latest one recorded, so when two open PRs both add a migration, the older-dated one is skipped silently and its preview breaks; a migration edited or abandoned after its first preview build also stays applied. Either way, reset `development` from its parent and rebuild. `.env.dev` shares `NUXT_INTEGRATION_ENCRYPTION_KEY` with production, so a sync triggered on a preview or locally decrypts the real vendor tokens and spends real API quota. Per-PR Neon branches (`npm run build:preview`, `scripts/neon-preview-branch.js`, cleaned up by `.github/workflows/neon-preview-cleanup.yml`) are built but disabled in `netlify.toml`: Neon's free plan caps a project at 10 branches, and each open PR would hold one. To re-enable, swap `build:dev` for `build:preview` in both Netlify contexts; each PR then gets `preview/pr-<n>` (or `branch/<git branch>`) forked from `production`, migrated, and deleted when the PR closes or the branch is deleted.
 - **Hotfix:** Actions tab > Weekly production deploy > Run workflow. Manual runs always migrate and deploy.
 - Production builds started from the Netlify UI are cancelled on purpose. The build hook cannot pin a commit, so a merge landing between the workflow's checks and Netlify's clone is a narrowed, not closed, race. A failed Netlify build does not fail the workflow run; watch Netlify's deploy notifications.
 - Required repo secrets: `NETLIFY_BUILD_HOOK_URL` (build hook on `main`) and `DOTENV_PRIVATE_KEY_PRODUCTION`.
@@ -456,13 +479,21 @@ then `chromium` (everything else, with that session).
 
 ### e2e in CI
 
-`ci.yml`'s `e2e` job runs each `e2e/*.spec.ts` file as its own matrix shard
-(skipped outside pull requests, and skipped when no e2e-relevant path
-changed), mirroring the pattern in `basin`/`markpost`/`farflung`: it decrypts
-`.env.e2e` with the `DOTENV_PRIVATE_KEY_E2E` repository secret, then uses the
+`ci.yml`'s `e2e` job calls the reusable `e2e.yml` workflow, which runs each
+`e2e/*.spec.ts` file as its own matrix shard (skipped outside pull requests,
+and skipped when no e2e-relevant path changed), mirroring the pattern in
+`basin`/`markpost`/`farflung`: it decrypts `.env.e2e` with the
+`DOTENV_PRIVATE_KEY_E2E` repository secret, then uses the
 `NEON_API_KEY`/`NEON_PROJECT_ID` stored inside that same file to create a
 fresh Neon branch per shard, forked from the `e2e` branch (deleted again in a final `if: always()` step)
 so specs never collide on shared state.
+
+Neon's free plan caps the project at 10 branches, so the caller job holds an
+`e2e-neon` concurrency lock: e2e runs across all PRs queue one after another
+instead of overlapping. GitHub keeps only one pending run per lock, so with
+three PRs waiting the older pending one is cancelled and needs a re-run. After
+upgrading Neon, delete that `concurrency:` block in `ci.yml` to let runs
+overlap again.
 
 `NEON_API_KEY` and `NEON_PROJECT_ID` both live encrypted inside `.env.e2e`
 alongside `E2E_DATABASE_URL`. The `DOTENV_PRIVATE_KEY_E2E` repository secret

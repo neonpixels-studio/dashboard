@@ -46,8 +46,8 @@ describe("RollupIssuesTile", () => {
     );
   });
 
-  it("exposes an #alerts anchor for the top nav's Alerts link", () => {
-    expect(mountTile().attributes("id")).toBe("alerts");
+  it("no longer owns the #alerts anchor (the Alerts panel does)", () => {
+    expect(mountTile().attributes("id")).toBeUndefined();
   });
 
   it("matches its snapshot", () => {

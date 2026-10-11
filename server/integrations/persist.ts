@@ -25,7 +25,7 @@ import {
 import { activityCutoff } from "./stripe/activity";
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
-import type { SyncHealthRow } from "./staleVendorAlert";
+import type { SyncAlertRow } from "./staleVendorAlert";
 import type { IntegrationConfigRow, ProviderResult } from "./types";
 
 // Stamps the orchestrator's own slug onto every row a provider returned
@@ -121,19 +121,23 @@ export async function findIntegrationConfig(
 }
 
 // Health of every enabled (slug, vendor) row, for the stale-vendor alert (see
-// staleVendorAlert.ts). Inner join so a disabled or removed integration, whose
-// sync_status row is left behind, never alerts.
+// staleVendorAlert.ts) and the overview Alerts panel (overviewAlerts.ts).
+// Inner join so a disabled or removed integration, whose sync_status row is
+// left behind, never alerts.
 // integration_config.vendor is the integration_vendor enum and
 // sync_status.vendor is free text, and Postgres has no enum = text operator,
 // so the enum side is cast to text (not text to enum, which would throw on a
 // metrics-only vendor like "github").
-export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
+export function listSyncHealthRows(db: DrizzleDb): Promise<SyncAlertRow[]> {
   return db
     .select({
       slug: syncStatus.slug,
       vendor: syncStatus.vendor,
       lastRunAt: syncStatus.lastRunAt,
       lastSuccessAt: syncStatus.lastSuccessAt,
+      lastAttemptedAt: syncStatus.lastAttemptedAt,
+      ok: syncStatus.ok,
+      error: syncStatus.error,
     })
     .from(syncStatus)
     .innerJoin(
@@ -267,6 +271,9 @@ export function persistProviderResult(
                 syncedAt: sql`excluded.synced_at`,
                 views: sql`excluded.views`,
                 externalId: sql`excluded.external_id`,
+                url: sql`excluded.url`,
+                likes: sql`excluded.likes`,
+                comments: sql`excluded.comments`,
                 fetchedAt: sql`excluded.fetched_at`,
               },
             }),
@@ -311,7 +318,7 @@ export function persistProviderResult(
 // replaced by this column's own migration, 0005): its diff excludes
 // `last_attempt_at` alongside `updated_at` itself, sees no other change, and
 // restores `OLD.updated_at`. Without that exclusion, every enabled row's
-// `updated_at` would track its last sync attempt (every ~15 minutes) rather
+// `updated_at` would track its last sync attempt (every hour) rather
 // than its last real configuration edit.
 //
 // @todo this repo has no real-Postgres test harness yet, so migration

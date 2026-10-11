@@ -25,14 +25,26 @@ vi.mock("@sentry/nuxt", () => ({
 // local .env.keys present, that would inject live production secrets).
 const loadEnvMock = vi.fn();
 vi.mock("../../../netlify/functions/env", () => ({
-  loadEnv: () => loadEnvMock(),
+  PRODUCTION_DEPLOY_CONTEXT: "production",
+  loadEnv: (...args: unknown[]) => loadEnvMock(...args),
 }));
 
 import scheduledSync, {
   config,
   MAX_REPORTED_BODY_LENGTH,
+  type NetlifyFunctionContext,
 } from "../../../netlify/functions/scheduled-sync";
 import { FLUSH_TIMEOUT_MS } from "../../../netlify/functions/sentry";
+
+const SCHEDULED_REQUEST = new Request("https://dashboard.example.com/");
+const PRODUCTION_CONTEXT: NetlifyFunctionContext = {
+  deploy: { context: "production", id: "prod-deploy-id" },
+  site: { name: "dashboard-example" },
+};
+const DEPLOY_PREVIEW_CONTEXT: NetlifyFunctionContext = {
+  deploy: { context: "deploy-preview", id: "preview-deploy-id" },
+  site: { name: "dashboard-example" },
+};
 
 const originalFetch = globalThis.fetch;
 
@@ -57,11 +69,11 @@ afterEach(() => {
 });
 
 describe("scheduled-sync config", () => {
-  it("declares a 15-minute cron schedule", () => {
+  it("declares an hourly cron schedule", () => {
     // Exact match (not just "looks like 5 cron fields") so an accidental
     // edit to the schedule is caught here rather than only noticed
     // once the cadence silently changes in production.
-    expect(config.schedule).toBe("*/15 * * * *");
+    expect(config.schedule).toBe("0 * * * *");
   });
 });
 
@@ -76,7 +88,7 @@ describe("scheduledSync cron monitor", () => {
         new Response("{}", { status: 200 }),
       ) as unknown as typeof fetch;
 
-    await scheduledSync();
+    await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(captureCheckInMock.mock.calls[0][0]).toMatchObject({
       status: "in_progress",
@@ -92,7 +104,9 @@ describe("scheduledSync cron monitor", () => {
     vi.stubEnv("URL", "");
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(scheduledSync()).rejects.toThrow(/process\.env\.URL/);
+    await expect(
+      scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT),
+    ).rejects.toThrow(/process\.env\.URL/);
 
     expect(captureCheckInMock.mock.calls.at(-1)?.[0]).toMatchObject({
       status: "error",
@@ -110,7 +124,7 @@ describe("scheduledSync", () => {
       .mockResolvedValue(new Response("{}", { status: 200 }));
     globalThis.fetch = mockFetch as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(mockFetch).toHaveBeenCalledWith(
       new URL("/api/sync", "https://dashboard.example.com"),
@@ -123,12 +137,45 @@ describe("scheduledSync", () => {
     expect(response.status).toBe(200);
   });
 
+  it("syncs a deploy preview through its own deploy permalink, not the production URL", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+    await scheduledSync(SCHEDULED_REQUEST, DEPLOY_PREVIEW_CONTEXT);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      new URL(
+        "/api/sync",
+        "https://preview-deploy-id--dashboard-example.netlify.app",
+      ),
+      expect.anything(),
+    );
+  });
+
+  it("loads the env file for the invoking deploy's context", async () => {
+    vi.stubEnv("URL", "https://dashboard.example.com");
+    vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("{}", { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    await scheduledSync(SCHEDULED_REQUEST, DEPLOY_PREVIEW_CONTEXT);
+
+    expect(loadEnvMock).toHaveBeenCalledWith("deploy-preview");
+  });
+
   it("initializes Sentry before running, not merely at some point during the call", async () => {
     // initSentry() memoizes across calls via module-scoped state in
     // netlify/functions/sentry.ts, so this uses its own fresh module
     // instance (vi.resetModules(), same pattern as
     // tests/netlify/functions/sentry.test.ts's importFreshSentryModule)
-    // instead of relying on being the first scheduledSync() call in file
+    // instead of relying on being the first scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT) call in file
     // execution order.
     vi.stubEnv("URL", "https://dashboard.example.com");
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
@@ -140,7 +187,7 @@ describe("scheduledSync", () => {
     const { default: freshScheduledSync } =
       await import("../../../netlify/functions/scheduled-sync");
 
-    await freshScheduledSync();
+    await freshScheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(initMock).toHaveBeenCalledOnce();
     // A call count alone would still pass if initSentry() moved to run
@@ -162,7 +209,7 @@ describe("scheduledSync", () => {
       .mockResolvedValue(new Response("{}", { status: 200 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    await scheduledSync();
+    await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.any(URL),
@@ -179,7 +226,9 @@ describe("scheduledSync", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    await expect(scheduledSync()).rejects.toThrow("MISSING_PRIVATE_KEY");
+    await expect(
+      scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT),
+    ).rejects.toThrow("MISSING_PRIVATE_KEY");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -188,7 +237,9 @@ describe("scheduledSync", () => {
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "shared-secret");
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(scheduledSync()).rejects.toThrow(/process\.env\.URL/);
+    await expect(
+      scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT),
+    ).rejects.toThrow(/process\.env\.URL/);
 
     // The outer safety-net catch in scheduledSync reports anything
     // runScheduledSync doesn't already report itself, then flushes before
@@ -202,7 +253,9 @@ describe("scheduledSync", () => {
     vi.stubEnv("NUXT_SYNC_TRIGGER_SECRET", "");
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(scheduledSync()).rejects.toThrow(/NUXT_SYNC_TRIGGER_SECRET/);
+    await expect(
+      scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT),
+    ).rejects.toThrow(/NUXT_SYNC_TRIGGER_SECRET/);
 
     expect(captureExceptionMock).toHaveBeenCalledOnce();
     expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
@@ -217,7 +270,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify({ outcomes: [] }), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    await scheduledSync();
+    await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(flushMock).toHaveBeenCalledWith(FLUSH_TIMEOUT_MS);
   });
@@ -232,7 +285,7 @@ describe("scheduledSync", () => {
         new Response("Unauthorized", { status: 401 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(502);
     expect(captureMessageMock).toHaveBeenCalledWith(
@@ -254,7 +307,7 @@ describe("scheduledSync", () => {
         new Response(oversizedBody, { status: 500 }),
       ) as unknown as typeof fetch;
 
-    await scheduledSync();
+    await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     const [, context] = captureMessageMock.mock.calls[0];
     expect((context.extra.body as string).length).toBe(
@@ -271,7 +324,7 @@ describe("scheduledSync", () => {
       .fn()
       .mockRejectedValue(connectionError) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(502);
     expect(captureExceptionMock).toHaveBeenCalledWith(
@@ -297,7 +350,7 @@ describe("scheduledSync", () => {
       .fn()
       .mockResolvedValue(unreadableResponse) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(502);
   });
@@ -317,7 +370,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify(summary), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(502);
   });
@@ -340,7 +393,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify(summary), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     // A 502 here would be a false alarm — most enabled rows were never
     // attempted — but the all-failed subset is real and must still surface
@@ -382,7 +435,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify(summary), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(502);
   });
@@ -396,7 +449,7 @@ describe("scheduledSync", () => {
       }),
     ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(200);
   });
@@ -410,7 +463,7 @@ describe("scheduledSync", () => {
       }),
     ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(200);
   });
@@ -431,7 +484,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify(summary), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(200);
     expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -454,7 +507,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify(summary), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(200);
   });
@@ -468,7 +521,7 @@ describe("scheduledSync", () => {
         new Response("not json", { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(200);
   });
@@ -482,7 +535,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify({ outcomes: [] }), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     expect(response.status).toBe(200);
   });
@@ -503,7 +556,7 @@ describe("scheduledSync", () => {
         new Response(JSON.stringify(summary), { status: 200 }),
       ) as unknown as typeof fetch;
 
-    const response = await scheduledSync();
+    const response = await scheduledSync(SCHEDULED_REQUEST, PRODUCTION_CONTEXT);
 
     // Skipped rows are expected system behavior under budget pressure, not
     // a scheduler-level failure — the run still answers 200 — but they must

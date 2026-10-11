@@ -43,7 +43,7 @@ describe("isMediumSyncDue", () => {
     // Regression case for the retry-storm this watermark exists to prevent:
     // every sync has failed so far (lastSuccessfulSyncAt is null), but an
     // attempt was made 5 minutes ago — without lastAttemptedSyncAt gating
-    // this too, the guard would say "due" on every 15-minute orchestrator
+    // this too, the guard would say "due" on every hourly orchestrator
     // tick and burn the monthly request cap within hours.
     const lastAttemptedSyncAt = new Date("2026-09-20T12:00:00Z");
     const now = new Date(lastAttemptedSyncAt.getTime() + 5 * 60 * 1000);

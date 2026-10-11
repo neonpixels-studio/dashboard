@@ -35,4 +35,12 @@ describe("SectionLabel", () => {
       mount(SectionLabel, { props: { label: "REACH" } }).html(),
     ).toMatchSnapshot();
   });
+  it("renders the action slot after the meta", () => {
+    const wrapper = mount(SectionLabel, {
+      props: { label: "TRAFFIC", meta: "GOOGLE ANALYTICS · GA4" },
+      slots: { action: '<a class="action" href="#">View</a>' },
+    });
+    expect(wrapper.find(".meta + a.action").exists()).toBe(true);
+    expect(wrapper.html()).toMatchSnapshot();
+  });
 });

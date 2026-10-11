@@ -36,6 +36,12 @@ export interface MediumArticleInfo {
   // own stats page). Optional so a response missing it maps to no count
   // rather than a fabricated zero.
   views?: number;
+  // Present in the same article-info response, so no extra request is spent.
+  // All optional: a response missing one maps to nothing, not a zero.
+  url?: string;
+  // Total claps (not the distinct-voter count in `voters`).
+  claps?: number;
+  responses_count?: number;
 }
 
 // The seams provider.ts's core logic is tested against instead of real

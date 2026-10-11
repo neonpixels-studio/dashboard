@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { nextTick, ref } from "vue";
 import IndexPage from "../../app/pages/index.vue";
 import ControlTopBar from "../../app/components/ControlTopBar.vue";
+import OverviewRangeSelector from "../../app/components/OverviewRangeSelector.vue";
 import BrandMark from "../../app/components/BrandMark.vue";
 import SectionLabel from "../../app/components/SectionLabel.vue";
 import MetricTileSkeleton from "../../app/components/MetricTileSkeleton.vue";
@@ -19,6 +20,8 @@ import PropertyCardMetrics from "../../app/components/PropertyCardMetrics.vue";
 import PropertyCardMetricsSkeleton from "../../app/components/PropertyCardMetricsSkeleton.vue";
 import RollupMrrTile from "../../app/components/RollupMrrTile.vue";
 import RollupStatTile from "../../app/components/RollupStatTile.vue";
+import OverviewAlertsPanel from "../../app/components/OverviewAlertsPanel.vue";
+import OverviewAlertRow from "../../app/components/OverviewAlertRow.vue";
 import RollupIssuesTile from "../../app/components/RollupIssuesTile.vue";
 import RollupValueRow from "../../app/components/RollupValueRow.vue";
 import type {
@@ -33,12 +36,26 @@ import type { OverviewSessionsResponse } from "../../shared/types/overviewSessio
 // contract is covered by its own tests/composables/*.test.ts.
 const mockUseOverview = vi.fn();
 vi.mock("../../app/composables/useOverview", () => ({
-  useOverview: () => mockUseOverview(),
+  useOverview: (...args: unknown[]) => mockUseOverview(...args),
+}));
+
+// The selected range is URL state (useRoute/useRouter), which doesn't exist
+// outside a running Nuxt app; useOverviewRange has its own test. Here it's a
+// ref the tests drive directly.
+const selectedRange = ref<7 | 30 | 60>(30);
+const mockSetRange = vi.fn();
+vi.mock("../../app/composables/useOverviewRange", () => ({
+  useOverviewRange: () => ({ range: selectedRange, setRange: mockSetRange }),
 }));
 
 const mockUseOverviewSessions = vi.fn();
 vi.mock("../../app/composables/useOverviewSessions", () => ({
   useOverviewSessions: () => mockUseOverviewSessions(),
+}));
+
+const mockUseOverviewAlerts = vi.fn();
+vi.mock("../../app/composables/useOverviewAlerts", () => ({
+  useOverviewAlerts: () => mockUseOverviewAlerts(),
 }));
 
 const mockUseApps = vi.fn();
@@ -48,6 +65,7 @@ vi.mock("../../app/composables/useApps", () => ({
 
 const GLOBAL_COMPONENTS = {
   ControlTopBar,
+  OverviewRangeSelector,
   BrandMark,
   SectionLabel,
   MetricTileSkeleton,
@@ -58,6 +76,8 @@ const GLOBAL_COMPONENTS = {
   StatList,
   PropertySessionsChart,
   SessionsByPropertyPanel,
+  OverviewAlertsPanel,
+  OverviewAlertRow,
   AxisRow,
   PropertyCard,
   PropertyCardMetrics,
@@ -228,12 +248,20 @@ function mountPage() {
 }
 
 beforeEach(() => {
+  selectedRange.value = 30;
+  mockSetRange.mockReset();
   vi.stubGlobal("useHead", vi.fn());
   // Every rollup-tile test below only cares about useOverview; default the
   // property grid's fetch to its idle state so mounting the page doesn't
   // require every one of those tests to also stub useApps.
   mockApps({});
   mockSessions({});
+  mockUseOverviewAlerts.mockReturnValue({
+    data: ref([]),
+    pending: ref(false),
+    error: ref(null),
+    refresh: vi.fn(),
+  });
 });
 
 afterEach(() => {
@@ -497,6 +525,35 @@ describe("index.vue rollup tiles", () => {
   });
 });
 
+describe("index.vue range selector", () => {
+  it("passes the selected range to useOverview and labels the sessions tile with it", () => {
+    selectedRange.value = 7;
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(mockUseOverview).toHaveBeenCalledWith(selectedRange);
+    expect(wrapper.text()).toContain("SESSIONS · 7 DAYS");
+    expect(wrapper.text()).not.toContain("SESSIONS · 30 DAYS");
+  });
+
+  it("marks the selected range pressed in the top bar and routes a click to setRange", async () => {
+    selectedRange.value = 60;
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+    const pressed = wrapper
+      .findAll(".range-option")
+      .filter((option) => option.attributes("aria-pressed") === "true");
+    expect(pressed.map((option) => option.text())).toEqual([
+      "60D (last 60 days)",
+    ]);
+
+    await wrapper.findAll(".range-option")[0]!.trigger("click");
+    expect(mockSetRange).toHaveBeenCalledWith(7);
+  });
+});
+
 describe("index.vue sessions panel", () => {
   it("draws one real line per property and lists 30-day totals, not the old hardcoded paths", () => {
     mockSessions({ data: sessionsFixture() });
@@ -715,5 +772,64 @@ describe("index.vue property grid", () => {
     cards().forEach((card) => {
       expect(card.props("isPending")).toBe(true);
     });
+  });
+});
+
+describe("index.vue alerts panel", () => {
+  it("renders the alerts panel as the #alerts nav target and no longer exposes #integrations", () => {
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findAllComponents(OverviewAlertsPanel)).toHaveLength(1);
+    expect(wrapper.findAll("#alerts")).toHaveLength(1);
+    expect(wrapper.find("#alerts").element.tagName).toBe("SECTION");
+    expect(wrapper.find("#integrations").exists()).toBe(false);
+  });
+
+  it("passes the fetched alerts to the panel", () => {
+    const alerts = [
+      {
+        id: "sync-failed:basin:stripe",
+        slug: "basin",
+        source: "stripe",
+        message: "stripe: 401 unauthorized",
+        occurredAt: "2026-10-10T14:05:00.000Z",
+        href: "/apps/basin",
+      },
+    ];
+    mockUseOverviewAlerts.mockReturnValue({
+      data: ref(alerts),
+      pending: ref(false),
+      error: ref(null),
+      refresh: vi.fn(),
+    });
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findComponent(OverviewAlertsPanel).props("alerts")).toEqual(
+      alerts,
+    );
+    expect(wrapper.findAll(".alert-row")).toHaveLength(1);
+  });
+
+  it("wires the panel's retry to the composable's refresh", async () => {
+    const refresh = vi.fn();
+    mockUseOverviewAlerts.mockReturnValue({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(new Error("boom")),
+      refresh,
+    });
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+    await wrapper
+      .findComponent(OverviewAlertsPanel)
+      .find(".retry-btn")
+      .trigger("click");
+
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });

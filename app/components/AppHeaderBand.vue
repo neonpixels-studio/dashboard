@@ -9,31 +9,34 @@
     ></div>
 
     <div class="title-wrap">
-      <h1 class="app-title display-num">
-        {{ app.nameBase
-        }}<span :style="{ color: app.accent }">{{ app.nameTld }}</span>
-      </h1>
+      <div class="title-row">
+        <h1 class="app-title display-num">
+          {{ app.nameBase
+          }}<span :style="{ color: app.accent }">{{ app.nameTld }}</span>
+        </h1>
+        <span
+          v-if="status"
+          class="status-chip"
+          :style="healthToneChipStyle(status.tone)"
+        >
+          {{ status.label }}
+        </span>
+        <SkeletonBlock v-else width="60px" height="18px" radius="var(--r-sm)" />
+      </div>
       <p class="tagline">{{ app.tagline }}</p>
     </div>
-
-    <span
-      v-if="status"
-      class="status-chip"
-      :style="healthToneChipStyle(status.tone)"
-    >
-      {{ status.label }}
-    </span>
-    <SkeletonBlock v-else width="60px" height="18px" radius="var(--r-sm)" />
 
     <span class="grow"></span>
 
     <a
       v-for="link in secondaryLinks"
-      :key="link"
-      href="#"
+      :key="link.label"
+      :href="link.href"
+      target="_blank"
+      rel="noopener"
       class="secondary-btn"
     >
-      {{ link }}
+      {{ link.label }}
     </a>
 
     <a
@@ -66,6 +69,7 @@
 <script setup lang="ts">
 import type { AppStatus } from "#shared/types/dashboard";
 import type { DashboardApp } from "~/config/apps";
+import type { HeaderLink } from "~/utils/headerLinks";
 import { healthToneChipStyle } from "~/utils/statusColor";
 
 // `status` is a separate optional prop (from `AppDetailResponse.status`).
@@ -76,7 +80,7 @@ withDefaults(
   defineProps<{
     app: DashboardApp;
     status?: AppStatus | null;
-    secondaryLinks?: string[];
+    secondaryLinks?: HeaderLink[];
   }>(),
   {
     status: null,
@@ -105,6 +109,11 @@ withDefaults(
   flex-direction: column;
   gap: 5px;
 }
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .app-title {
   margin: 0;
   font-size: 36px;
@@ -121,7 +130,6 @@ withDefaults(
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  align-self: flex-start;
 }
 .secondary-btn {
   height: 34px;

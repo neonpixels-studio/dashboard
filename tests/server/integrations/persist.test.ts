@@ -908,6 +908,15 @@ describe("listSyncHealthRows", () => {
 
     expect(result).toBe(rows);
     expect(from).toHaveBeenCalledWith(syncStatus);
+    expect(Object.keys(select.mock.calls[0]![0])).toEqual([
+      "slug",
+      "vendor",
+      "lastRunAt",
+      "lastSuccessAt",
+      "lastAttemptedAt",
+      "ok",
+      "error",
+    ]);
     expect(innerJoin.mock.calls[0]![0]).toBe(integrationConfig);
     const dialect = new PgDialect();
     const joinSql = dialect.sqlToQuery(innerJoin.mock.calls[0]![1]).sql;

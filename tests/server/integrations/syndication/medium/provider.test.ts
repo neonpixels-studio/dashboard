@@ -522,6 +522,9 @@ describe("fetchMediumSyndication", () => {
         syncedAt: new Date(1798108800000),
         views: 42,
         externalId: "1a2b3c4d5e6f",
+        url: "https://medium.com/@grimicorn/shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+        likes: 603,
+        comments: 6,
       },
       {
         platform: "medium",
@@ -531,6 +534,10 @@ describe("fetchMediumSyndication", () => {
         syncedAt: new Date(1786786500000),
         views: 7,
         externalId: "6f5e4d3c2b1a",
+        // This fixture article carries no engagement fields: null, never zero.
+        url: null,
+        likes: null,
+        comments: null,
       },
     ]);
   });

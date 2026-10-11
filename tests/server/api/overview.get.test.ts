@@ -3,6 +3,14 @@ import type { H3Event } from "h3";
 import { APPS, INTERNAL_APPS } from "../../../app/config/apps";
 import type { MetricSnapshotRow } from "../../../server/utils/dashboardQueries";
 
+// getQuery needs a real H3 event; every test here passes a bare `{}`, so the
+// query is stubbed per test (default: no query string at all).
+const mockGetQuery = vi.fn();
+vi.mock("h3", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("h3")>()),
+  getQuery: mockGetQuery,
+}));
+
 const mockRequireUser = vi.fn();
 vi.mock("../../../server/utils/auth", () => ({ requireUser: mockRequireUser }));
 
@@ -38,6 +46,7 @@ function metricRow(overrides: Partial<MetricSnapshotRow>): MetricSnapshotRow {
 describe("GET /api/overview", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockGetQuery.mockReturnValue({});
     mockFetchLatestMetricSnapshots.mockResolvedValue([]);
     mockFetchMetricSnapshotSeries.mockResolvedValue([]);
     mockFetchLatestTrafficBreakdowns.mockResolvedValue([]);
@@ -169,6 +178,200 @@ describe("GET /api/overview", () => {
       value: 1082,
     });
     expect(result.mrr.delta).toEqual({ value: 82, pct: 8.2 });
+  });
+
+  describe("range query param", () => {
+    const NOW = new Date("2026-09-20T12:00:00Z");
+
+    // One mrr row per day for 60 days, ascending 1/day, so a window's first
+    // point value says exactly how many days back it starts.
+    function sixtyDaysOfMrr() {
+      return Array.from({ length: 60 }, (_, index) => {
+        const capturedAt = new Date(NOW);
+        capturedAt.setUTCDate(capturedAt.getUTCDate() - (59 - index));
+        capturedAt.setUTCHours(0, 0, 0, 0);
+        return metricRow({ id: index + 1, value: 1000 + index, capturedAt });
+      });
+    }
+
+    it.each([
+      [7, 7],
+      [30, 30],
+      [60, 60],
+    ])("range=%i windows the mrr series to %i days", async (range, points) => {
+      vi.setSystemTime(NOW);
+      mockGetQuery.mockReturnValue({ range: String(range) });
+      mockFetchMetricSnapshotSeries.mockResolvedValue(sixtyDaysOfMrr());
+
+      const result = await overviewHandler({} as H3Event);
+
+      expect(result.mrr.series).toHaveLength(points);
+      // 1059 is today's value; the window's first point is (points - 1) back.
+      expect(result.mrr.delta?.value).toBe(points - 1);
+    });
+
+    it.each([undefined, "", "90", "abc", "7;DROP", ["7", "60"]])(
+      "falls back to the 30 day window for invalid range %j",
+      async (range) => {
+        vi.setSystemTime(NOW);
+        mockGetQuery.mockReturnValue({ range });
+        mockFetchMetricSnapshotSeries.mockResolvedValue(sixtyDaysOfMrr());
+
+        const result = await overviewHandler({} as H3Event);
+
+        expect(result.mrr.series).toHaveLength(30);
+      },
+    );
+
+    it("re-windows the sessions total from stored daily rows per range", async () => {
+      vi.setSystemTime(NOW);
+      // 1 session/day for 30 days of GA4 daily rows, plus the vendor's own
+      // fixed 30d total (deliberately different, 9999) which must NOT leak
+      // into a non-default range.
+      const dailyRows = Array.from({ length: 30 }, (_, index) => {
+        const capturedAt = new Date("2026-09-20T00:00:00Z");
+        capturedAt.setUTCDate(capturedAt.getUTCDate() - index);
+        return metricRow({
+          id: 100 + index,
+          vendor: "ga4",
+          metric: "sessions",
+          period: "daily",
+          value: 10,
+          capturedAt,
+        });
+      });
+      const vendorTotal = metricRow({
+        id: 99,
+        vendor: "ga4",
+        metric: "sessions",
+        period: "30d",
+        value: 9999,
+        capturedAt: NOW,
+      });
+      mockFetchLatestMetricSnapshots.mockResolvedValue([vendorTotal]);
+      mockFetchMetricSnapshotSeries.mockResolvedValue(dailyRows);
+
+      const totals: Record<number, number | null> = {};
+      for (const range of [7, 30, 60]) {
+        mockGetQuery.mockReturnValue({ range: String(range) });
+        const result = await overviewHandler({} as H3Event);
+        totals[range] = result.sessions30d.value;
+        expect(result.sessions30d.period).toBe(`${range}d`);
+      }
+
+      // 30 is the vendor's own exact total; 7 and 60 come from the daily rows
+      // (60 has only the 30 days that exist: thin history, no padding).
+      expect(totals).toEqual({ 7: 70, 30: 9999, 60: 300 });
+    });
+
+    it("never lets a partial daily backfill undercut the vendor total at the default range", async () => {
+      vi.setSystemTime(NOW);
+      mockFetchLatestMetricSnapshots.mockResolvedValue([
+        metricRow({
+          vendor: "ga4",
+          metric: "sessions",
+          period: "30d",
+          value: 9999,
+          capturedAt: NOW,
+        }),
+      ]);
+      mockFetchMetricSnapshotSeries.mockResolvedValue([
+        metricRow({
+          id: 7,
+          vendor: "ga4",
+          metric: "sessions",
+          period: "daily",
+          value: 3,
+          capturedAt: new Date("2026-09-20T00:00:00Z"),
+        }),
+      ]);
+
+      const result = await overviewHandler({} as H3Event);
+
+      expect(result.sessions30d.value).toBe(9999);
+    });
+
+    it("derives the default range from daily rows when the vendor total is missing", async () => {
+      vi.setSystemTime(NOW);
+      mockFetchMetricSnapshotSeries.mockResolvedValue([
+        metricRow({
+          id: 7,
+          vendor: "ga4",
+          metric: "sessions",
+          period: "daily",
+          value: 3,
+          capturedAt: new Date("2026-09-20T00:00:00Z"),
+        }),
+      ]);
+
+      const result = await overviewHandler({} as H3Event);
+
+      expect(result.sessions30d.value).toBe(3);
+      expect(result.sessions30d.period).toBe("30d");
+    });
+
+    it("keeps the vendor 30d total at the default range when no daily rows exist, and shows nothing for other ranges", async () => {
+      vi.setSystemTime(NOW);
+      mockFetchLatestMetricSnapshots.mockResolvedValue([
+        metricRow({
+          vendor: "ga4",
+          metric: "sessions",
+          period: "30d",
+          value: 9999,
+          capturedAt: NOW,
+        }),
+      ]);
+
+      // A rolling-series with a real change in it: without the null-total
+      // guard the 7-day delta would still be computed from this.
+      mockFetchMetricSnapshotSeries.mockResolvedValue(
+        [
+          ["2026-09-14T00:00:00Z", 8000],
+          ["2026-09-20T00:00:00Z", 9999],
+        ].map(([capturedAt, value], index) =>
+          metricRow({
+            id: index + 1,
+            vendor: "ga4",
+            metric: "sessions",
+            period: "30d",
+            value: value as number,
+            capturedAt: new Date(capturedAt as string),
+          }),
+        ),
+      );
+
+      const defaultResult = await overviewHandler({} as H3Event);
+      expect(defaultResult.sessions30d.value).toBe(9999);
+      expect(defaultResult.sessions30d.delta).not.toBeNull();
+      expect(defaultResult.sessions30d.period).toBe("30d");
+
+      mockGetQuery.mockReturnValue({ range: "7" });
+      const sevenDayResult = await overviewHandler({} as H3Event);
+      expect(sevenDayResult.sessions30d.value).toBeNull();
+      expect(sevenDayResult.sessions30d.delta).toBeNull();
+    });
+
+    it("leaves the open issues since-yesterday window fixed regardless of range", async () => {
+      vi.setSystemTime(NOW);
+      mockGetQuery.mockReturnValue({ range: "60" });
+      const issueRows = [
+        [new Date("2026-08-01T00:00:00Z"), 1],
+        [new Date("2026-09-19T00:00:00Z"), 4],
+        [new Date("2026-09-20T00:00:00Z"), 6],
+      ].map(([capturedAt, value], index) =>
+        metricRow({
+          id: index + 1,
+          metric: "open_issues",
+          value: value as number,
+          capturedAt: capturedAt as Date,
+        }),
+      );
+      mockFetchMetricSnapshotSeries.mockResolvedValue(issueRows);
+
+      const result = await overviewHandler({} as H3Event);
+
+      expect(result.openIssues.delta).toEqual({ value: 2, pct: 50 });
+    });
   });
 
   it("computes open issues' since-yesterday delta from just the last two calendar days of the series", async () => {

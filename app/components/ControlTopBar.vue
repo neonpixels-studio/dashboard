@@ -18,27 +18,14 @@
         <li><NuxtLink to="/" class="nav-link active">Overview</NuxtLink></li>
         <li><a href="#properties" class="nav-link">Properties</a></li>
         <li><a href="#alerts" class="nav-link">Alerts</a></li>
-        <li><a href="#integrations" class="nav-link">Integrations</a></li>
       </ul>
     </nav>
 
-    <button type="button" class="range-btn">
-      LAST 30 DAYS
-      <svg
-        width="9"
-        height="6"
-        viewBox="0 0 9 6"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M1 1.5L4.5 5L8 1.5"
-          stroke="#9A9AA8"
-          stroke-width="1.5"
-          stroke-linecap="round"
-        />
-      </svg>
-    </button>
+    <OverviewRangeSelector
+      v-if="range !== undefined"
+      :model-value="range"
+      @update:model-value="emit('update:range', $event)"
+    />
 
     <UserButton
       sign-out-redirect-url="/login"
@@ -50,7 +37,12 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ crumb?: string }>();
+import type { OverviewRangeDays } from "#shared/constants/overviewRange";
+
+// `range` is only passed on the overview, where it drives the rollups; the
+// detail pages leave it unset and the selector is hidden.
+defineProps<{ crumb?: string; range?: OverviewRangeDays }>();
+const emit = defineEmits<{ "update:range": [days: OverviewRangeDays] }>();
 </script>
 
 <style scoped>
@@ -120,21 +112,5 @@ defineProps<{ crumb?: string }>();
   background: var(--surface-2);
   color: var(--ink);
   font-weight: 600;
-}
-.range-btn {
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--line-2);
-  background: var(--surface);
-  color: var(--ink);
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 </style>

@@ -17,7 +17,7 @@
       :stroke-width="2.6"
       filled
       fill-color="color-mix(in srgb, #f2f2f5 8%, transparent)"
-      aria-label="Monthly recurring revenue across all apps over the last 30 days"
+      :aria-label="`Monthly recurring revenue across all apps over the last ${rangeDays} days`"
     />
     <p v-else class="rollup-empty">
       Not enough synced data for a trend line yet.
@@ -26,6 +26,8 @@
 </template>
 
 <script setup lang="ts">
+import type { OverviewRangeDays } from "#shared/constants/overviewRange";
+
 // The "/" rollup grid's MRR tile — split out of index.vue (issue #18) purely
 // to keep that page's template small; every value here is a plain prop, no
 // data fetching or shaping happens in this component.
@@ -35,5 +37,6 @@ defineProps<{
   deltaTone: "ok" | "muted";
   hasSparkline: boolean;
   sparklinePath: string;
+  rangeDays: OverviewRangeDays;
 }>();
 </script>
