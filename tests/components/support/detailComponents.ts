@@ -4,6 +4,7 @@
 // need overlapping subsets of the same set — registering the full union here
 // keeps each suite's mount helper a one-liner instead of repeating the same
 // import/register block four times.
+import DeployTile from "../../../app/components/DeployTile.vue";
 import MetricTile from "../../../app/components/MetricTile.vue";
 import MetricTileSkeleton from "../../../app/components/MetricTileSkeleton.vue";
 import MetricTileGrid from "../../../app/components/MetricTileGrid.vue";
@@ -29,6 +30,7 @@ import AuthSignupsCard from "../../../app/components/AuthSignupsCard.vue";
 import AuthMethodsCard from "../../../app/components/AuthMethodsCard.vue";
 
 export const DETAIL_COMPONENTS = {
+  DeployTile,
   MetricTile,
   MetricTileSkeleton,
   MetricTileGrid,

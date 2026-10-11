@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { H3Event } from "h3";
 
 const mockRequireUser = vi.fn();
@@ -14,6 +14,7 @@ const mockFetchLatestTrafficBreakdowns = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
 const mockFetchIntegrationConfigs = vi.fn();
 const mockFetchSyndicationPosts = vi.fn();
+const mockFetchDeployStatuses = vi.fn();
 vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
   fetchMetricSnapshotSeries: mockFetchMetricSnapshotSeries,
@@ -21,6 +22,7 @@ vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchSyncStatuses: mockFetchSyncStatuses,
   fetchIntegrationConfigs: mockFetchIntegrationConfigs,
   fetchSyndicationPosts: mockFetchSyndicationPosts,
+  fetchDeployStatuses: mockFetchDeployStatuses,
 }));
 
 const { default: appDetailHandler } =
@@ -39,6 +41,11 @@ describe("GET /api/apps/[slug]", () => {
     mockFetchSyncStatuses.mockResolvedValue([]);
     mockFetchIntegrationConfigs.mockResolvedValue([]);
     mockFetchSyndicationPosts.mockResolvedValue([]);
+    mockFetchDeployStatuses.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("requires auth before touching the database", async () => {
@@ -81,6 +88,44 @@ describe("GET /api/apps/[slug]", () => {
       lastSyncedAt: null,
       clerkUsersUrl: null,
       ga4PropertyId: null,
+      deploy: { status: "not_configured", deployId: null, finishedAt: null },
+    });
+  });
+
+  describe("deploy", () => {
+    beforeEach(() => {
+      vi.stubEnv("NUXT_NETLIFY_TOKEN", "nfp_test");
+    });
+
+    it("is none when the token is set but no deploy has synced", async () => {
+      const result = await appDetailHandler(makeEvent("basin"));
+
+      expect(result.deploy).toEqual({
+        status: "none",
+        deployId: null,
+        finishedAt: null,
+      });
+    });
+
+    it("shapes the synced deploy row", async () => {
+      mockFetchDeployStatuses.mockResolvedValue([
+        {
+          id: 1,
+          slug: "basin",
+          deployId: "abc123",
+          state: "error",
+          finishedAt: new Date("2026-10-10T12:00:00Z"),
+        },
+      ]);
+
+      const result = await appDetailHandler(makeEvent("basin"));
+
+      expect(result.deploy).toEqual({
+        status: "failed",
+        deployId: "abc123",
+        finishedAt: "2026-10-10T12:00:00.000Z",
+      });
+      expect(mockFetchDeployStatuses).toHaveBeenCalledWith({}, ["basin"]);
     });
   });
 

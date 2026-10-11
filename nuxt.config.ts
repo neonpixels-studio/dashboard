@@ -118,6 +118,12 @@ export default defineNuxtConfig({
     sentryProjectMarkpost: process.env.NUXT_SENTRY_PROJECT_MARKPOST || "",
     sentryProjectFarflung: process.env.NUXT_SENTRY_PROJECT_FARFLUNG || "",
     sentryProjectDashboard: process.env.NUXT_SENTRY_PROJECT_DASHBOARD || "",
+    // The Netlify provider's personal access token
+    // (server/integrations/netlify). Declared here for the same reason as the
+    // Sentry entries above: dotenvx only runs at build time, so without this
+    // the deployed function never sees the value and readIntegrationEnv's
+    // runtimeConfig fallback finds nothing.
+    netlifyToken: process.env.NUXT_NETLIFY_TOKEN || "",
     // The Clerk provider's per-app secret keys
     // (server/integrations/clerk) — one per product-template app, each its
     // own Clerk instance (separate from this dashboard's own auth, configured

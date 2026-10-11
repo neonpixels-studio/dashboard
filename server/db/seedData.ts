@@ -9,6 +9,7 @@ type IntegrationVendor = (typeof integrationVendor.enumValues)[number];
 
 const GA4_VENDOR: IntegrationVendor = "ga4";
 const SENTRY_VENDOR: IntegrationVendor = "sentry";
+const NETLIFY_VENDOR: IntegrationVendor = "netlify";
 
 // Exhaustive over `AppTemplate` so a new template value fails to compile here
 // instead of silently falling through to "no vendors".
@@ -61,4 +62,21 @@ export function buildIntegrationConfigSeed(
     enabled: false,
   }));
   return [...propertyRows, ...internalRows];
+}
+
+/**
+ * Netlify rows are the exception to buildIntegrationConfigSeed's
+ * everything-disabled rule: every property gets one, seeded `enabled: true`,
+ * because the Netlify provider skips cleanly (recording no failure) while
+ * NUXT_NETLIFY_TOKEN is unset, so there is no credential to wait on before
+ * turning it on.
+ */
+export function buildNetlifyConfigSeed(
+  apps: DashboardApp[],
+): IntegrationConfigSeedRow[] {
+  return apps.map((app) => ({
+    slug: app.slug,
+    vendor: NETLIFY_VENDOR,
+    enabled: true,
+  }));
 }

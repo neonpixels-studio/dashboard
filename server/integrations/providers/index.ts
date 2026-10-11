@@ -4,6 +4,7 @@ import { stripeProvider } from "../stripe";
 import { ga4Provider } from "../ga4";
 import { sentryProvider } from "../sentry";
 import { clerkProvider } from "../clerk";
+import { netlifyProvider } from "../netlify";
 import {
   devtoProvider,
   hashnodeProvider,
@@ -25,4 +26,5 @@ export const PROVIDERS: IntegrationProvider[] = [
   devtoProvider,
   mediumProvider,
   zyvopProvider,
+  netlifyProvider,
 ];

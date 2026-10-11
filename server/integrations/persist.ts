@@ -5,6 +5,7 @@
 import { and, eq, getTableColumns, isNull, lte, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
+  deployStatus,
   integrationConfig,
   metricSnapshot,
   syncStatus,
@@ -163,6 +164,7 @@ export function persistProviderResult(
     ],
   );
   const trafficRows = withSlug(result.trafficBreakdown, row.slug);
+  const deployRows = withSlug(result.deploys ?? [], row.slug);
   const syndicationRows = dedupeByConflictKey(
     withSlug(result.syndicationPosts, row.slug),
     (syndicationRow) => [
@@ -230,6 +232,23 @@ export function persistProviderResult(
                 likes: sql`excluded.likes`,
                 comments: sql`excluded.comments`,
                 fetchedAt: sql`excluded.fetched_at`,
+              },
+            }),
+        ]
+      : []),
+    ...(deployRows.length
+      ? [
+          db
+            .insert(deployStatus)
+            .values(deployRows)
+            // One row per slug: the latest production deploy replaces the
+            // previous one in place (see schema.ts's deployStatus).
+            .onConflictDoUpdate({
+              target: deployStatus.slug,
+              set: {
+                deployId: sql`excluded.deploy_id`,
+                state: sql`excluded.state`,
+                finishedAt: sql`excluded.finished_at`,
               },
             }),
         ]

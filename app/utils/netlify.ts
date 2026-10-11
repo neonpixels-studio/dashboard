@@ -15,3 +15,7 @@ export function netlifySettingsUrl(appUrl: string): string {
 export function netlifyLogsUrl(appUrl: string): string {
   return `${NETLIFY_PROJECTS_URL}/${netlifyProjectName(appUrl)}/${LOGS_PATH}`;
 }
+
+export function netlifyDeployUrl(appUrl: string, deployId: string): string {
+  return `${NETLIFY_PROJECTS_URL}/${netlifyProjectName(appUrl)}/deploys/${encodeURIComponent(deployId)}`;
+}

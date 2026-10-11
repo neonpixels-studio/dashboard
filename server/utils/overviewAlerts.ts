@@ -1,4 +1,8 @@
+import { findAppBySlug } from "../../app/config/apps";
+import { netlifyDeployUrl } from "../../app/utils/netlify";
 import type { OverviewAlert } from "../../shared/types/alerts";
+import { deployStatusForState } from "../../shared/utils/deployStatus";
+import type { DeployStatusRow } from "./dashboardQueries";
 import {
   findStaleVendors,
   type StaleVendor,
@@ -7,6 +11,8 @@ import {
 
 const FAILED_SYNC_FALLBACK_MESSAGE = "Sync failed";
 const NEVER_SUCCEEDED_MESSAGE = "No successful sync yet";
+const NETLIFY_SOURCE = "netlify";
+const FAILED_DEPLOY_MESSAGE = "Production deploy failed";
 
 function alertId(kind: string, row: { slug: string; vendor: string }): string {
   return `${kind}:${row.slug}:${row.vendor}`;
@@ -65,6 +71,41 @@ function byNewestFirst(a: OverviewAlert, b: OverviewAlert): number {
     return -1;
   }
   return Date.parse(b.occurredAt) - Date.parse(a.occurredAt);
+}
+
+function toFailedDeployAlert(row: DeployStatusRow): OverviewAlert | null {
+  const app = findAppBySlug(row.slug);
+  if (!app || deployStatusForState(row.state) !== "failed") {
+    return null;
+  }
+  return {
+    id: `deploy-failed:${row.slug}`,
+    slug: row.slug,
+    source: NETLIFY_SOURCE,
+    message: FAILED_DEPLOY_MESSAGE,
+    occurredAt: row.finishedAt?.toISOString() ?? null,
+    href: netlifyDeployUrl(app.url, row.deployId),
+  };
+}
+
+// Only the latest production deploy is stored per property, so a failed one
+// clears the moment a newer deploy (in progress or succeeded) is synced over
+// it. In-progress and successful deploys never alert.
+export function buildDeployAlerts(rows: DeployStatusRow[]): OverviewAlert[] {
+  return rows
+    .map(toFailedDeployAlert)
+    .filter((alert): alert is OverviewAlert => alert !== null);
+}
+
+export function buildOverviewAlerts(
+  syncRows: SyncAlertRow[],
+  deployRows: DeployStatusRow[],
+  now: Date,
+): OverviewAlert[] {
+  return [
+    ...buildSyncAlerts(syncRows, now),
+    ...buildDeployAlerts(deployRows),
+  ].sort(byNewestFirst);
 }
 
 // Failing rows plus stale vendors (via findStaleVendors, so the rule stays in

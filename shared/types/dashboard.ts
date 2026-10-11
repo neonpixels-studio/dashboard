@@ -83,6 +83,21 @@ export interface AppAlert {
   occurredAt: string | null;
 }
 
+// Outcome of the latest production deploy. `not_configured` means the Netlify
+// token isn't set (the integration can't run at all); `none` means it is set
+// but no production deploy has been synced yet.
+export type DeployStatus = "success" | "failed" | "in_progress";
+export type AppDeployStatus = DeployStatus | "not_configured" | "none";
+
+// The latest production deploy for one app. `deployId`/`finishedAt` are null
+// whenever there is no deploy to describe (not configured, none yet) and
+// `finishedAt` is also null while a deploy is still in progress.
+export interface AppDeploy {
+  status: AppDeployStatus;
+  deployId: string | null;
+  finishedAt: string | null;
+}
+
 export interface SyndicationMatrixCell {
   platform: string;
   status: "synced" | "pending" | "failed";
@@ -177,4 +192,6 @@ export interface AppDetailResponse {
   // secret; the client validates it before building a link), or null when GA4
   // isn't enabled for it.
   ga4PropertyId: string | null;
+  // Latest Netlify production deploy (see server/integrations/netlify).
+  deploy: AppDeploy;
 }

@@ -45,6 +45,7 @@ export const integrationVendor = pgEnum("integration_vendor", [
   "hashnode",
   "devto",
   "zyvop",
+  "netlify",
 ]);
 
 export const syndicationStatus = pgEnum("syndication_status", [
@@ -248,6 +249,27 @@ export const syndicationPost = pgTable(
       table.postRef,
     ),
   ],
+);
+
+// The latest production deploy per property, overwritten on every Netlify
+// sync. A table of its own because no existing one fits: metric_snapshot is
+// numeric-only (a deploy is an id plus a text state), and sync_status tracks
+// whether the *poll* worked, not what it found. Only the latest deploy is kept
+// (unique on slug) since the tile and the Alerts panel only ever ask "what
+// happened last", so there is no history to prune. `state` is Netlify's raw
+// state string; shared/utils/deployStatus.ts maps it at read time so a
+// mapping change never needs a backfill.
+export const deployStatus = pgTable(
+  "deploy_status",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull(),
+    deployId: text("deploy_id").notNull(),
+    state: text("state").notNull(),
+    // Null while the deploy is still in progress.
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [uniqueIndex("deploy_status_slug_idx").on(table.slug)],
 );
 
 // One row per (slug, vendor), overwritten on every poll. Powers "SYNCED Xm

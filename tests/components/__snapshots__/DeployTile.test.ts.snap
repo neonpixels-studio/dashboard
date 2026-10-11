@@ -1,0 +1,46 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DeployTile > renders the failed state 1`] = `
+"<a data-v-f3c636e9="" class="card deploy-tile danger" href="https://app.netlify.com/projects/basin-fm/deploys/d1" target="_blank" rel="noopener noreferrer">
+  <div data-v-f3c636e9="" class="tile-head"><svg data-v-f3c636e9="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+      <line x1="12" y1="9" x2="12" y2="13"></line>
+      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg><span data-v-f3c636e9="" class="tile-label">DEPLOY</span><span data-v-f3c636e9="" class="tile-meta">NETLIFY · PRODUCTION</span></div><span data-v-f3c636e9="" class="value display-num">FAILED</span><time data-v-f3c636e9="" class="sub" datetime="2026-10-10T12:00:00.000Z" title="10 OCT 2026 · 12:00 UTC">2h ago</time>
+</a>"
+`;
+
+exports[`DeployTile > renders the in progress state 1`] = `
+"<a data-v-f3c636e9="" class="card deploy-tile warn" href="https://app.netlify.com/projects/basin-fm/deploys/d3" target="_blank" rel="noopener noreferrer">
+  <div data-v-f3c636e9="" class="tile-head"><svg data-v-f3c636e9="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+      <line x1="12" y1="9" x2="12" y2="13"></line>
+      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg><span data-v-f3c636e9="" class="tile-label">DEPLOY</span><span data-v-f3c636e9="" class="tile-meta">NETLIFY · PRODUCTION</span></div><span data-v-f3c636e9="" class="value display-num">IN PROGRESS</span><span data-v-f3c636e9="" class="sub">Build running</span>
+</a>"
+`;
+
+exports[`DeployTile > renders the none yet state 1`] = `
+"<div data-v-f3c636e9="" class="card deploy-tile">
+  <div data-v-f3c636e9="" class="tile-head">
+    <!--v-if--><span data-v-f3c636e9="" class="tile-label">DEPLOY</span><span data-v-f3c636e9="" class="tile-meta">NETLIFY · PRODUCTION</span>
+  </div><span data-v-f3c636e9="" class="value display-num">NO DEPLOYS</span><span data-v-f3c636e9="" class="sub">No production deploy synced yet</span>
+</div>"
+`;
+
+exports[`DeployTile > renders the not configured state 1`] = `
+"<div data-v-f3c636e9="" class="card deploy-tile">
+  <div data-v-f3c636e9="" class="tile-head">
+    <!--v-if--><span data-v-f3c636e9="" class="tile-label">DEPLOY</span><span data-v-f3c636e9="" class="tile-meta">NETLIFY · PRODUCTION</span>
+  </div><span data-v-f3c636e9="" class="value display-num">NOT CONFIGURED</span><span data-v-f3c636e9="" class="sub">Set NUXT_NETLIFY_TOKEN to enable</span>
+</div>"
+`;
+
+exports[`DeployTile > renders the success state 1`] = `
+"<a data-v-f3c636e9="" class="card deploy-tile ok" href="https://app.netlify.com/projects/basin-fm/deploys/d1" target="_blank" rel="noopener noreferrer">
+  <div data-v-f3c636e9="" class="tile-head"><svg data-v-f3c636e9="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21.8 10A10 10 0 1 1 17 3.34"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg><span data-v-f3c636e9="" class="tile-label">DEPLOY</span><span data-v-f3c636e9="" class="tile-meta">NETLIFY · PRODUCTION</span></div><span data-v-f3c636e9="" class="value display-num">SUCCESS</span><time data-v-f3c636e9="" class="sub" datetime="2026-10-10T12:00:00.000Z" title="10 OCT 2026 · 12:00 UTC">2h ago</time>
+</a>"
+`;

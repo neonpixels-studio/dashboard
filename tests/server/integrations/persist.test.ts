@@ -11,6 +11,7 @@ import {
   recordSyncStatus,
 } from "../../../server/integrations/persist";
 import {
+  deployStatus,
   integrationConfig,
   metricSnapshot,
   syncStatus,
@@ -349,6 +350,32 @@ describe("persistProviderResult", () => {
     expect(conflictArgs.set.fetchedAt).toBeInstanceOf(SQL);
     expect(conflictArgs.set.fetchedAt.queryChunks[0].value).toEqual([
       "excluded.fetched_at",
+    ]);
+  });
+
+  it("upserts the latest deploy per slug, replacing the stored one in place", async () => {
+    const { db, insert, values, onConflictDoUpdate } = createFakeDb();
+    const finishedAt = new Date("2026-10-10T12:00:00Z");
+
+    await persistProviderResult(db, configRow(), {
+      ...EMPTY_RESULT,
+      deploys: [{ deployId: "d1", state: "error", finishedAt }],
+    });
+
+    expect(insert).toHaveBeenCalledWith(deployStatus);
+    expect(values).toHaveBeenCalledWith([
+      { slug: "basin", deployId: "d1", state: "error", finishedAt },
+    ]);
+    const conflictArgs = onConflictDoUpdate.mock.calls[0]![0];
+    expect(conflictArgs.target).toBe(deployStatus.slug);
+    expect(conflictArgs.set.deployId.queryChunks[0].value).toEqual([
+      "excluded.deploy_id",
+    ]);
+    expect(conflictArgs.set.state.queryChunks[0].value).toEqual([
+      "excluded.state",
+    ]);
+    expect(conflictArgs.set.finishedAt.queryChunks[0].value).toEqual([
+      "excluded.finished_at",
     ]);
   });
 

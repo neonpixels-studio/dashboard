@@ -17,6 +17,12 @@
 
     <MetricTileGrid :tiles="tiles" />
 
+    <DeployTile
+      v-if="app.detail"
+      :deploy="app.detail.deploy"
+      :app-url="app.url"
+    />
+
     <div class="card syndication-panel">
       <div class="panel-head">
         <span class="panel-title">Syndication</span>

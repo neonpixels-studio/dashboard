@@ -115,7 +115,7 @@ Two layers of secrets:
   covers round-trip, tamper-detection, and wrong-key failure).
 
 `NUXT_INTEGRATION_ENCRYPTION_KEY`, the Stripe vars, the GA4 vars, the Sentry
-vars, and the per-app Clerk secret keys are wired into `runtimeConfig` today
+vars, the Netlify token, and the per-app Clerk secret keys are wired into `runtimeConfig` today
 (see nuxt.config.ts). The code that reads them (`server/integrations/config.ts`'s
 `resolveSecret` and each provider's `resolve*` default) looks the name up at
 runtime, since each row/app picks its own key name, through
@@ -229,6 +229,32 @@ sync is healthy and both Sentry counts exist; failing syncs still show
    `NUXT_SENTRY_PROJECT_*`. This env var is the deploy-time default; an
    `integration_config` row's `external_id` column, once set, overrides it
    per app.
+
+### Netlify
+
+Shows whether each property's latest **production** deploy worked: a Deploy
+tile on every `/apps/<slug>` page (status, relative finish time with the full
+timestamp on hover, linked to the deploy in Netlify), and a failed one also
+raises an alert in the overview Alerts panel until a newer deploy replaces it.
+In-progress deploys never alert, and deploy age is never a failure (production
+deploys are weekly). See `server/integrations/netlify`.
+
+- The Netlify project name comes from the property's domain
+  (`app/utils/netlify.ts`'s `netlifyProjectName`, `basin.fm` -> `basin-fm`),
+  and the API is queried at `<project-name>.netlify.app`, which Netlify
+  accepts wherever it takes a site id. No site ids are stored.
+- The latest deploy is stored in the `deploy_status` table (one row per
+  property). Netlify `ready` is success, `error` is failed, anything else is
+  in progress (`shared/utils/deployStatus.ts`).
+- Every property gets an `integration_config` row (`vendor: "netlify"`)
+  seeded **enabled**, unlike the other vendors: with no token the provider
+  skips without recording a failure. Run `npm run db:seed` after migrating to
+  create the rows.
+
+1. Personal access token — <https://app.netlify.com/user/applications> ->
+   Personal access tokens -> `NUXT_NETLIFY_TOKEN`. Add it to the encrypted
+   `.env.production` (`npx dotenvx set NUXT_NETLIFY_TOKEN "..." -f
+.env.production`). Until it is set the tile reads "not configured".
 
 ### Blog platforms (danholloran.me cross-posting targets)
 

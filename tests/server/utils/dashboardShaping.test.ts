@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   alertsForApp,
   computeAppStatus,
+  deployForApp,
   integrationHealthForApp,
   latestMetricsBySlug,
   latestSyncedAt,
@@ -18,6 +19,7 @@ import {
   windowedTotalAcrossApps,
 } from "../../../server/utils/dashboardShaping";
 import type {
+  DeployStatusRow,
   IntegrationConfigRow,
   MetricSnapshotRow,
   SyncStatusRow,
@@ -1379,5 +1381,58 @@ describe("windowedTotalAcrossApps", () => {
       metricRow({ metric: "mrr", period: "daily", capturedAt: now, value: 7 }),
     ];
     expect(total(rows, 7)).toBe(5);
+  });
+});
+
+describe("deployForApp", () => {
+  const deployRow = (overrides: Partial<DeployStatusRow> = {}) => ({
+    id: 1,
+    slug: "basin",
+    deployId: "d1",
+    state: "ready",
+    finishedAt: new Date("2026-10-10T12:00:00Z"),
+    ...overrides,
+  });
+
+  it("is not_configured without a token, even when a stale row exists", () => {
+    expect(deployForApp([deployRow()], "basin", false)).toEqual({
+      status: "not_configured",
+      deployId: null,
+      finishedAt: null,
+    });
+  });
+
+  it("is none when configured but nothing has synced for the slug", () => {
+    expect(
+      deployForApp([deployRow({ slug: "markpost" })], "basin", true),
+    ).toEqual({ status: "none", deployId: null, finishedAt: null });
+  });
+
+  it.each([
+    ["ready", "success"],
+    ["error", "failed"],
+    ["building", "in_progress"],
+  ])("maps netlify state %s to %s", (state, status) => {
+    expect(deployForApp([deployRow({ state })], "basin", true).status).toBe(
+      status,
+    );
+  });
+
+  it("serializes the deploy id and finish time", () => {
+    expect(deployForApp([deployRow()], "basin", true)).toEqual({
+      status: "success",
+      deployId: "d1",
+      finishedAt: "2026-10-10T12:00:00.000Z",
+    });
+  });
+
+  it("keeps a null finish time null for an in-progress deploy", () => {
+    expect(
+      deployForApp(
+        [deployRow({ state: "building", finishedAt: null })],
+        "basin",
+        true,
+      ).finishedAt,
+    ).toBeNull();
   });
 });
