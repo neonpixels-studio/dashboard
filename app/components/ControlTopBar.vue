@@ -10,7 +10,12 @@
       <span class="crumb-sep" aria-hidden="true">/</span>
       <NuxtLink to="/" class="crumb-link">All properties</NuxtLink>
       <span class="crumb-sep" aria-hidden="true">/</span>
-      <span class="crumb-current">{{ crumb }}</span>
+      <PropertySwitcher
+        v-if="crumbSlug"
+        :current-slug="crumbSlug"
+        :current-name="crumb"
+      />
+      <span v-else class="crumb-current">{{ crumb }}</span>
       <span class="grow"></span>
     </template>
     <nav v-else class="top-nav">
@@ -41,7 +46,11 @@ import type { OverviewRangeDays } from "#shared/constants/overviewRange";
 
 // `range` is only passed on the overview, where it drives the rollups; the
 // detail pages leave it unset and the selector is hidden.
-defineProps<{ crumb?: string; range?: OverviewRangeDays }>();
+defineProps<{
+  crumb?: string;
+  crumbSlug?: string;
+  range?: OverviewRangeDays;
+}>();
 const emit = defineEmits<{ "update:range": [days: OverviewRangeDays] }>();
 </script>
 
