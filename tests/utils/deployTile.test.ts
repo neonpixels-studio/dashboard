@@ -77,4 +77,10 @@ describe("buildDeployTileData", () => {
       }),
     ).toMatchObject({ tone: "ok", sub: "7d ago" });
   });
+
+  it("falls back to an explicit line when a finished deploy has no finish time", () => {
+    expect(
+      tile({ status: "failed", deployId: "d5", finishedAt: null }),
+    ).toMatchObject({ sub: "Finish time unknown", fullTime: null });
+  });
 });
