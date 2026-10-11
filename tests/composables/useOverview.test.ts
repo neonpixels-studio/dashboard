@@ -57,7 +57,26 @@ describe("useOverview", () => {
 
     expect(mockUseFetch).toHaveBeenCalledWith("/api/overview", {
       key: "overview",
+      query: { range: expect.objectContaining({ value: 30 }) },
     });
+  });
+
+  it("passes the reactive range through as the query so changing it refetches", () => {
+    const mockUseFetch = vi.fn(() => ({
+      data: ref(null),
+      pending: ref(false),
+      error: ref(null),
+      refresh: vi.fn(),
+    }));
+    vi.stubGlobal("useFetch", mockUseFetch);
+    const range = ref<7 | 30 | 60>(7);
+
+    useOverview(range);
+
+    const options = (mockUseFetch.mock.calls as unknown[][])[0]![1] as {
+      query: { range: unknown };
+    };
+    expect(options.query.range).toBe(range);
   });
 
   it("returns typed data, pending, error, and refresh", () => {
