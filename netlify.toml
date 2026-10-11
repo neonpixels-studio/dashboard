@@ -7,18 +7,20 @@
 
 # Deploy previews and branch deploys decrypt .env.dev instead, via
 # DOTENV_PRIVATE_KEY_DEV, so they never build against the production database.
-# Previews are enabled: DOTENV_PRIVATE_KEY_DEV is set in Netlify and .env.dev
-# points at a non-prod Neon branch.
+# Each deploy preview (preview/pr-<n>) and branch deploy (branch/<git branch>)
+# gets its own Neon branch, a copy-on-write fork of `production`, via
+# scripts/neon-preview-branch.js. They're deleted when the PR closes or the git
+# branch is deleted (.github/workflows/neon-preview-cleanup.yml).
 [context.production]
   # Netlify cancels the build when this exits 0 and builds when it exits 1.
   # Production deploys only via the build hook (weekly workflow or manual dispatch).
   ignore = "if [ -n \"$INCOMING_HOOK_TITLE\" ]; then exit 1; else exit 0; fi"
 
 [context.deploy-preview]
-  command = "npx nuxt prepare && npm run test:ci && npm run build:dev && npm run assert:no-sourcemaps"
+  command = "npx nuxt prepare && npm run test:ci && npm run build:preview && npm run assert:no-sourcemaps"
 
 [context.branch-deploy]
-  command = "npx nuxt prepare && npm run test:ci && npm run build:dev && npm run assert:no-sourcemaps"
+  command = "npx nuxt prepare && npm run test:ci && npm run build:preview && npm run assert:no-sourcemaps"
 
 # Functions run as standalone Lambdas and don't get the dotenvx-decrypted
 # values `nuxt build` bakes into the app bundle. Ship the encrypted file so
