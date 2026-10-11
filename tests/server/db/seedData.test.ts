@@ -5,7 +5,10 @@ import type {
   InternalApp,
 } from "../../../app/config/apps";
 import { APPS, INTERNAL_APPS } from "../../../app/config/apps";
-import { buildIntegrationConfigSeed } from "../../../server/db/seedData";
+import {
+  buildIntegrationConfigSeed,
+  buildNetlifyConfigSeed,
+} from "../../../server/db/seedData";
 
 const PRODUCT_VENDORS = ["stripe", "clerk", "sentry"];
 const WRITING_VENDORS = ["medium", "hashnode", "devto", "zyvop"];
@@ -137,5 +140,21 @@ describe("buildIntegrationConfigSeed", () => {
       const pairIds = rows.map((row) => `${row.slug}:${row.vendor}`);
       expect(new Set(pairIds).size).toBe(pairIds.length);
     });
+  });
+});
+
+describe("buildNetlifyConfigSeed", () => {
+  it("gives every app one enabled netlify row regardless of template", () => {
+    expect(buildNetlifyConfigSeed(FIXTURE_APPS)).toEqual([
+      { slug: "fixture-product", vendor: "netlify", enabled: true },
+      { slug: "fixture-writing", vendor: "netlify", enabled: true },
+      { slug: "fixture-marketing", vendor: "netlify", enabled: true },
+    ]);
+  });
+
+  it("covers all six real properties", () => {
+    const slugs = buildNetlifyConfigSeed(APPS).map((row) => row.slug);
+    expect(slugs).toEqual(APPS.map((app) => app.slug));
+    expect(slugs).toHaveLength(6);
   });
 });

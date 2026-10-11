@@ -20,6 +20,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/neon-http";
 import type * as schema from "../db/schema";
 import {
+  deployStatus,
   integrationConfig,
   metricSnapshot,
   syncStatus,
@@ -34,6 +35,7 @@ export type TrafficBreakdownRow = InferSelectModel<typeof trafficBreakdown>;
 export type SyndicationPostRow = InferSelectModel<typeof syndicationPost>;
 export type SyncStatusRow = InferSelectModel<typeof syncStatus>;
 export type IntegrationConfigRow = InferSelectModel<typeof integrationConfig>;
+export type DeployStatusRow = InferSelectModel<typeof deployStatus>;
 
 // Every fetch below is scoped to a list of slugs; an empty list means "no
 // apps configured yet" rather than "no filter", so every function short
@@ -323,5 +325,20 @@ export function fetchIntegrationConfigs(
       .select()
       .from(integrationConfig)
       .where(inArray(integrationConfig.slug, slugs)),
+  );
+}
+
+// Latest production deploy per slug (one row each, see schema.ts's
+// deployStatus). Omit `slugs` for every property, as the overview Alerts
+// panel needs.
+export function fetchDeployStatuses(
+  db: DrizzleDb,
+  slugs?: string[],
+): Promise<DeployStatusRow[]> {
+  if (!slugs) {
+    return db.select().from(deployStatus);
+  }
+  return forSlugs(slugs, () =>
+    db.select().from(deployStatus).where(inArray(deployStatus.slug, slugs)),
   );
 }

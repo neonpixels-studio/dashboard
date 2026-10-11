@@ -1,5 +1,6 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
+  deployStatus,
   integrationConfig,
   metricSnapshot,
   syndicationPost,
@@ -54,6 +55,11 @@ export type SyndicationPostInput = Omit<
   "id" | "slug"
 >;
 
+export type DeployStatusInput = Omit<
+  InferInsertModel<typeof deployStatus>,
+  "id" | "slug"
+>;
+
 // Normalized shape every provider returns, regardless of vendor. The
 // orchestrator maps each array onto its matching table and stamps `slug` on
 // the way in. A provider that doesn't produce a given kind of data (e.g. a
@@ -62,6 +68,10 @@ export interface ProviderResult {
   metrics: MetricSnapshotInput[];
   trafficBreakdown: TrafficBreakdownInput[];
   syndicationPosts: SyndicationPostInput[];
+  // Latest production deploy per property. Optional (unlike the arrays above)
+  // because only the Netlify provider produces it; every other provider
+  // omits it rather than returning an empty array.
+  deploys?: DeployStatusInput[];
   // True when the provider's own guard decided no real fetch was due this
   // tick (Medium's once-per-24h rate limit). The orchestrator then records
   // the run without overwriting the last real attempt's ok/error, so a

@@ -14,6 +14,12 @@
 
     <MetricTileGrid :tiles="tiles" />
 
+    <DeployTile
+      v-if="app.detail"
+      :deploy="app.detail.deploy"
+      :app-url="app.url"
+    />
+
     <SectionLabel
       label="TRAFFIC"
       meta="GOOGLE ANALYTICS · GA4"

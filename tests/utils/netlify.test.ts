@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  netlifyDeployUrl,
   netlifyLogsUrl,
   netlifyProjectName,
   netlifySettingsUrl,
@@ -43,6 +44,12 @@ describe("netlify urls", () => {
   it("builds the logs url", () => {
     expect(netlifyLogsUrl("https://basin.fm")).toBe(
       "https://app.netlify.com/projects/basin-fm/analytics-and-metrics/observability",
+    );
+  });
+
+  it("builds the deploy url from the shared project-name mapping", () => {
+    expect(netlifyDeployUrl("https://basin.fm", "abc123")).toBe(
+      "https://app.netlify.com/projects/basin-fm/deploys/abc123",
     );
   });
 });

@@ -3,6 +3,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
+  fetchDeployStatuses,
   fetchIntegrationConfigs,
   fetchLastAttemptedSyncAt,
   fetchLatestMetricCapturedAt,
@@ -409,5 +410,30 @@ describe("fetchSyndicationFetchedAtByExternalId", () => {
     await expect(
       fetchSyndicationFetchedAtByExternalId(db, "danholloran", "medium"),
     ).resolves.toEqual(new Map());
+  });
+});
+
+describe("fetchDeployStatuses", () => {
+  it("never touches the db for an empty slug list", async () => {
+    const { db, select } = createUnorderedFakeDb([]);
+    expect(await fetchDeployStatuses(db, [])).toEqual([]);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("filters to the given slugs", async () => {
+    const rows = [{ id: 1, slug: "basin" }];
+    const { db, where } = createUnorderedFakeDb(rows);
+    await expect(fetchDeployStatuses(db, ["basin"])).resolves.toEqual(rows);
+    expect(where).toHaveBeenCalled();
+  });
+
+  it("returns every property's row, unfiltered, when no slugs are given", async () => {
+    const rows = [{ id: 1 }, { id: 2 }];
+    const from = vi.fn().mockResolvedValue(rows);
+    const db = {
+      select: vi.fn().mockReturnValue({ from }),
+    } as unknown as FakeDb;
+
+    await expect(fetchDeployStatuses(db)).resolves.toEqual(rows);
   });
 });

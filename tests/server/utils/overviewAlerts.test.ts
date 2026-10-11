@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildSyncAlerts } from "../../../server/utils/overviewAlerts";
+import {
+  buildDeployAlerts,
+  buildOverviewAlerts,
+  buildSyncAlerts,
+} from "../../../server/utils/overviewAlerts";
+import type { DeployStatusRow } from "../../../server/utils/dashboardQueries";
 import type { SyncAlertRow } from "../../../server/integrations/staleVendorAlert";
 
 const NOW = new Date("2026-10-10T12:00:00Z");
@@ -170,5 +175,66 @@ describe("buildSyncAlerts", () => {
       "a",
       "untimed",
     ]);
+  });
+});
+
+function deployRow(overrides: Partial<DeployStatusRow> = {}): DeployStatusRow {
+  return {
+    id: 1,
+    slug: "basin",
+    deployId: "d1",
+    state: "error",
+    finishedAt: hoursAgo(2),
+    ...overrides,
+  };
+}
+
+describe("buildDeployAlerts", () => {
+  it("alerts on a failed latest deploy, linking to it in Netlify", () => {
+    expect(buildDeployAlerts([deployRow()])).toEqual([
+      {
+        id: "deploy-failed:basin",
+        slug: "basin",
+        source: "netlify",
+        message: "Production deploy failed",
+        occurredAt: hoursAgo(2).toISOString(),
+        href: "https://app.netlify.com/projects/basin-fm/deploys/d1",
+      },
+    ]);
+  });
+
+  it("clears once the latest deploy is a success (the row is replaced by the sync)", () => {
+    expect(buildDeployAlerts([deployRow({ state: "ready" })])).toEqual([]);
+  });
+
+  it.each(["building", "uploading", "enqueued", "retrying"])(
+    "never alerts for an in-progress %s deploy",
+    (state) => {
+      expect(
+        buildDeployAlerts([deployRow({ state, finishedAt: null })]),
+      ).toEqual([]);
+    },
+  );
+
+  it("ignores a row for a slug that isn't a configured property", () => {
+    expect(buildDeployAlerts([deployRow({ slug: "ghost" })])).toEqual([]);
+  });
+
+  it("keeps a failed deploy with no finish time, with a null time", () => {
+    expect(
+      buildDeployAlerts([deployRow({ finishedAt: null })])[0],
+    ).toMatchObject({ occurredAt: null });
+  });
+});
+
+describe("buildOverviewAlerts", () => {
+  it("merges sync and deploy alerts newest first", () => {
+    const alerts = buildOverviewAlerts(
+      [row({ ok: false, error: "boom", lastAttemptedAt: hoursAgo(5) })],
+      [deployRow({ finishedAt: hoursAgo(1) })],
+      NOW,
+    );
+
+    expect(alerts.map((alert) => alert.source)).toEqual(["netlify", "stripe"]);
   });
 });

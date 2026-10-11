@@ -3,6 +3,7 @@
 // dashboardQueries.ts) and returns a shared/types/dashboard.ts shape, so the
 // whole module is testable without any database fake at all.
 import type {
+  DeployStatusRow,
   IntegrationConfigRow,
   MetricSnapshotRow,
   SyncStatusRow,
@@ -11,6 +12,7 @@ import type {
 } from "./dashboardQueries";
 import type {
   AppAlert,
+  AppDeploy,
   AppMetricSplit,
   AppStatus,
   CurrentMetric,
@@ -24,6 +26,7 @@ import type {
   SyndicationMatrixRow,
   TrafficChannelSplit,
 } from "../../shared/types/dashboard";
+import { deployStatusForState } from "../../shared/utils/deployStatus";
 import { DEFAULT_OVERVIEW_RANGE } from "../../shared/constants/overviewRange";
 import type { PropertySessions } from "../../shared/types/overviewSessions";
 import { sentryStatusChip } from "../integrations/sentry/mapping";
@@ -1008,5 +1011,26 @@ export function sessionsForApp(
     daily: dailyPoints.slice(-SESSIONS_CHART_DAYS),
     total30d: total30d?.value ?? null,
     delta: rollupDelta(rollingPoints),
+  };
+}
+
+// No token wins over everything: without it the integration can't have synced
+// anything meaningful, whatever a stale row says.
+export function deployForApp(
+  deployRows: DeployStatusRow[],
+  slug: string,
+  isConfigured: boolean,
+): AppDeploy {
+  if (!isConfigured) {
+    return { status: "not_configured", deployId: null, finishedAt: null };
+  }
+  const row = deployRows.find((candidate) => candidate.slug === slug);
+  if (!row) {
+    return { status: "none", deployId: null, finishedAt: null };
+  }
+  return {
+    status: deployStatusForState(row.state),
+    deployId: row.deployId,
+    finishedAt: toIsoOrNull(row.finishedAt),
   };
 }

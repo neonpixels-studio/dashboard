@@ -8,6 +8,7 @@ import { APPS, INTERNAL_APPS } from "../../app/config/apps";
 import * as schema from "./schema";
 import {
   buildIntegrationConfigSeed,
+  buildNetlifyConfigSeed,
   type IntegrationConfigSeedRow,
 } from "./seedData";
 
@@ -49,10 +50,10 @@ export async function seedIntegrationConfig(
 
 async function main(): Promise<void> {
   const db = drizzle(neon(requireDatabaseUrl()), { schema });
-  const { attempted, inserted } = await seedIntegrationConfig(
-    db,
-    buildIntegrationConfigSeed(APPS, INTERNAL_APPS),
-  );
+  const { attempted, inserted } = await seedIntegrationConfig(db, [
+    ...buildIntegrationConfigSeed(APPS, INTERNAL_APPS),
+    ...buildNetlifyConfigSeed(APPS),
+  ]);
   console.log(
     `Seeded ${inserted} of ${attempted} integration_config row(s) (rest already present).`,
   );

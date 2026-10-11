@@ -2,10 +2,12 @@ import { getRouterParam } from "h3";
 import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
 import { clerkDashboardUsersUrl } from "../../integrations/clerk/dashboardLink";
+import { readNetlifyToken } from "../../integrations/netlify/token";
 import { ga4PropertyIdForApp } from "../../integrations/ga4/propertyId";
 import { integrationEnvironments } from "../../integrations/credentialEnvironment";
 import { requireUser } from "../../utils/auth";
 import {
+  fetchDeployStatuses,
   fetchIntegrationConfigs,
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
@@ -16,6 +18,7 @@ import {
 import {
   alertsForApp,
   computeAppStatus,
+  deployForApp,
   integrationHealthForApp,
   latestMetricsBySlug,
   latestSyncedAt,
@@ -50,6 +53,7 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     syncRows,
     configRows,
     posts,
+    deployRows,
   ] = await Promise.all([
     fetchLatestMetricSnapshots(db, [slug]),
     fetchMetricSnapshotSeries(db, [slug]),
@@ -57,6 +61,7 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     fetchSyncStatuses(db, [slug]),
     fetchIntegrationConfigs(db, [slug]),
     fetchSyndicationPosts(db, slug),
+    fetchDeployStatuses(db, [slug]),
   ]);
 
   const environments = integrationEnvironments(configRows);
@@ -79,5 +84,6 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     lastSyncedAt: latestSyncedAt(syncRows),
     clerkUsersUrl: clerkDashboardUsersUrl(configRows),
     ga4PropertyId: ga4PropertyIdForApp(configRows, slug),
+    deploy: deployForApp(deployRows, slug, readNetlifyToken() !== null),
   };
 });

@@ -13,6 +13,11 @@ vi.mock("../../../../server/integrations/persist", () => ({
   listSyncHealthRows: mockListSyncHealthRows,
 }));
 
+const mockFetchDeployStatuses = vi.fn();
+vi.mock("../../../../server/utils/dashboardQueries", () => ({
+  fetchDeployStatuses: mockFetchDeployStatuses,
+}));
+
 const { default: alertsHandler } =
   await import("../../../../server/api/overview/alerts.get");
 
@@ -20,6 +25,7 @@ describe("GET /api/overview/alerts", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockListSyncHealthRows.mockResolvedValue([]);
+    mockFetchDeployStatuses.mockResolvedValue([]);
   });
 
   it("requires auth before touching the database", async () => {
@@ -59,5 +65,45 @@ describe("GET /api/overview/alerts", () => {
       message: "stripe: 401",
       href: "/apps/basin",
     });
+  });
+
+  it("returns a deploy alert for a failed latest production deploy, linked to Netlify", async () => {
+    mockFetchDeployStatuses.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        deployId: "abc123",
+        state: "error",
+        finishedAt: new Date("2026-10-10T12:00:00Z"),
+      },
+    ]);
+
+    const result = await alertsHandler({} as H3Event);
+
+    expect(result).toEqual([
+      {
+        id: "deploy-failed:basin",
+        slug: "basin",
+        source: "netlify",
+        message: "Production deploy failed",
+        occurredAt: "2026-10-10T12:00:00.000Z",
+        href: "https://app.netlify.com/projects/basin-fm/deploys/abc123",
+      },
+    ]);
+  });
+
+  it("does not alert for a successful or in-progress deploy", async () => {
+    mockFetchDeployStatuses.mockResolvedValue([
+      { id: 1, slug: "basin", deployId: "a", state: "ready", finishedAt: null },
+      {
+        id: 2,
+        slug: "markpost",
+        deployId: "b",
+        state: "building",
+        finishedAt: null,
+      },
+    ]);
+
+    expect(await alertsHandler({} as H3Event)).toEqual([]);
   });
 });
