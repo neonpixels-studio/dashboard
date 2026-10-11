@@ -47,7 +47,7 @@ export function useDropdown() {
       close();
       return;
     }
-    open();
+    open("first");
   }
 
   function moveFocus(step: 1 | -1) {
@@ -88,16 +88,25 @@ export function useDropdown() {
       Home: () => focusItem("first"),
       End: () => focusItem("last"),
       Escape: () => close(),
-      Tab: () => close({ restoreFocus: false }),
     };
     const handler = handlers[event.key];
     if (!handler) {
       return;
     }
-    if (event.key !== "Tab") {
-      event.preventDefault();
-    }
+    event.preventDefault();
     handler();
+  }
+
+  // Tab moving focus past the dropdown closes it. A null relatedTarget (a
+  // click on a non-focusable area, or Safari not focusing clicked links) is
+  // ignored so the pending click still lands; outside clicks are covered by
+  // the pointerdown listener.
+  function onFocusout(event: FocusEvent) {
+    const next = event.relatedTarget as Node | null;
+    if (!next || rootRef.value?.contains(next)) {
+      return;
+    }
+    close({ restoreFocus: false });
   }
 
   function onDocumentPointerDown(event: Event) {
@@ -124,5 +133,6 @@ export function useDropdown() {
     toggle,
     onTriggerKeydown,
     onMenuKeydown,
+    onFocusout,
   };
 }

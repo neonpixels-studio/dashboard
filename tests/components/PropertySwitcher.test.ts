@@ -19,6 +19,14 @@ function mountSwitcher() {
   return wrapper;
 }
 
+function menuItemElements() {
+  return wrapper.findAll("[role=menuitem]").map((link) => link.element);
+}
+
+async function openByClick() {
+  await wrapper.find("button").trigger("click");
+}
+
 beforeEach(() => {
   vi.stubGlobal("useRoute", () => ({
     query: { range: "7" },
@@ -41,7 +49,7 @@ describe("PropertySwitcher", () => {
 
   it("opens on click, listing properties plus the All properties link", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     expect(wrapper.find("button").attributes("aria-expanded")).toBe("true");
     const links = wrapper.findAll("[role=menuitem]");
     expect(links).toHaveLength(APPS.length + 1);
@@ -51,7 +59,7 @@ describe("PropertySwitcher", () => {
 
   it("checks only the current property and keeps query and hash in links", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     const current = wrapper.findAll("[aria-current=page]");
     expect(current).toHaveLength(1);
     expect(current[0]!.text()).toContain("markpost.io");
@@ -67,7 +75,7 @@ describe("PropertySwitcher", () => {
 
   it("closes on Escape and returns focus to the trigger", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     await wrapper.find("ul").trigger("keydown", { key: "Escape" });
     expect(wrapper.find("ul").exists()).toBe(false);
     expect(document.activeElement).toBe(wrapper.find("button").element);
@@ -75,7 +83,7 @@ describe("PropertySwitcher", () => {
 
   it("closes on an outside pointerdown but not an inside one", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     await wrapper.find("ul").trigger("pointerdown");
     expect(wrapper.find("ul").exists()).toBe(true);
     document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
@@ -85,7 +93,7 @@ describe("PropertySwitcher", () => {
 
   it("closes after a selection", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     await wrapper.findAll("[role=menuitem]")[0]!.trigger("click");
     expect(wrapper.find("ul").exists()).toBe(false);
   });
@@ -108,7 +116,7 @@ describe("PropertySwitcher", () => {
 
   it("closes on Escape pressed on the trigger after a click open", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     await wrapper.find("button").trigger("keydown", { key: "Escape" });
     expect(wrapper.find("ul").exists()).toBe(false);
     expect(document.activeElement).toBe(wrapper.find("button").element);
@@ -127,7 +135,7 @@ describe("PropertySwitcher", () => {
 
   it("jumps with Home and End", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     const links = wrapper
       .findAll("[role=menuitem]")
       .map((link) => link.element);
@@ -139,18 +147,37 @@ describe("PropertySwitcher", () => {
     expect(document.activeElement).toBe(links[0]);
   });
 
-  it("closes on Tab without pulling focus back to the trigger", async () => {
+  it("opens by click with focus on the first item", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
-    (wrapper.findAll("[role=menuitem]")[0]!.element as HTMLElement).focus();
-    await wrapper.find("ul").trigger("keydown", { key: "Tab" });
+    await openByClick();
+    await wrapper.vm.$nextTick();
+    expect(document.activeElement).toBe(menuItemElements()[0]);
+  });
+
+  it("closes when focus moves outside, without stealing it back", async () => {
+    mountSwitcher();
+    await openByClick();
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    await wrapper.find("ul").trigger("focusout", { relatedTarget: outside });
     expect(wrapper.find("ul").exists()).toBe(false);
-    expect(document.activeElement).not.toBe(wrapper.find("button").element);
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("stays open when focus moves between items", async () => {
+    mountSwitcher();
+    await openByClick();
+    await wrapper
+      .find("ul")
+      .trigger("focusout", { relatedTarget: menuItemElements()[1] });
+    expect(wrapper.find("ul").exists()).toBe(true);
   });
 
   it("wraps from the last item to the first with ArrowDown", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     const links = wrapper
       .findAll("[role=menuitem]")
       .map((link) => link.element);
@@ -177,7 +204,7 @@ describe("PropertySwitcher", () => {
 
   it("matches its snapshot open", async () => {
     mountSwitcher();
-    await wrapper.find("button").trigger("click");
+    await openByClick();
     expect(wrapper.html()).toMatchSnapshot();
   });
 });

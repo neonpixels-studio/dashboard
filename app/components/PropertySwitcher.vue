@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" class="switcher">
+  <div ref="rootRef" class="switcher" @focusout="onFocusout">
     <button
       ref="triggerRef"
       type="button"
@@ -100,6 +100,7 @@ const {
   toggle,
   onTriggerKeydown,
   onMenuKeydown,
+  onFocusout,
 } = useDropdown();
 
 const items = computed(() =>
