@@ -247,4 +247,20 @@ describe("buildOverviewAlerts", () => {
 
     expect(alerts.map((alert) => alert.source)).toEqual(["stripe", "netlify"]);
   });
+
+  it("sorts an untimed deploy alert last even when it is not the last input", () => {
+    const alerts = buildOverviewAlerts(
+      [row({ ok: false, error: "boom", lastAttemptedAt: hoursAgo(5) })],
+      [deployRow({ finishedAt: null }), deployRow({ slug: "markpost" })],
+      NOW,
+    );
+
+    expect(alerts.map((alert) => alert.slug)).toEqual([
+      "markpost",
+      "basin",
+      "basin",
+    ]);
+    expect(alerts.at(-1)?.source).toBe("netlify");
+    expect(alerts.at(-1)?.occurredAt).toBeNull();
+  });
 });

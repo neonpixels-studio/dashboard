@@ -31,6 +31,7 @@ const IN_PROGRESS: AppDeploy = {
   deployId: "d3",
   finishedAt: null,
 };
+const NONE: AppDeploy = { status: "none", deployId: null, finishedAt: null };
 const NOT_CONFIGURED: AppDeploy = {
   status: "not_configured",
   deployId: null,
@@ -42,6 +43,7 @@ describe("DeployTile", () => {
     ["success", SUCCESS],
     ["failed", FAILED],
     ["in progress", IN_PROGRESS],
+    ["none yet", NONE],
     ["not configured", NOT_CONFIGURED],
   ])("renders the %s state", (_name, deploy) => {
     expect(mountTile(deploy).html()).toMatchSnapshot();

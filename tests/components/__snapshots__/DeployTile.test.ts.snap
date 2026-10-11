@@ -20,6 +20,14 @@ exports[`DeployTile > renders the in progress state 1`] = `
 </a>"
 `;
 
+exports[`DeployTile > renders the none yet state 1`] = `
+"<div data-v-f3c636e9="" class="card deploy-tile">
+  <div data-v-f3c636e9="" class="tile-head">
+    <!--v-if--><span data-v-f3c636e9="" class="tile-label">DEPLOY</span><span data-v-f3c636e9="" class="tile-meta">NETLIFY · PRODUCTION</span>
+  </div><span data-v-f3c636e9="" class="value display-num">NO DEPLOYS</span><span data-v-f3c636e9="" class="sub">No production deploy synced yet</span>
+</div>"
+`;
+
 exports[`DeployTile > renders the not configured state 1`] = `
 "<div data-v-f3c636e9="" class="card deploy-tile">
   <div data-v-f3c636e9="" class="tile-head">

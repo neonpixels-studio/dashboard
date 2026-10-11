@@ -52,4 +52,10 @@ describe("netlify urls", () => {
       "https://app.netlify.com/projects/basin-fm/deploys/abc123",
     );
   });
+
+  it("encodes the deploy id so it can't alter the path", () => {
+    expect(netlifyDeployUrl("https://basin.fm", "a/b?c")).toBe(
+      "https://app.netlify.com/projects/basin-fm/deploys/a%2Fb%3Fc",
+    );
+  });
 });
