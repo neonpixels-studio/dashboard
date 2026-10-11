@@ -148,6 +148,29 @@ describe("PropertySwitcher", () => {
     expect(document.activeElement).not.toBe(wrapper.find("button").element);
   });
 
+  it("wraps from the last item to the first with ArrowDown", async () => {
+    mountSwitcher();
+    await wrapper.find("button").trigger("click");
+    const links = wrapper
+      .findAll("[role=menuitem]")
+      .map((link) => link.element);
+    await wrapper.find("ul").trigger("keydown", { key: "End" });
+    await wrapper.vm.$nextTick();
+    await wrapper.find("ul").trigger("keydown", { key: "ArrowDown" });
+    expect(document.activeElement).toBe(links[0]);
+  });
+
+  it("does not swallow Escape while the menu is closed", async () => {
+    mountSwitcher();
+    const event = new KeyboardEvent("keydown", {
+      key: "Escape",
+      cancelable: true,
+      bubbles: true,
+    });
+    wrapper.find("button").element.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("matches its snapshot closed", () => {
     expect(mountSwitcher().html()).toMatchSnapshot();
   });

@@ -6,7 +6,7 @@
       class="switcher-trigger"
       aria-haspopup="menu"
       :aria-expanded="isOpen"
-      :aria-controls="menuId"
+      :aria-controls="isOpen ? menuId : undefined"
       @click="toggle"
       @keydown="onTriggerKeydown"
     >

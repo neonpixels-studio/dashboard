@@ -65,7 +65,7 @@ export function useDropdown() {
   }
 
   function onTriggerKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && isOpen.value) {
       event.preventDefault();
       close();
       return;

@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`PropertySwitcher > matches its snapshot closed 1`] = `
-"<div data-v-bda2066d="" class="switcher"><button data-v-bda2066d="" type="button" class="switcher-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="v-0"><span data-v-bda2066d="" class="switcher-name">markpost.io</span><svg data-v-bda2066d="" class="switcher-icon" width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+"<div data-v-bda2066d="" class="switcher"><button data-v-bda2066d="" type="button" class="switcher-trigger" aria-haspopup="menu" aria-expanded="false"><span data-v-bda2066d="" class="switcher-name">markpost.io</span><svg data-v-bda2066d="" class="switcher-icon" width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path data-v-bda2066d="" d="M2 5l3-3 3 3M2 9l3 3 3-3"></path>
     </svg></button>
   <!--v-if-->

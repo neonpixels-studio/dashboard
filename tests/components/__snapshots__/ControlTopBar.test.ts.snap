@@ -46,7 +46,7 @@ exports[`ControlTopBar > matches its snapshot with the property menu closed 1`] 
     </svg><span data-v-2e629669="" class="brand-name">NEONPIXELS</span>
     <!--v-if-->
   </a><span data-v-2e629669="" class="crumb-sep" aria-hidden="true">/</span><a data-v-2e629669="" href="/" class="crumb-link">All properties</a><span data-v-2e629669="" class="crumb-sep" aria-hidden="true">/</span>
-  <div data-v-bda2066d="" data-v-2e629669="" class="switcher"><button data-v-bda2066d="" type="button" class="switcher-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="v-0"><span data-v-bda2066d="" class="switcher-name">basin.fm</span><svg data-v-bda2066d="" class="switcher-icon" width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <div data-v-bda2066d="" data-v-2e629669="" class="switcher"><button data-v-bda2066d="" type="button" class="switcher-trigger" aria-haspopup="menu" aria-expanded="false"><span data-v-bda2066d="" class="switcher-name">basin.fm</span><svg data-v-bda2066d="" class="switcher-icon" width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path data-v-bda2066d="" d="M2 5l3-3 3 3M2 9l3 3 3-3"></path>
       </svg></button>
     <!--v-if-->
