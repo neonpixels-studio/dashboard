@@ -230,6 +230,52 @@ sync is healthy and both Sentry counts exist; failing syncs still show
    `integration_config` row's `external_id` column, once set, overrides it
    per app.
 
+### Neon (database usage)
+
+Shows each database-backed property's Neon usage against the **free-plan**
+allowances and alerts before they run out: when a free-plan project exhausts
+its compute hours Neon suspends the compute and the site's database calls fail
+until the next billing period. Covers basin, markpost, farflung and this
+dashboard itself (`INTERNAL_APPS`); danholloran, grimicorn and neonpixels have
+no database and no Neon row.
+
+- `server/integrations/neon/` reads `GET /api/v2/projects/{id}` (compute
+  CU-seconds, transfer, billing period) and `.../branches` through an isolated
+  client (`neonClient.ts`) the provider is tested against a fake of. Usage lands
+  in the `neon_usage` table (one row per property, overwritten each sync) and
+  branches in `neon_branch` (replaced as a set each sync).
+- The **DATABASE** panel (`app/components/DatabasePanel.vue`) is on the
+  property detail page for the three properties, and on the overview next to the
+  Alerts panel for the dashboard's own project. It shows compute used vs the
+  allowance with an end-of-period projection (usage so far scaled by period
+  length over elapsed time, withheld for the first 6 hours of a period),
+  storage vs the allowance, data transfer, and the branch list.
+- The **allowances** are named constants in `shared/constants/neonPlan.ts`,
+  taken from <https://neon.com/docs/introduction/plans> (Free plan: 100
+  CU-hours of compute, 1 GB storage and 5 GB transfer per project per month).
+  Update them there if the plan changes.
+- **Alerts** (shown in the overview Alerts panel and on the DATABASE panel):
+  projected compute, or current storage, at or above 80% of the allowance; and
+  any branch other than `production`, `development` or `e2e` (this catches
+  `agent-*` branches an E2E run failed to clean up).
+
+Setup, all via `npx dotenvx set … -f .env.production`:
+
+1. `NUXT_NEON_API_KEY` — a Neon **organization** API key (Neon Console >
+   Organization settings > API keys). Neon has no read-only keys, so this key
+   can modify projects; do not put it in `.env.dev` or `.env.e2e`.
+2. `NUXT_NEON_PROJECT_ID_BASIN`, `_MARKPOST`, `_FARFLUNG`, `_DASHBOARD` — each
+   project's id (Project > Settings > General). Ids are not secrets; the env
+   var is the deploy-time default and an `integration_config` row's
+   `external_id` overrides it per app, the same convention as the Sentry and
+   GA4 ids.
+3. Enable the `neon` rows in `integration_config` (the seed creates them
+   disabled, like every other vendor).
+
+With the key or a project id missing, that property's Neon sync is skipped
+cleanly (no failed `sync_status`, no alert) and its panel shows "No Neon usage
+synced yet."
+
 ### Blog platforms (danholloran.me cross-posting targets)
 
 Reads post counts + per-post cross-post status for the writing template

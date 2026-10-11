@@ -53,12 +53,22 @@
         </template>
       </div>
 
-      <OverviewAlertsPanel
-        :alerts="alertsData ?? []"
-        :pending="alertsPending"
-        :has-error="!!alertsError"
-        @retry="refreshAlerts"
-      />
+      <div class="alerts-row">
+        <OverviewAlertsPanel
+          class="alerts-row-cell"
+          :alerts="alertsData ?? []"
+          :pending="alertsPending"
+          :has-error="!!alertsError"
+          @retry="refreshAlerts"
+        />
+        <DatabasePanel
+          class="alerts-row-cell"
+          :panel="databaseData"
+          :pending="databasePending"
+          :has-error="!!databaseError"
+          @retry="refreshDatabase"
+        />
+      </div>
 
       <SessionsByPropertyPanel
         :properties="sessionsData ?? []"
@@ -94,6 +104,7 @@ import { useOverview } from "~/composables/useOverview";
 import { useOverviewRange } from "~/composables/useOverviewRange";
 import { useApps } from "~/composables/useApps";
 import { useOverviewAlerts } from "~/composables/useOverviewAlerts";
+import { useOverviewDatabase } from "~/composables/useOverviewDatabase";
 import { useOverviewSessions } from "~/composables/useOverviewSessions";
 import { formatRelativeTime } from "~/utils/relativeTime";
 import { buildSparklinePath } from "~/utils/sparklinePath";
@@ -345,6 +356,13 @@ const {
   error: alertsError,
   refresh: refreshAlerts,
 } = useOverviewAlerts();
+
+const {
+  data: databaseData,
+  pending: databasePending,
+  error: databaseError,
+  refresh: refreshDatabase,
+} = useOverviewDatabase();
 </script>
 
 <style scoped>
@@ -362,6 +380,16 @@ const {
 }
 .rollup-error {
   grid-column: 1 / -1;
+}
+.alerts-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+}
+.alerts-row-cell {
+  flex: 1 1 360px;
+  min-width: 0;
 }
 .section-gap {
   margin-top: 8px;

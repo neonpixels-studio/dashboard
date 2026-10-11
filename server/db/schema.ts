@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   index,
@@ -45,6 +46,7 @@ export const integrationVendor = pgEnum("integration_vendor", [
   "hashnode",
   "devto",
   "zyvop",
+  "neon",
 ]);
 
 export const syndicationStatus = pgEnum("syndication_status", [
@@ -275,5 +277,51 @@ export const syncStatus = pgTable(
   },
   (table) => [
     uniqueIndex("sync_status_slug_vendor_idx").on(table.slug, table.vendor),
+  ],
+);
+
+// Latest Neon consumption for one property's database project, overwritten on
+// every sync (one row per slug). Dedicated columns rather than
+// metric_snapshot rows: the billing-period bounds are timestamps the
+// projection needs, and metric_snapshot's numeric(15,4) can't hold byte
+// counts as exact integers across a period. `mode: "number"` on the bigints
+// is safe: a free-plan project stays far below Number.MAX_SAFE_INTEGER bytes.
+export const neonUsage = pgTable(
+  "neon_usage",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull(),
+    // CU-seconds; divide by 3600 for the CU-hours the plan is measured in.
+    computeTimeSeconds: integer("compute_time_seconds").notNull(),
+    activeTimeSeconds: integer("active_time_seconds").notNull(),
+    storageBytes: bigint("storage_bytes", { mode: "number" }).notNull(),
+    dataTransferBytes: bigint("data_transfer_bytes", {
+      mode: "number",
+    }).notNull(),
+    writtenDataBytes: bigint("written_data_bytes", {
+      mode: "number",
+    }).notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("neon_usage_slug_idx").on(table.slug)],
+);
+
+// The branches of one property's Neon project as of the last sync. A sync
+// replaces the whole set for the slug, so a deleted branch stops showing (and
+// stops alerting) on the next run.
+export const neonBranch = pgTable(
+  "neon_branch",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("neon_branch_slug_name_idx").on(table.slug, table.name),
   ],
 );

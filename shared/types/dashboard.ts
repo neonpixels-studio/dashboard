@@ -1,3 +1,5 @@
+import type { DatabasePanel } from "./database";
+
 // Response contracts for the read-side dashboard API (server/api/overview,
 // server/api/apps, server/api/apps/[slug]). Lives under `shared/` so the
 // Nuxt frontend data layer (issue #11) can import these types directly
@@ -177,4 +179,7 @@ export interface AppDetailResponse {
   // secret; the client validates it before building a link), or null when GA4
   // isn't enabled for it.
   ga4PropertyId: string | null;
+  // Neon usage for the DATABASE panel; null until the app's Neon sync has run
+  // (or when it has no database).
+  database: DatabasePanel | null;
 }

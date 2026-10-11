@@ -118,6 +118,17 @@ export default defineNuxtConfig({
     sentryProjectMarkpost: process.env.NUXT_SENTRY_PROJECT_MARKPOST || "",
     sentryProjectFarflung: process.env.NUXT_SENTRY_PROJECT_FARFLUNG || "",
     sentryProjectDashboard: process.env.NUXT_SENTRY_PROJECT_DASHBOARD || "",
+    // The Neon provider's organization API key and per-property project ids
+    // (server/integrations/neon). Same reasoning as the Sentry entries above:
+    // declared so the Netlify preset forwards them into the deployed function
+    // via readIntegrationEnv's runtimeConfig fallback. Empty means "not
+    // configured": the Neon sync is skipped, not failed. Project ids are not
+    // secrets, and an integration_config row's external_id overrides each.
+    neonApiKey: process.env.NUXT_NEON_API_KEY || "",
+    neonProjectIdBasin: process.env.NUXT_NEON_PROJECT_ID_BASIN || "",
+    neonProjectIdMarkpost: process.env.NUXT_NEON_PROJECT_ID_MARKPOST || "",
+    neonProjectIdFarflung: process.env.NUXT_NEON_PROJECT_ID_FARFLUNG || "",
+    neonProjectIdDashboard: process.env.NUXT_NEON_PROJECT_ID_DASHBOARD || "",
     // The Clerk provider's per-app secret keys
     // (server/integrations/clerk) — one per product-template app, each its
     // own Clerk instance (separate from this dashboard's own auth, configured

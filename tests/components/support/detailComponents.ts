@@ -27,6 +27,8 @@ import AppDetailProductAuthPanel from "../../../app/components/AppDetailProductA
 import PanelHead from "../../../app/components/PanelHead.vue";
 import AuthSignupsCard from "../../../app/components/AuthSignupsCard.vue";
 import AuthMethodsCard from "../../../app/components/AuthMethodsCard.vue";
+import DatabasePanelBody from "../../../app/components/DatabasePanelBody.vue";
+import DatabasePanel from "../../../app/components/DatabasePanel.vue";
 
 export const DETAIL_COMPONENTS = {
   MetricTile,
@@ -52,4 +54,6 @@ export const DETAIL_COMPONENTS = {
   PanelHead,
   AuthSignupsCard,
   AuthMethodsCard,
+  DatabasePanel,
+  DatabasePanelBody,
 };

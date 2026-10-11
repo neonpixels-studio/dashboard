@@ -22,6 +22,8 @@ import type * as schema from "../db/schema";
 import {
   integrationConfig,
   metricSnapshot,
+  neonBranch,
+  neonUsage,
   syncStatus,
   syndicationPost,
   trafficBreakdown,
@@ -32,6 +34,8 @@ export type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
 export type MetricSnapshotRow = InferSelectModel<typeof metricSnapshot>;
 export type TrafficBreakdownRow = InferSelectModel<typeof trafficBreakdown>;
 export type SyndicationPostRow = InferSelectModel<typeof syndicationPost>;
+export type NeonUsageRow = InferSelectModel<typeof neonUsage>;
+export type NeonBranchRow = InferSelectModel<typeof neonBranch>;
 export type SyncStatusRow = InferSelectModel<typeof syncStatus>;
 export type IntegrationConfigRow = InferSelectModel<typeof integrationConfig>;
 
@@ -323,5 +327,27 @@ export function fetchIntegrationConfigs(
       .select()
       .from(integrationConfig)
       .where(inArray(integrationConfig.slug, slugs)),
+  );
+}
+
+export function fetchNeonUsage(
+  db: DrizzleDb,
+  slugs: string[],
+): Promise<NeonUsageRow[]> {
+  return forSlugs(slugs, () =>
+    db.select().from(neonUsage).where(inArray(neonUsage.slug, slugs)),
+  );
+}
+
+export function fetchNeonBranches(
+  db: DrizzleDb,
+  slugs: string[],
+): Promise<NeonBranchRow[]> {
+  return forSlugs(slugs, () =>
+    db
+      .select()
+      .from(neonBranch)
+      .where(inArray(neonBranch.slug, slugs))
+      .orderBy(asc(neonBranch.name)),
   );
 }

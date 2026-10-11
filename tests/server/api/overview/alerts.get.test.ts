@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
+import { databasePanelFixture } from "../../../support/databasePanelFixture";
 
 const mockRequireUser = vi.fn();
 vi.mock("../../../../server/utils/auth", () => ({
@@ -13,13 +14,29 @@ vi.mock("../../../../server/integrations/persist", () => ({
   listSyncHealthRows: mockListSyncHealthRows,
 }));
 
+const mockFetchIntegrationConfigs = vi.fn();
+vi.mock("../../../../server/utils/dashboardQueries", () => ({
+  fetchIntegrationConfigs: mockFetchIntegrationConfigs,
+}));
+
+const mockFetchDatabasePanels = vi.fn();
+vi.mock("../../../../server/utils/databasePanels", () => ({
+  fetchDatabasePanels: mockFetchDatabasePanels,
+}));
+
 const { default: alertsHandler } =
   await import("../../../../server/api/overview/alerts.get");
+
+function neonConfigRow(slug: string, enabled: boolean) {
+  return { slug, vendor: "neon", enabled };
+}
 
 describe("GET /api/overview/alerts", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockListSyncHealthRows.mockResolvedValue([]);
+    mockFetchIntegrationConfigs.mockResolvedValue([]);
+    mockFetchDatabasePanels.mockResolvedValue([]);
   });
 
   it("requires auth before touching the database", async () => {
@@ -59,5 +76,40 @@ describe("GET /api/overview/alerts", () => {
       message: "stripe: 401",
       href: "/apps/basin",
     });
+  });
+
+  it("raises Neon alerts for properties whose Neon integration is enabled", async () => {
+    mockFetchIntegrationConfigs.mockResolvedValue([
+      neonConfigRow("basin", true),
+      neonConfigRow("markpost", false),
+    ]);
+    mockFetchDatabasePanels.mockResolvedValue([
+      databasePanelFixture({
+        alerts: [{ id: "branches", message: "Unexpected branch: agent-x" }],
+      }),
+    ]);
+
+    const result = await alertsHandler({} as H3Event);
+
+    expect(mockFetchDatabasePanels).toHaveBeenCalledWith({}, ["basin"]);
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "neon-branches:basin",
+        slug: "basin",
+        source: "neon",
+        message: "Unexpected branch: agent-x",
+        href: "/apps/basin",
+      }),
+    ]);
+  });
+
+  it("does not look up Neon usage for a disabled integration", async () => {
+    mockFetchIntegrationConfigs.mockResolvedValue([
+      neonConfigRow("basin", false),
+    ]);
+
+    await alertsHandler({} as H3Event);
+
+    expect(mockFetchDatabasePanels).toHaveBeenCalledWith({}, []);
   });
 });

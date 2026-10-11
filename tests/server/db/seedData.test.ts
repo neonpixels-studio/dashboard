@@ -7,7 +7,7 @@ import type {
 import { APPS, INTERNAL_APPS } from "../../../app/config/apps";
 import { buildIntegrationConfigSeed } from "../../../server/db/seedData";
 
-const PRODUCT_VENDORS = ["stripe", "clerk", "sentry"];
+const PRODUCT_VENDORS = ["stripe", "clerk", "sentry", "neon"];
 const WRITING_VENDORS = ["medium", "hashnode", "devto", "zyvop"];
 
 function vendorsForSlug(
@@ -49,7 +49,7 @@ describe("buildIntegrationConfigSeed", () => {
     expect(rows.every((row) => row.enabled === false)).toBe(true);
   });
 
-  it("gives a product app GA4 plus stripe/clerk/sentry, nothing else", () => {
+  it("gives a product app GA4 plus stripe/clerk/sentry/neon, nothing else", () => {
     const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
     expect(vendorsForSlug(rows, "fixture-product").sort()).toEqual(
       ["ga4", ...PRODUCT_VENDORS].sort(),
@@ -68,7 +68,7 @@ describe("buildIntegrationConfigSeed", () => {
     expect(vendorsForSlug(rows, "fixture-marketing")).toEqual(["ga4"]);
   });
 
-  it("gives an internal app a single disabled sentry row", () => {
+  it("gives an internal app disabled sentry and neon rows", () => {
     const internalApp: InternalApp = {
       name: "fixture-internal",
       slug: "fixture-internal",
@@ -77,6 +77,7 @@ describe("buildIntegrationConfigSeed", () => {
     const rows = buildIntegrationConfigSeed(FIXTURE_APPS, [internalApp]);
     expect(rows.filter((row) => row.slug === "fixture-internal")).toEqual([
       { slug: "fixture-internal", vendor: "sentry", enabled: false },
+      { slug: "fixture-internal", vendor: "neon", enabled: false },
     ]);
   });
 
@@ -92,7 +93,7 @@ describe("buildIntegrationConfigSeed", () => {
       }
     });
 
-    it("gives every product-template app stripe/clerk/sentry", () => {
+    it("gives every product-template app stripe/clerk/sentry/neon", () => {
       const rows = buildIntegrationConfigSeed(APPS);
       const productApps = APPS.filter((app) => app.template === "product");
       expect(productApps.length).toBeGreaterThan(0);
@@ -125,10 +126,10 @@ describe("buildIntegrationConfigSeed", () => {
       }
     });
 
-    it("gives every internal app a sentry row", () => {
+    it("gives every internal app a sentry and a neon row", () => {
       const rows = buildIntegrationConfigSeed(APPS, INTERNAL_APPS);
       for (const app of INTERNAL_APPS) {
-        expect(vendorsForSlug(rows, app.slug)).toEqual(["sentry"]);
+        expect(vendorsForSlug(rows, app.slug)).toEqual(["sentry", "neon"]);
       }
     });
 

@@ -9,11 +9,12 @@ type IntegrationVendor = (typeof integrationVendor.enumValues)[number];
 
 const GA4_VENDOR: IntegrationVendor = "ga4";
 const SENTRY_VENDOR: IntegrationVendor = "sentry";
+const NEON_VENDOR: IntegrationVendor = "neon";
 
 // Exhaustive over `AppTemplate` so a new template value fails to compile here
 // instead of silently falling through to "no vendors".
 const VENDORS_BY_TEMPLATE: Record<AppTemplate, IntegrationVendor[]> = {
-  product: ["stripe", "clerk", "sentry"],
+  product: ["stripe", "clerk", "sentry", "neon"],
   writing: ["medium", "hashnode", "devto", "zyvop"],
   marketing: [],
 };
@@ -30,9 +31,9 @@ export interface IntegrationConfigSeedRow {
  * console's actual property list.
  *
  * Every app gets a GA4 row (every property shows a "GA" pill). Product apps
- * additionally get Stripe/Clerk/Sentry and the writing app gets its
+ * additionally get Stripe/Clerk/Sentry/Neon and the writing app gets its
  * cross-posting targets. Internal apps (app/config/apps.ts's INTERNAL_APPS)
- * only report their own Sentry issues, so they get a single Sentry row. This
+ * report their own Sentry issues and Neon usage, so they get a Sentry and a Neon row. This
  * grouping is derived from `template`, not from
  * live integration health — `AppCard.integrations`/`IntegrationHealth`
  * (`shared/types/dashboard.ts`) reflect what's actually configured and
@@ -55,10 +56,12 @@ export function buildIntegrationConfigSeed(
       enabled: false,
     }));
   });
-  const internalRows = internalApps.map((app) => ({
-    slug: app.slug,
-    vendor: SENTRY_VENDOR,
-    enabled: false,
-  }));
+  const internalRows = internalApps.flatMap((app) =>
+    [SENTRY_VENDOR, NEON_VENDOR].map((vendor) => ({
+      slug: app.slug,
+      vendor,
+      enabled: false,
+    })),
+  );
   return [...propertyRows, ...internalRows];
 }
