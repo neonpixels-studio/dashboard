@@ -217,7 +217,12 @@ describe("AppDetailProduct", () => {
     const labels = wrapper
       .findAllComponents(SectionLabel)
       .map((node) => node.props("label"));
-    expect(labels).toEqual(["MONEY & HEALTH", "USERS & AUTH", "TRAFFIC"]);
+    expect(labels).toEqual([
+      "GITHUB",
+      "MONEY & HEALTH",
+      "USERS & AUTH",
+      "TRAFFIC",
+    ]);
   });
 
   describe("USERS & AUTH panel", () => {

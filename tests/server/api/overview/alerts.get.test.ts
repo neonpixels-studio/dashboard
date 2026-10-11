@@ -13,6 +13,11 @@ vi.mock("../../../../server/integrations/persist", () => ({
   listSyncHealthRows: mockListSyncHealthRows,
 }));
 
+const mockFetchFailingGithubRepos = vi.fn();
+vi.mock("../../../../server/utils/dashboardQueries", () => ({
+  fetchFailingGithubRepos: mockFetchFailingGithubRepos,
+}));
+
 const { default: alertsHandler } =
   await import("../../../../server/api/overview/alerts.get");
 
@@ -20,6 +25,8 @@ describe("GET /api/overview/alerts", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockListSyncHealthRows.mockResolvedValue([]);
+    mockFetchFailingGithubRepos.mockResolvedValue([]);
+    vi.stubEnv("NUXT_GITHUB_TOKEN", "github_pat_x");
   });
 
   it("requires auth before touching the database", async () => {
@@ -59,5 +66,74 @@ describe("GET /api/overview/alerts", () => {
       message: "stripe: 401",
       href: "/apps/basin",
     });
+  });
+
+  it("adds one alert per repo whose main is failing, newest first, naming the repo", async () => {
+    mockListSyncHealthRows.mockResolvedValue([
+      {
+        slug: "basin",
+        vendor: "stripe",
+        lastRunAt: new Date("2026-10-08T00:00:00Z"),
+        lastSuccessAt: new Date("2026-10-07T00:00:00Z"),
+        lastAttemptedAt: null,
+        ok: false,
+        error: "stripe: 401",
+      },
+    ]);
+    mockFetchFailingGithubRepos.mockResolvedValue([
+      {
+        slug: "markpost",
+        repo: "markpost-cli",
+        openIssues: 0,
+        openPrs: 0,
+        ciState: "failing",
+        ciSha: "abc123",
+        commitAt: new Date("2026-10-09T00:00:00Z"),
+        syncedAt: new Date("2026-10-10T00:00:00Z"),
+      },
+    ]);
+
+    const result = await alertsHandler({} as H3Event);
+
+    expect(result.map((alert) => alert.id)).toEqual([
+      "ci-failing:markpost:markpost-cli",
+      "sync-failed:basin:stripe",
+    ]);
+    expect(result[0]).toMatchObject({
+      slug: "markpost",
+      source: "github",
+      message: "CI failing on main (markpost-cli)",
+      href: "https://github.com/neonpixels-studio/markpost-cli/commit/abc123/checks",
+    });
+  });
+
+  it("raises no CI alert once the token is removed, even with a stale failing row", async () => {
+    vi.stubEnv("NUXT_GITHUB_TOKEN", "");
+    mockFetchFailingGithubRepos.mockResolvedValue([
+      {
+        slug: "basin",
+        repo: "basin",
+        ciState: "failing",
+        ciSha: "abc",
+        commitAt: new Date("2026-10-09T00:00:00Z"),
+      },
+    ]);
+
+    expect(await alertsHandler({} as H3Event)).toEqual([]);
+    expect(mockFetchFailingGithubRepos).not.toHaveBeenCalled();
+  });
+
+  it("ignores a failing row for a repo that left the property's mapping", async () => {
+    mockFetchFailingGithubRepos.mockResolvedValue([
+      {
+        slug: "markpost",
+        repo: "markpost-old",
+        ciState: "failing",
+        ciSha: "abc",
+        commitAt: new Date("2026-10-09T00:00:00Z"),
+      },
+    ]);
+
+    expect(await alertsHandler({} as H3Event)).toEqual([]);
   });
 });

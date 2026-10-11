@@ -3,6 +3,9 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   breakdownBatchStart,
+  fetchFailingGithubRepos,
+  fetchGithubItems,
+  fetchGithubRepoStatuses,
   fetchIntegrationConfigs,
   fetchLastAttemptedSyncAt,
   fetchLatestMetricCapturedAt,
@@ -15,7 +18,11 @@ import {
   seriesWindowStart,
   SERIES_WINDOW_DAYS,
 } from "../../../server/utils/dashboardQueries";
-import { metricSnapshot } from "../../../server/db/schema";
+import {
+  githubRepoStatus,
+  integrationConfig,
+  metricSnapshot,
+} from "../../../server/db/schema";
 
 type FakeDb = Parameters<typeof fetchMetricSnapshotSeries>[0];
 
@@ -409,5 +416,65 @@ describe("fetchSyndicationFetchedAtByExternalId", () => {
     await expect(
       fetchSyndicationFetchedAtByExternalId(db, "danholloran", "medium"),
     ).resolves.toEqual(new Map());
+  });
+});
+
+describe("fetchFailingGithubRepos", () => {
+  it("joins to an enabled github integration_config row and keeps only failing repos", async () => {
+    const rows = [{ slug: "markpost", repo: "markpost-cli" }];
+    const where = vi.fn().mockResolvedValue(rows);
+    const innerJoin = vi.fn().mockReturnValue({ where });
+    const from = vi.fn().mockReturnValue({ innerJoin });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const result = await fetchFailingGithubRepos({
+      select,
+    } as unknown as FakeDb);
+
+    expect(result).toBe(rows);
+    expect(from).toHaveBeenCalledWith(githubRepoStatus);
+    expect(innerJoin.mock.calls[0]![0]).toBe(integrationConfig);
+    expect(renderSqlCondition(innerJoin.mock.calls[0]![1])).toEqual({
+      sql: '("integration_config"."slug" = "github_repo_status"."slug" and "integration_config"."vendor"::text = $1)',
+      params: ["github"],
+    });
+    const condition = renderSqlCondition(where.mock.calls[0]![0]);
+    expect(condition.sql).toBe(
+      '("integration_config"."enabled" = $1 and "github_repo_status"."ci_state" = $2)',
+    );
+    expect(condition.params).toEqual([true, "failing"]);
+  });
+});
+
+describe("fetchGithubItems", () => {
+  it("scopes to the slug and orders newest activity first", async () => {
+    const { db, where, orderBy } = createOrderedFakeDb([]);
+
+    await fetchGithubItems(db, "markpost");
+
+    expect(renderSqlCondition(where.mock.calls[0]![0])).toEqual({
+      sql: '"github_item"."slug" = $1',
+      params: ["markpost"],
+    });
+    const orderSql = (orderBy.mock.calls[0] as SQL[]).map(
+      (clause) => renderSqlCondition(clause).sql,
+    );
+    expect(orderSql).toEqual([
+      '"github_item"."item_updated_at" desc',
+      '"github_item"."number" asc',
+    ]);
+  });
+});
+
+describe("fetchGithubRepoStatuses", () => {
+  it("scopes to the slug", async () => {
+    const { db, where } = createUnorderedFakeDb([]);
+
+    await fetchGithubRepoStatuses(db, "markpost");
+
+    expect(renderSqlCondition(where.mock.calls[0]![0])).toEqual({
+      sql: '"github_repo_status"."slug" = $1',
+      params: ["markpost"],
+    });
   });
 });

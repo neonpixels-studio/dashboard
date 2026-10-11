@@ -4,8 +4,12 @@ import { useDb } from "../../db";
 import { clerkDashboardUsersUrl } from "../../integrations/clerk/dashboardLink";
 import { ga4PropertyIdForApp } from "../../integrations/ga4/propertyId";
 import { integrationEnvironments } from "../../integrations/credentialEnvironment";
+import { buildGithubDetail } from "../../integrations/github/detail";
+import { readGithubToken } from "../../integrations/github/token";
 import { requireUser } from "../../utils/auth";
 import {
+  fetchGithubItems,
+  fetchGithubRepoStatuses,
   fetchIntegrationConfigs,
   fetchLatestMetricSnapshots,
   fetchLatestTrafficBreakdowns,
@@ -50,6 +54,8 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     syncRows,
     configRows,
     posts,
+    githubStatusRows,
+    githubItemRows,
   ] = await Promise.all([
     fetchLatestMetricSnapshots(db, [slug]),
     fetchMetricSnapshotSeries(db, [slug]),
@@ -57,6 +63,8 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     fetchSyncStatuses(db, [slug]),
     fetchIntegrationConfigs(db, [slug]),
     fetchSyndicationPosts(db, slug),
+    fetchGithubRepoStatuses(db, slug),
+    fetchGithubItems(db, slug),
   ]);
 
   const environments = integrationEnvironments(configRows);
@@ -79,5 +87,11 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     lastSyncedAt: latestSyncedAt(syncRows),
     clerkUsersUrl: clerkDashboardUsersUrl(configRows),
     ga4PropertyId: ga4PropertyIdForApp(configRows, slug),
+    github: buildGithubDetail(
+      slug,
+      githubStatusRows,
+      githubItemRows,
+      Boolean(readGithubToken()),
+    ),
   };
 });

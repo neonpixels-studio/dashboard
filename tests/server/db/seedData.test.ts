@@ -44,28 +44,42 @@ const FIXTURE_APPS: DashboardApp[] = [
 ];
 
 describe("buildIntegrationConfigSeed", () => {
-  it("seeds every row as disabled — no secret is configured yet", () => {
+  it("seeds every row as disabled except GitHub — no secret is configured yet", () => {
     const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
-    expect(rows.every((row) => row.enabled === false)).toBe(true);
+    const otherRows = rows.filter((row) => row.vendor !== "github");
+    expect(otherRows.length).toBeGreaterThan(0);
+    expect(otherRows.every((row) => row.enabled === false)).toBe(true);
+  });
+
+  it("seeds GitHub enabled for every app, since its shared token needs no per-row secret", () => {
+    const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
+    const githubRows = rows.filter((row) => row.vendor === "github");
+    expect(githubRows.map((row) => row.slug).sort()).toEqual(
+      FIXTURE_APPS.map((app) => app.slug).sort(),
+    );
+    expect(githubRows.every((row) => row.enabled)).toBe(true);
   });
 
   it("gives a product app GA4 plus stripe/clerk/sentry, nothing else", () => {
     const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
     expect(vendorsForSlug(rows, "fixture-product").sort()).toEqual(
-      ["ga4", ...PRODUCT_VENDORS].sort(),
+      ["ga4", "github", ...PRODUCT_VENDORS].sort(),
     );
   });
 
   it("gives a writing app GA4 plus medium/hashnode/devto/zyvop, nothing else", () => {
     const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
     expect(vendorsForSlug(rows, "fixture-writing").sort()).toEqual(
-      ["ga4", ...WRITING_VENDORS].sort(),
+      ["ga4", "github", ...WRITING_VENDORS].sort(),
     );
   });
 
-  it("gives a marketing app only GA4", () => {
+  it("gives a marketing app only GA4 and GitHub", () => {
     const rows = buildIntegrationConfigSeed(FIXTURE_APPS);
-    expect(vendorsForSlug(rows, "fixture-marketing")).toEqual(["ga4"]);
+    expect(vendorsForSlug(rows, "fixture-marketing").sort()).toEqual([
+      "ga4",
+      "github",
+    ]);
   });
 
   it("gives an internal app a single disabled sentry row", () => {
@@ -85,10 +99,11 @@ describe("buildIntegrationConfigSeed", () => {
   // pair-uniqueness rather than exact row counts, so adding another app of
   // an existing template doesn't make this brittle.
   describe("against the real apps.ts config", () => {
-    it("gives every current app a GA4 row", () => {
+    it("gives every current app a GA4 row and a GitHub row", () => {
       const rows = buildIntegrationConfigSeed(APPS);
       for (const app of APPS) {
         expect(vendorsForSlug(rows, app.slug)).toContain("ga4");
+        expect(vendorsForSlug(rows, app.slug)).toContain("github");
       }
     });
 
@@ -116,12 +131,15 @@ describe("buildIntegrationConfigSeed", () => {
       }
     });
 
-    it("gives every marketing-template app only GA4", () => {
+    it("gives every marketing-template app only GA4 and GitHub", () => {
       const rows = buildIntegrationConfigSeed(APPS);
       const marketingApps = APPS.filter((app) => app.template === "marketing");
       expect(marketingApps.length).toBeGreaterThan(0);
       for (const app of marketingApps) {
-        expect(vendorsForSlug(rows, app.slug)).toEqual(["ga4"]);
+        expect(vendorsForSlug(rows, app.slug).sort()).toEqual([
+          "ga4",
+          "github",
+        ]);
       }
     });
 

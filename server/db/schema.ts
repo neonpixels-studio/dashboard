@@ -45,6 +45,7 @@ export const integrationVendor = pgEnum("integration_vendor", [
   "hashnode",
   "devto",
   "zyvop",
+  "github",
 ]);
 
 export const syndicationStatus = pgEnum("syndication_status", [
@@ -275,5 +276,68 @@ export const syncStatus = pgTable(
   },
   (table) => [
     uniqueIndex("sync_status_slug_vendor_idx").on(table.slug, table.vendor),
+  ],
+);
+
+// One open GitHub issue or pull request. The GitHub provider replaces every
+// row for a (slug, repo) on each sync, so closed items disappear. `repo` is
+// the repository name under the studio org (markpost's page also holds
+// markpost-cli's items), and item numbers only collide across repos, hence
+// the unique key including it.
+export const githubItem = pgTable(
+  "github_item",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull(),
+    repo: text("repo").notNull(),
+    number: integer("number").notNull(),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    labels: text("labels")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    // GitHub's own updated_at: the item's last activity.
+    itemUpdatedAt: timestamp("item_updated_at", {
+      withTimezone: true,
+    }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("github_item_slug_repo_number_idx").on(
+      table.slug,
+      table.repo,
+      table.number,
+    ),
+    index("github_item_slug_item_updated_at_idx").on(
+      table.slug,
+      table.itemUpdatedAt.desc(),
+    ),
+    check("github_item_kind", sql`${table.kind} in ('issue', 'pr')`),
+  ],
+);
+
+// One row per (slug, repo), overwritten on every sync: open counts and the
+// rolled-up CI state of the latest commit on main. `ci_sha` links the checks
+// page.
+export const githubRepoStatus = pgTable(
+  "github_repo_status",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull(),
+    repo: text("repo").notNull(),
+    openIssues: integer("open_issues").notNull(),
+    openPrs: integer("open_prs").notNull(),
+    ciState: text("ci_state").notNull(),
+    ciSha: text("ci_sha").notNull(),
+    commitAt: timestamp("commit_at", { withTimezone: true }).notNull(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("github_repo_status_slug_repo_idx").on(table.slug, table.repo),
+    check(
+      "github_repo_status_ci_state",
+      sql`${table.ciState} in ('passing', 'failing', 'pending', 'none')`,
+    ),
   ],
 );

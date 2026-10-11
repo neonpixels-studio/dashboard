@@ -12,6 +12,7 @@ import {
   trafficBreakdown,
 } from "../db/schema";
 import type { DrizzleDb } from "../utils/dashboardQueries";
+import { buildGithubWrites } from "./github/persistence";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
 import type { SyncAlertRow } from "./staleVendorAlert";
 import type { IntegrationConfigRow, ProviderResult } from "./types";
@@ -234,6 +235,7 @@ export function persistProviderResult(
             }),
         ]
       : []),
+    ...buildGithubWrites(db, row.slug, result.github ?? []),
   ];
 
   if (!writes.length) {

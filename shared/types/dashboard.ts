@@ -177,4 +177,49 @@ export interface AppDetailResponse {
   // secret; the client validates it before building a link), or null when GA4
   // isn't enabled for it.
   ga4PropertyId: string | null;
+  github: GithubDetail;
+}
+
+// Rolled-up CI of a repo's latest commit on main. "none" means the commit has
+// neither workflow runs nor commit statuses, which is not the same as passing
+// and never alerts.
+export type GithubCiState = "passing" | "failing" | "pending" | "none";
+
+export type GithubItemKind = "issue" | "pr";
+
+// One repo behind a property (markpost's page covers markpost and
+// markpost-cli). `synced` is false until the first sync lands, when the
+// counts and CI state are null rather than a fabricated zero/passing.
+export interface GithubRepoSummary {
+  repo: string;
+  synced: boolean;
+  openIssues: number | null;
+  openPrs: number | null;
+  ciState: GithubCiState | null;
+  // That commit's checks page, or the repo's Actions page before any sync.
+  ciUrl: string;
+  repoUrl: string;
+}
+
+export interface GithubItem {
+  repo: string;
+  number: number;
+  kind: GithubItemKind;
+  title: string;
+  url: string;
+  labels: string[];
+  updatedAt: string;
+}
+
+// The GitHub section of GET /api/apps/[slug]. `configured` is false while
+// NUXT_GITHUB_TOKEN is unset, in which case the section renders "not
+// configured" instead of empty counts.
+export interface GithubDetail {
+  configured: boolean;
+  repos: GithubRepoSummary[];
+  // Where the Issues/PRs tiles link: the repo's own page for one repo, a
+  // search spanning every repo for several.
+  issuesUrl: string;
+  pullsUrl: string;
+  items: GithubItem[];
 }

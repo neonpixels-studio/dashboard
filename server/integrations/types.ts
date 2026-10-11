@@ -1,4 +1,5 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import type { GithubRepoSnapshot } from "./github/types";
 import {
   integrationConfig,
   metricSnapshot,
@@ -62,6 +63,10 @@ export interface ProviderResult {
   metrics: MetricSnapshotInput[];
   trafficBreakdown: TrafficBreakdownInput[];
   syndicationPosts: SyndicationPostInput[];
+  // Per-repo issues/PRs and main CI from the GitHub provider. Optional so the
+  // other providers don't each need an empty array for a table only one
+  // vendor writes; the persist step treats absent as nothing to write.
+  github?: GithubRepoSnapshot[];
   // True when the provider's own guard decided no real fetch was due this
   // tick (Medium's once-per-24h rate limit). The orchestrator then records
   // the run without overwriting the last real attempt's ok/error, so a

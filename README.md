@@ -230,6 +230,41 @@ sync is healthy and both Sentry counts exist; failing syncs still show
    `integration_config` row's `external_id` column, once set, overrides it
    per app.
 
+### GitHub
+
+Shows each property's open issues, open pull requests and the CI state of
+`main` on its detail page (`/apps/<slug>`), and raises an overview Alert when
+a repo's `main` is failing (linked to that commit's checks; it clears when
+`main` is green, and pending never alerts). A property's repo is
+`neonpixels-studio/<slug>`, except **markpost**, which also covers
+`markpost-cli`: counts are summed, each list item names its repo, and CI is
+failing if either `main` fails. That mapping lives in
+`server/integrations/github/repos.ts` (`reposForProperty`).
+
+- **Sync:** the `github` provider (`server/integrations/github`) runs in the
+  regular 15-minute sync from a `github` `integration_config` row per property
+  (seeded enabled by `npm run db:seed`, since it needs no per-row secret). It
+  replaces each repo's rows in `github_item` and overwrites its
+  `github_repo_status` on every run, so closed items disappear.
+- **CI** is read from Actions workflow runs on `main`'s head commit plus the
+  combined commit status (Netlify reports there), not the Checks API, which
+  fine-grained tokens cannot be granted. Runs with `event: "dynamic"`
+  (Dependabot's own update jobs) are ignored, and a commit with no statuses at
+  all is "no statuses" rather than pending.
+- **HTTP client:** `server/integrations/github/githubClient.ts` is a small
+  plain-`fetch` client (no Octokit), injectable for tests, with Link-header
+  pagination. Other GitHub features should reuse it.
+- **Token:** `NUXT_GITHUB_TOKEN`, a fine-grained personal access token at
+  <https://github.com/settings/personal-access-tokens/new> with the
+  `neonpixels-studio` org as resource owner and read-only access to the seven
+  repos (the six properties plus `markpost-cli`): **Actions**, **Commit
+  statuses**, **Issues**, **Pull requests** and **Metadata** (all read-only).
+  Store it with `npx dotenvx set NUXT_GITHUB_TOKEN "github_pat_..." -f
+.env.production` (and the other env files you want it in). It is declared in
+  `nuxt.config.ts` `runtimeConfig` and read through `readIntegrationEnv`. While
+  it is unset the page shows "GitHub is not configured" and the sync skips
+  without erroring.
+
 ### Blog platforms (danholloran.me cross-posting targets)
 
 Reads post counts + per-post cross-post status for the writing template

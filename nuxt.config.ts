@@ -148,6 +148,12 @@ export default defineNuxtConfig({
     mediumRapidapiKey: process.env.NUXT_MEDIUM_RAPIDAPI_KEY || "",
     mediumUsername: process.env.NUXT_MEDIUM_USERNAME || "",
     zyvopToken: process.env.NUXT_ZYVOP_TOKEN || "",
+    // The GitHub provider's read-only fine-grained token
+    // (server/integrations/github). Declared here so the deployed function
+    // sees it: readIntegrationEnv falls back to this baked-in value, since
+    // dotenvx only runs at build time. Unset means the GitHub section renders
+    // "not configured" and the sync skips.
+    githubToken: process.env.NUXT_GITHUB_TOKEN || "",
     public: {
       // Baked at build so sentry.client.config.ts can read it via
       // useRuntimeConfig().public.sentry.dsn. The DSN is not secret (it ships

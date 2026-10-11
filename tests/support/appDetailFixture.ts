@@ -19,6 +19,13 @@ export function appDetailFixture(
     lastSyncedAt: null,
     clerkUsersUrl: null,
     ga4PropertyId: null,
+    github: {
+      configured: false,
+      repos: [],
+      issuesUrl: "",
+      pullsUrl: "",
+      items: [],
+    },
     ...overrides,
   };
 }

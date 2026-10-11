@@ -17,6 +17,8 @@
 
     <MetricTileGrid :tiles="tiles" />
 
+    <GithubSection v-if="app.detail" :github="app.detail.github" />
+
     <div class="card syndication-panel">
       <div class="panel-head">
         <span class="panel-title">Syndication</span>

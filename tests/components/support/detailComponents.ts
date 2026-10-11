@@ -27,6 +27,9 @@ import AppDetailProductAuthPanel from "../../../app/components/AppDetailProductA
 import PanelHead from "../../../app/components/PanelHead.vue";
 import AuthSignupsCard from "../../../app/components/AuthSignupsCard.vue";
 import AuthMethodsCard from "../../../app/components/AuthMethodsCard.vue";
+import GithubSection from "../../../app/components/GithubSection.vue";
+import GithubTiles from "../../../app/components/GithubTiles.vue";
+import GithubItemList from "../../../app/components/GithubItemList.vue";
 
 export const DETAIL_COMPONENTS = {
   MetricTile,
@@ -52,4 +55,7 @@ export const DETAIL_COMPONENTS = {
   PanelHead,
   AuthSignupsCard,
   AuthMethodsCard,
+  GithubSection,
+  GithubTiles,
+  GithubItemList,
 };

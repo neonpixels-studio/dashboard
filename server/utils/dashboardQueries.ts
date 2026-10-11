@@ -10,16 +10,21 @@ import {
   asc,
   desc,
   eq,
+  getTableColumns,
   gte,
   inArray,
   isNotNull,
   max,
   or,
+  sql,
 } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/neon-http";
 import type * as schema from "../db/schema";
+import { GITHUB_VENDOR } from "../integrations/github/repos";
 import {
+  githubItem,
+  githubRepoStatus,
   integrationConfig,
   metricSnapshot,
   syncStatus,
@@ -32,6 +37,8 @@ export type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
 export type MetricSnapshotRow = InferSelectModel<typeof metricSnapshot>;
 export type TrafficBreakdownRow = InferSelectModel<typeof trafficBreakdown>;
 export type SyndicationPostRow = InferSelectModel<typeof syndicationPost>;
+export type GithubItemRow = InferSelectModel<typeof githubItem>;
+export type GithubRepoStatusRow = InferSelectModel<typeof githubRepoStatus>;
 export type SyncStatusRow = InferSelectModel<typeof syncStatus>;
 export type IntegrationConfigRow = InferSelectModel<typeof integrationConfig>;
 
@@ -324,4 +331,51 @@ export function fetchIntegrationConfigs(
       .from(integrationConfig)
       .where(inArray(integrationConfig.slug, slugs)),
   );
+}
+
+// Newest activity first.
+export function fetchGithubItems(
+  db: DrizzleDb,
+  slug: string,
+): Promise<GithubItemRow[]> {
+  return db
+    .select()
+    .from(githubItem)
+    .where(eq(githubItem.slug, slug))
+    .orderBy(desc(githubItem.itemUpdatedAt), asc(githubItem.number));
+}
+
+export function fetchGithubRepoStatuses(
+  db: DrizzleDb,
+  slug: string,
+): Promise<GithubRepoStatusRow[]> {
+  return db
+    .select()
+    .from(githubRepoStatus)
+    .where(eq(githubRepoStatus.slug, slug));
+}
+
+// Repos whose main is red, for the overview Alerts panel. Joined to an
+// enabled github integration_config row so disabling the integration clears
+// its alerts instead of leaving the last sync's failure behind (the enum side
+// is cast to text for the same reason as persist.ts's listSyncHealthRows).
+export function fetchFailingGithubRepos(
+  db: DrizzleDb,
+): Promise<GithubRepoStatusRow[]> {
+  return db
+    .select(getTableColumns(githubRepoStatus))
+    .from(githubRepoStatus)
+    .innerJoin(
+      integrationConfig,
+      and(
+        eq(integrationConfig.slug, githubRepoStatus.slug),
+        sql`${integrationConfig.vendor}::text = ${GITHUB_VENDOR}`,
+      ),
+    )
+    .where(
+      and(
+        eq(integrationConfig.enabled, true),
+        eq(githubRepoStatus.ciState, "failing"),
+      ),
+    );
 }
