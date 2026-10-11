@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   stripeAppDashboardUrl,
-  stripeDashboardBase,
+  stripeDashboardLink,
   stripeDetailForApp,
   stripeObjectUrl,
 } from "../../../server/utils/stripeDetailShaping";
@@ -60,69 +60,76 @@ function eventRow(overrides: Partial<StripeEventRow> = {}): StripeEventRow {
 }
 
 const LIVE_BASE = "https://dashboard.stripe.com";
+const liveLink = (path: string) => `${LIVE_BASE}${path}`;
 
-describe("stripeDashboardBase", () => {
+describe("stripeDashboardLink", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("uses the live dashboard for production keys and an unknown environment", () => {
-    expect(stripeDashboardBase("basin", "production")).toBe(LIVE_BASE);
-    expect(stripeDashboardBase("basin", null)).toBe(LIVE_BASE);
-  });
-
-  it("uses the test-mode dashboard for development keys", () => {
-    expect(stripeDashboardBase("basin", "development")).toBe(
-      `${LIVE_BASE}/test`,
+  it("links the live dashboard for production keys and an unknown environment", () => {
+    expect(stripeDashboardLink("basin", "production")("/products")).toBe(
+      `${LIVE_BASE}/products`,
+    );
+    expect(stripeDashboardLink("basin", null)("/products")).toBe(
+      `${LIVE_BASE}/products`,
     );
   });
 
-  it("pins the base to the app's own Stripe account", () => {
+  it("links the test-mode dashboard for development keys", () => {
+    expect(stripeDashboardLink("basin", "development")("/products")).toBe(
+      `${LIVE_BASE}/test/products`,
+    );
+  });
+
+  it("switches to the app's own Stripe account before opening the path", () => {
     vi.stubEnv("NUXT_STRIPE_ACCOUNT_ID_BASIN", "acct_basin");
     vi.stubEnv("NUXT_STRIPE_ACCOUNT_ID_MARKPOST", "acct_markpost");
 
-    expect(stripeDashboardBase("basin", "development")).toBe(
-      `${LIVE_BASE}/acct_basin/test`,
-    );
-    expect(stripeDashboardBase("markpost", "production")).toBe(
-      `${LIVE_BASE}/acct_markpost`,
+    expect(
+      stripeDashboardLink("basin", "development")("/products/prod_1"),
+    ).toBe(`${LIVE_BASE}/b/acct_basin?destination=%2Ftest%2Fproducts%2Fprod_1`);
+    expect(stripeDashboardLink("markpost", "production")("/products")).toBe(
+      `${LIVE_BASE}/b/acct_markpost?destination=%2Fproducts`,
     );
   });
 
-  it("omits the account segment when the app's value is blank", () => {
+  it("links the plain path when the app's account id is blank", () => {
     vi.stubEnv("NUXT_STRIPE_ACCOUNT_ID_BASIN", "   ");
 
-    expect(stripeDashboardBase("basin", "production")).toBe(LIVE_BASE);
+    expect(stripeDashboardLink("basin", "production")("/products")).toBe(
+      `${LIVE_BASE}/products`,
+    );
   });
 });
 
 describe("stripeObjectUrl", () => {
-  it("links subscriptions and invoices under the dashboard base", () => {
-    expect(stripeObjectUrl(LIVE_BASE, "sub_1")).toBe(
+  it("links subscriptions and invoices", () => {
+    expect(stripeObjectUrl(liveLink, "sub_1")).toBe(
       `${LIVE_BASE}/subscriptions/sub_1`,
     );
-    expect(stripeObjectUrl(LIVE_BASE, "in_1")).toBe(
+    expect(stripeObjectUrl(liveLink, "in_1")).toBe(
       `${LIVE_BASE}/invoices/in_1`,
     );
   });
 
   it("returns null for an object id it doesn't know how to link", () => {
-    expect(stripeObjectUrl(LIVE_BASE, "ch_1")).toBeNull();
+    expect(stripeObjectUrl(liveLink, "ch_1")).toBeNull();
   });
 });
 
 describe("stripeAppDashboardUrl", () => {
   it("links the single product page when the app has one product", () => {
-    expect(stripeAppDashboardUrl(LIVE_BASE, ["prod_pro"])).toBe(
+    expect(stripeAppDashboardUrl(liveLink, ["prod_pro"])).toBe(
       `${LIVE_BASE}/products/prod_pro`,
     );
   });
 
   it("links the product list when there are several products or none yet", () => {
-    expect(stripeAppDashboardUrl(LIVE_BASE, ["a", "b"])).toBe(
+    expect(stripeAppDashboardUrl(liveLink, ["a", "b"])).toBe(
       `${LIVE_BASE}/products`,
     );
-    expect(stripeAppDashboardUrl(LIVE_BASE, [])).toBe(`${LIVE_BASE}/products`);
+    expect(stripeAppDashboardUrl(liveLink, [])).toBe(`${LIVE_BASE}/products`);
   });
 });
 
@@ -206,10 +213,10 @@ describe("stripeDetailForApp", () => {
     );
 
     expect(detail?.dashboardUrl).toBe(
-      "https://dashboard.stripe.com/acct_basin/test/products/prod_pro",
+      "https://dashboard.stripe.com/b/acct_basin?destination=%2Ftest%2Fproducts%2Fprod_pro",
     );
     expect(detail?.events[0]?.url).toBe(
-      "https://dashboard.stripe.com/acct_basin/test/subscriptions/sub_1",
+      "https://dashboard.stripe.com/b/acct_basin?destination=%2Ftest%2Fsubscriptions%2Fsub_1",
     );
   });
 

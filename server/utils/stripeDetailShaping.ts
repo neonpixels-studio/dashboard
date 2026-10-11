@@ -25,44 +25,51 @@ const OBJECT_PATH_BY_PREFIX: Record<string, string> = {
   in_: "invoices",
 };
 
-// Each app has its own Stripe account. Without the acct_ segment Stripe opens
-// the link on whichever account the viewer last used, and the object is "not
-// found" on any other account.
-function stripeAccountUrl(slug: string): string {
+// Builds a full dashboard URL from a path like "/products/prod_1".
+type StripeDashboardLink = (path: string) => string;
+
+function stripeAccountId(slug: string): string | undefined {
   const accountId = readIntegrationEnv(
     `${STRIPE_ACCOUNT_ID_ENV_PREFIX}${slug.toUpperCase()}`,
   )?.trim();
-  if (!accountId) {
-    return STRIPE_DASHBOARD_URL;
-  }
-  return `${STRIPE_DASHBOARD_URL}/${accountId}`;
+  return accountId || undefined;
 }
 
-// Test-mode keys view the same account under /test. An unknown environment
-// (key without a recognizable prefix) falls back to the live dashboard.
-export function stripeDashboardBase(
+// Each app has its own Stripe account. A plain dashboard path opens on
+// whichever account the viewer last used ("not found" on any other), and so
+// does /<acct_id>/<path>. Stripe's /b/<acct_id>?destination=<path> switches
+// to the account first. Test-mode keys view the account under /test; an
+// unknown environment (key without a recognizable prefix) falls back to live.
+export function stripeDashboardLink(
   slug: string,
   environment: IntegrationEnvironment | null,
-): string {
-  const accountUrl = stripeAccountUrl(slug);
-  return environment === "development" ? `${accountUrl}/test` : accountUrl;
+): StripeDashboardLink {
+  const modePrefix = environment === "development" ? "/test" : "";
+  const accountId = stripeAccountId(slug);
+  return (path) => {
+    const destination = `${modePrefix}${path}`;
+    if (!accountId) {
+      return `${STRIPE_DASHBOARD_URL}${destination}`;
+    }
+    return `${STRIPE_DASHBOARD_URL}/b/${accountId}?destination=${encodeURIComponent(destination)}`;
+  };
 }
 
 // An app configured with one product links straight to its product page;
 // several (or none) link to the account's product list.
 export function stripeAppDashboardUrl(
-  dashboardBase: string,
+  dashboardLink: StripeDashboardLink,
   productIds: string[],
 ): string {
   const [onlyProductId] = productIds;
   if (productIds.length === 1 && onlyProductId) {
-    return `${dashboardBase}/products/${onlyProductId}`;
+    return dashboardLink(`/products/${onlyProductId}`);
   }
-  return `${dashboardBase}/products`;
+  return dashboardLink("/products");
 }
 
 export function stripeObjectUrl(
-  dashboardBase: string,
+  dashboardLink: StripeDashboardLink,
   objectId: string,
 ): string | null {
   const prefix = Object.keys(OBJECT_PATH_BY_PREFIX).find((candidate) =>
@@ -71,12 +78,12 @@ export function stripeObjectUrl(
   if (!prefix) {
     return null;
   }
-  return `${dashboardBase}/${OBJECT_PATH_BY_PREFIX[prefix]}/${objectId}`;
+  return dashboardLink(`/${OBJECT_PATH_BY_PREFIX[prefix]}/${objectId}`);
 }
 
 function toRecentEvent(
   row: StripeEventRow,
-  dashboardBase: string,
+  dashboardLink: StripeDashboardLink,
 ): StripeRecentEvent {
   return {
     id: row.eventId,
@@ -86,7 +93,7 @@ function toRecentEvent(
     plan: row.planName,
     amount:
       row.amountCents === null ? null : row.amountCents / CENTS_PER_DOLLAR,
-    url: stripeObjectUrl(dashboardBase, row.objectId),
+    url: stripeObjectUrl(dashboardLink, row.objectId),
   };
 }
 
@@ -110,11 +117,11 @@ export function stripeDetailForApp(
   if (!stripeConfig) {
     return null;
   }
-  const dashboardBase = stripeDashboardBase(slug, environment);
+  const dashboardLink = stripeDashboardLink(slug, environment);
   return {
     environment,
     dashboardUrl: stripeAppDashboardUrl(
-      dashboardBase,
+      dashboardLink,
       configuredProductIds(stripeConfig),
     ),
     plans: planRows.map((row) => ({
@@ -123,6 +130,6 @@ export function stripeDetailForApp(
       monthlyRevenue: row.monthlyRevenue,
       subscribers: row.subscribers,
     })),
-    events: eventRows.map((row) => toRecentEvent(row, dashboardBase)),
+    events: eventRows.map((row) => toRecentEvent(row, dashboardLink)),
   };
 }
