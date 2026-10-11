@@ -52,10 +52,11 @@ function buildIssueSearchUrl(
   const url = new URL(
     `${SENTRY_API_BASE_URL}/projects/${encodeURIComponent(orgSlug)}/${encodeURIComponent(projectSlug)}/issues/`,
   );
-  for (const [name, value] of Object.entries(params)) {
-    if (value) {
-      url.searchParams.set(name, value);
-    }
+  const definedParams = Object.entries(params).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined,
+  );
+  for (const [name, value] of definedParams) {
+    url.searchParams.set(name, value);
   }
   return url;
 }

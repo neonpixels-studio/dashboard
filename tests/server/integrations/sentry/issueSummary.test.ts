@@ -87,6 +87,10 @@ describe("toSentryIssueSummary", () => {
     ["missing title", { ...RAW_ISSUE, title: undefined }, '"title"'],
     ["missing id", { ...RAW_ISSUE, id: 4 }, '"id"'],
     ["non-numeric count", { ...RAW_ISSUE, count: "many" }, '"count"'],
+    ["partly numeric count", { ...RAW_ISSUE, count: "41abc" }, '"count"'],
+    ["fractional count", { ...RAW_ISSUE, count: "1.5" }, '"count"'],
+    ["blank count", { ...RAW_ISSUE, count: " " }, '"count"'],
+    ["negative userCount", { ...RAW_ISSUE, userCount: -1 }, '"userCount"'],
     [
       "missing userCount",
       { ...RAW_ISSUE, userCount: undefined },

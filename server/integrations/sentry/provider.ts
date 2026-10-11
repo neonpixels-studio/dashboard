@@ -15,7 +15,7 @@ import { countAllSentryIssues } from "./issueCounts";
 import type { SearchSentryIssues } from "./types";
 import { readIntegrationEnv } from "../integrationEnv";
 
-const SENTRY_VENDOR = "sentry";
+export const SENTRY_VENDOR = "sentry";
 // Sentry's own search query syntax — see mapping.ts's sentryStatusChip for
 // why fatal is tracked as its own count rather than derived from a single
 // broader query.

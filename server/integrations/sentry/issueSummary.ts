@@ -9,7 +9,6 @@ const SENTRY_WEB_BASE_URL = "https://sentry.io";
 const MS_PER_SECOND = 1_000;
 const HTTPS_PROTOCOL = "https:";
 const SENTRY_HOST = "sentry.io";
-const DECIMAL_RADIX = 10;
 
 type RawRecord = Record<string, unknown>;
 
@@ -25,12 +24,13 @@ function requireString(raw: RawRecord, field: string): string {
   return value;
 }
 
-// Sentry sends `count` as a numeric string and `userCount` as a number.
+// Sentry sends `count` as a numeric string and `userCount` as a number. A
+// string is parsed strictly (Number, not parseInt) so "41abc" is rejected.
 function requireCount(raw: RawRecord, field: string): number {
   const value = raw[field];
   const parsed =
-    typeof value === "string" ? Number.parseInt(value, DECIMAL_RADIX) : value;
-  if (typeof parsed !== "number" || !Number.isFinite(parsed)) {
+    typeof value === "string" && value.trim() ? Number(value) : value;
+  if (typeof parsed !== "number" || !Number.isInteger(parsed) || parsed < 0) {
     throw new Error(`Sentry issue has a non-numeric "${field}" field.`);
   }
   return parsed;

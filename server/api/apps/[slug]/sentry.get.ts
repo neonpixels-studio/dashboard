@@ -4,12 +4,11 @@ import { useDb } from "../../../db";
 import { resolveIntegrationConfig } from "../../../integrations/config";
 import { readIntegrationEnv } from "../../../integrations/integrationEnv";
 import { createSentryTopIssuesFetcher } from "../../../integrations/sentry/sentryClient";
+import { SENTRY_VENDOR } from "../../../integrations/sentry/provider";
 import { fetchSentryPanelData } from "../../../integrations/sentry/panelData";
 import { requireUser } from "../../../utils/auth";
 import { fetchIntegrationConfigs } from "../../../utils/dashboardQueries";
 import type { SentryPanelResponse } from "../../../../shared/types/dashboard";
-
-const SENTRY_VENDOR = "sentry";
 
 function notConfigured() {
   return createError({

@@ -115,6 +115,17 @@ describe("GET /api/apps/[slug]/sentry", () => {
     });
   });
 
+  it("lets a Sentry failure surface as a server error, not a 404", async () => {
+    mockFetchSentryPanelData.mockRejectedValue(new Error("Sentry down"));
+
+    const failure = await sentryHandler(makeEvent("basin")).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toEqual(new Error("Sentry down"));
+    expect(failure).not.toHaveProperty("statusCode", 404);
+  });
+
   it("returns the live panel data using the resolved token and org", async () => {
     const result = await sentryHandler(makeEvent("basin"));
 
