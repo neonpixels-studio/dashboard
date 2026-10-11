@@ -1,9 +1,12 @@
 import { createClerkClient } from "@clerk/backend";
-import type { ClerkClient } from "@clerk/backend";
+import type { ClerkClient, User } from "@clerk/backend";
 import type {
   ClerkUserCountRequest,
   ClerkUserCountResponse,
+  ClerkUserScan,
+  ClerkUserSummary,
   GetClerkUserCount,
+  ScanClerkUsers,
 } from "./types";
 
 // The new-users delta only needs the user-list endpoint's `totalCount`, not
@@ -67,5 +70,111 @@ export function createClerkUserCountGetter(
       return fetchNewUserCount(clerkClient, request.createdAtAfter);
     }
     return fetchTotalUserCount(clerkClient);
+  };
+}
+
+// Clerk's maximum page size for the user-list endpoint.
+const USER_SCAN_PAGE_SIZE = 500;
+// Hard ceiling on pages per sync (5,000 users at 500/page). A bigger
+// instance stops early and reports an incomplete scan, which mapping.ts
+// turns into omitted metrics rather than numbers extrapolated from a sample.
+const USER_SCAN_MAX_PAGES = 10;
+const VERIFIED_STATUS = "verified";
+const PASSWORD_METHOD = "password";
+const PASSWORDLESS_METHOD = "passwordless";
+const SSO_METHOD = "sso";
+const WEB3_METHOD = "web3";
+const OAUTH_PROVIDER_PREFIX = "oauth_";
+
+function hasVerifiedEmail(user: User): boolean {
+  return user.emailAddresses.some(
+    (emailAddress) => emailAddress.verification?.status === VERIFIED_STATUS,
+  );
+}
+
+/**
+ * One method per user so the split sums to the user total: the first linked
+ * social provider if any (`oauth_github` and `github` both normalize to
+ * `github`), else enterprise SSO, web3 wallet, password, else passwordless (email code, passkey, ...) —
+ * Clerk's user object can't tell those apart from each other.
+ */
+export function classifySignInMethod(user: User): string {
+  // Only a verified link counts: an abandoned OAuth attempt is not how the
+  // user signs in.
+  const provider = user.externalAccounts.find(
+    (account) => account.verification?.status === VERIFIED_STATUS,
+  )?.provider;
+  if (provider) {
+    return provider.startsWith(OAUTH_PROVIDER_PREFIX)
+      ? provider.slice(OAUTH_PROVIDER_PREFIX.length)
+      : provider;
+  }
+  if (user.enterpriseAccounts.length > 0) {
+    return SSO_METHOD;
+  }
+  if (user.web3Wallets.length > 0) {
+    return WEB3_METHOD;
+  }
+  return user.passwordEnabled ? PASSWORD_METHOD : PASSWORDLESS_METHOD;
+}
+
+export function summarizeClerkUser(user: User): ClerkUserSummary {
+  return {
+    createdAt: user.createdAt,
+    lastActiveAt: user.lastActiveAt,
+    hasVerifiedEmail: hasVerifiedEmail(user),
+    signInMethod: classifySignInMethod(user),
+  };
+}
+
+async function fetchUserPage(clerkClient: ClerkUsersClient, page: number) {
+  return clerkClient.users.getUserList({
+    limit: USER_SCAN_PAGE_SIZE,
+    offset: page * USER_SCAN_PAGE_SIZE,
+    orderBy: "+created_at",
+  });
+}
+
+function isScanFinished(
+  scannedCount: number,
+  response: { data: unknown[]; totalCount: number },
+): boolean {
+  return (
+    scannedCount >= response.totalCount ||
+    response.data.length === 0 ||
+    // Over the cap: no later page can make the scan complete, so stop
+    // spending Clerk rate-limit budget on rows that will be discarded.
+    response.totalCount > USER_SCAN_PAGE_SIZE * USER_SCAN_MAX_PAGES
+  );
+}
+
+/**
+ * Builds the real, network-touching `ScanClerkUsers`: pages through the
+ * user list (up to USER_SCAN_MAX_PAGES) and reduces every row to a
+ * PII-free summary. Same injectable-client seam as
+ * createClerkUserCountGetter.
+ *
+ * `consistent` only breaks when the total SHRINKS between pages: ordered by
+ * created_at, a mid-scan signup lands after every row already read (harmless),
+ * while a deletion shifts later rows left and skips a live user.
+ */
+export function createClerkUserScanner(
+  secretKey: string,
+  clerkClient: ClerkUsersClient = createClerkClient({ secretKey }),
+): ScanClerkUsers {
+  return async (): Promise<ClerkUserScan> => {
+    const users: ClerkUserSummary[] = [];
+    let totalCount = 0;
+    let consistent = true;
+    for (let page = 0; page < USER_SCAN_MAX_PAGES; page += 1) {
+      const response = await fetchUserPage(clerkClient, page);
+      consistent = consistent && response.totalCount >= totalCount;
+      totalCount = response.totalCount;
+      users.push(...response.data.map(summarizeClerkUser));
+      if (isScanFinished(users.length, response)) {
+        break;
+      }
+    }
+    return { users, totalCount, consistent };
   };
 }

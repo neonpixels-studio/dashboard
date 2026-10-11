@@ -5,6 +5,7 @@ import MetricTileSkeleton from "../../app/components/MetricTileSkeleton.vue";
 import DataErrorState from "../../app/components/DataErrorState.vue";
 import AppAlert from "../../app/components/AppAlert.vue";
 import SectionLabel from "../../app/components/SectionLabel.vue";
+import AppDetailProductAuthPanel from "../../app/components/AppDetailProductAuthPanel.vue";
 import BarMeter from "../../app/components/BarMeter.vue";
 import TrafficPanel from "../../app/components/TrafficPanel.vue";
 import SourcesFooter from "../../app/components/SourcesFooter.vue";
@@ -209,17 +210,137 @@ describe("AppDetailProduct", () => {
     ]);
   });
 
-  it("still renders the un-wired Stripe/Sentry/auth panels (no dedicated endpoint yet — see PR follow-up)", () => {
+  it("still renders the un-wired Stripe/Sentry panels (no dedicated endpoint yet — see PR follow-up)", () => {
     const wrapper = mountDetail({ detail: LOADED_DETAIL });
     expect(wrapper.findAll(".transaction")).toHaveLength(4);
     expect(wrapper.findAll(".issue")).toHaveLength(3);
-    const bars = wrapper.findAllComponents(BarMeter);
-    expect(bars).toHaveLength(6);
-    expect(bars.every((bar) => bar.props("color") === app.accent)).toBe(true);
     const labels = wrapper
       .findAllComponents(SectionLabel)
       .map((node) => node.props("label"));
     expect(labels).toEqual(["MONEY & HEALTH", "USERS & AUTH", "TRAFFIC"]);
+  });
+
+  describe("USERS & AUTH panel", () => {
+    const SYNC = "2026-09-19T00:00:00.000Z";
+    const AUTH_DETAIL = appDetailFixture({
+      metrics: [
+        { metric: "users", period: "current", value: 1204, capturedAt: SYNC },
+        { metric: "new_users", period: "30d", value: 38, capturedAt: SYNC },
+        {
+          metric: "verified_users",
+          period: "current",
+          value: 1147,
+          capturedAt: SYNC,
+        },
+        { metric: "active_users", period: "7d", value: 418, capturedAt: SYNC },
+        {
+          metric: "auth_method:github",
+          period: "current",
+          value: 3,
+          capturedAt: SYNC,
+        },
+        {
+          metric: "auth_method:google",
+          period: "current",
+          value: 1,
+          capturedAt: SYNC,
+        },
+      ],
+      series: [
+        {
+          metric: "signups",
+          period: "daily",
+          points: [
+            { capturedAt: "2026-09-17T00:00:00.000Z", value: 2 },
+            { capturedAt: "2026-09-18T00:00:00.000Z", value: 31 },
+            { capturedAt: "2026-09-19T00:00:00.000Z", value: 5 },
+          ],
+        },
+      ],
+      sources: [
+        {
+          vendor: "clerk",
+          environment: "development",
+          ok: true,
+          lastRunAt: SYNC,
+          lastSuccessAt: SYNC,
+          error: null,
+        },
+      ],
+      clerkUsersUrl: "https://dashboard.clerk.com/~/users",
+    });
+
+    function authPanel(detail: AppDetailResponse) {
+      return mountDetail({ detail }).findComponent(AppDetailProductAuthPanel);
+    }
+
+    it("renders live Clerk figures and no sample-data label or hardcoded sample values", () => {
+      const panel = authPanel(AUTH_DETAIL);
+      const text = panel.text();
+
+      expect(panel.find(".sample-chip").exists()).toBe(false);
+      expect(text).not.toContain("SAMPLE DATA");
+      expect(text).toContain("1,204");
+      expect(text).toContain("+38 in 30d");
+      expect(text).toContain("1,147");
+      expect(text).toContain("418");
+      expect(text).toContain("31 signups");
+      expect(text).not.toContain("Failed sign-ins");
+      const bars = panel.findAllComponents(BarMeter);
+      expect(bars.map((bar) => bar.props("label"))).toEqual([
+        "GitHub",
+        "Google",
+      ]);
+      expect(bars.map((bar) => bar.props("pctLabel"))).toEqual(["75%", "25%"]);
+      expect(bars.every((bar) => bar.props("color") === app.accent)).toBe(true);
+    });
+
+    it("matches its live-data snapshot", () => {
+      expect(authPanel(AUTH_DETAIL).html()).toMatchSnapshot();
+    });
+
+    it("tags the section development for a development Clerk key and links to Clerk", () => {
+      const panel = authPanel(AUTH_DETAIL);
+
+      expect(panel.find(".env-chip").text()).toBe("development");
+      const link = panel.find("a.clerk-link");
+      expect(link.attributes("href")).toBe(
+        "https://dashboard.clerk.com/~/users",
+      );
+      expect(link.attributes("rel")).toContain("noopener");
+    });
+
+    it("shows no development tag for a production key, and no link without a clerk integration", () => {
+      const panel = authPanel({
+        ...AUTH_DETAIL,
+        sources: [{ ...AUTH_DETAIL.sources[0]!, environment: "production" }],
+        clerkUsersUrl: null,
+      });
+
+      expect(panel.find(".env-chip").exists()).toBe(false);
+      expect(panel.find("a.clerk-link").exists()).toBe(false);
+    });
+
+    it("omits cards and rows it cannot derive instead of faking them", () => {
+      const panel = authPanel(
+        appDetailFixture({ metrics: [AUTH_DETAIL.metrics[0]!] }),
+      );
+      const text = panel.text();
+
+      expect(text).toContain("1,204");
+      expect(text).not.toContain("Verified email");
+      expect(text).not.toContain("Active last 7d");
+      expect(text).not.toContain("Converted to paid");
+      expect(text).not.toContain("Signups");
+      expect(text).not.toContain("Sign-in method");
+    });
+
+    it("shows an honest not-synced message when Clerk has not synced", () => {
+      const panel = authPanel(appDetailFixture());
+
+      expect(panel.text()).toContain("hasn't synced yet");
+      expect(panel.find(".card").exists()).toBe(false);
+    });
   });
 
   it("matches its tile-grid snapshot", () => {

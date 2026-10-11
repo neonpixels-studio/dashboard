@@ -177,10 +177,15 @@ scoped per property by product ID — see
 
 ### Per-app Clerk
 
-Reports total user count (`users`, current) and a new-signups delta over the
-trailing 30 days (`new_users`, `30d`) for each product-template app's own
-Clerk instance — separate from this dashboard's own Clerk app configured
-above — see `server/integrations/clerk/provider.ts`. Unlike Stripe/GA4's one
+Reports, for each product-template app's own Clerk instance (separate from
+this dashboard's own Clerk app configured above — see
+`server/integrations/clerk/provider.ts`): total users (`users`, current), a
+new-signups delta over the trailing 30 days (`new_users`, `30d`), and — from
+a paged scan of the user list (up to 5,000 users) — `verified_users`,
+`active_users` (`7d`), 30 daily `signups` rows, and one `auth_method:<method>`
+count per primary sign-in method. These feed the USERS & AUTH panel. If the
+instance has more users than the scan cap, the scan-derived metrics are
+omitted for that sync (never extrapolated). Unlike Stripe/GA4's one
 shared studio-wide credential, each app has its own Clerk instance, so
 there's no shared default: the secret key itself is what identifies which
 app's data is being read, and an app with no secret configured anywhere
@@ -191,6 +196,12 @@ simply produces no rows (not a zeroed metric, not a thrown error).
 2. An `integration_config` row (`vendor: "clerk"`) with `secret_ref` pointing
    at that var is what actually resolves the key into `config.secret` at
    sync time (`server/integrations/config.ts`'s `resolveSecret`).
+3. Optional: set that row's `external_id` to `app_xxx/ins_xxx` (the two ids
+   in the instance's Clerk dashboard URL) so the panel's "View users in
+   Clerk" link opens that exact instance. Without it the link falls back to
+   Clerk's last-active-instance Users shortcut. The Backend API exposes
+   neither id, so they can't be derived from the secret key. A key's
+   `sk_test_` prefix tags the panel `development`.
 
 ### Sentry
 

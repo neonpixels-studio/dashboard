@@ -1,6 +1,7 @@
 import { getRouterParam } from "h3";
 import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
+import { clerkDashboardUsersUrl } from "../../integrations/clerk/dashboardLink";
 import { ga4PropertyIdForApp } from "../../integrations/ga4/propertyId";
 import { integrationEnvironments } from "../../integrations/credentialEnvironment";
 import { requireUser } from "../../utils/auth";
@@ -76,6 +77,7 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
       environments,
     ),
     lastSyncedAt: latestSyncedAt(syncRows),
+    clerkUsersUrl: clerkDashboardUsersUrl(configRows),
     ga4PropertyId: ga4PropertyIdForApp(configRows, slug),
   };
 });

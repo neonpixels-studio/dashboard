@@ -24,6 +24,9 @@ import SyndicationPostMatrix from "../../../app/components/SyndicationPostMatrix
 import PropertySessionsChart from "../../../app/components/PropertySessionsChart.vue";
 import AppDetailProductMoneyHealthPanel from "../../../app/components/AppDetailProductMoneyHealthPanel.vue";
 import AppDetailProductAuthPanel from "../../../app/components/AppDetailProductAuthPanel.vue";
+import PanelHead from "../../../app/components/PanelHead.vue";
+import AuthSignupsCard from "../../../app/components/AuthSignupsCard.vue";
+import AuthMethodsCard from "../../../app/components/AuthMethodsCard.vue";
 
 export const DETAIL_COMPONENTS = {
   MetricTile,
@@ -46,4 +49,7 @@ export const DETAIL_COMPONENTS = {
   PropertySessionsChart,
   AppDetailProductMoneyHealthPanel,
   AppDetailProductAuthPanel,
+  PanelHead,
+  AuthSignupsCard,
+  AuthMethodsCard,
 };

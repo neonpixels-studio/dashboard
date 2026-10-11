@@ -16,6 +16,14 @@ export const METRIC_USERS = "users";
 // window — not in the schema's own "e.g." list, but follows that list's
 // snake_case convention (mirrors active_subscribers).
 export const METRIC_NEW_USERS = "new_users";
+// Clerk-scan-derived auth metrics (server/integrations/clerk/provider.ts).
+// `verified_users` / `active_users` are counts; `signups` is one row per
+// UTC day (PERIOD_DAILY); `auth_method:<method>` is the user count whose
+// primary sign-in method is <method> (github, google, password, ...).
+export const METRIC_VERIFIED_USERS = "verified_users";
+export const METRIC_ACTIVE_USERS = "active_users";
+export const METRIC_SIGNUPS = "signups";
+export const METRIC_AUTH_METHOD_PREFIX = "auth_method:";
 // Post count for a blog-syndication platform (Hashnode/DEV.to/Medium) — see
 // server/integrations/syndication. One row per (slug, vendor) here, same as
 // every other metric; a studio-wide/cross-platform rollup (the writing
@@ -32,6 +40,7 @@ export const METRIC_VIEWS = "views";
 // both.
 export const PERIOD_CURRENT = "current";
 export const PERIOD_30D = "30d";
+export const PERIOD_7D = "7d";
 // One row per calendar day (as opposed to PERIOD_30D's single rolling-window
 // total) — server/integrations/ga4/provider.ts backfills the last 30 days of
 // this on every sync so a sparkline has data immediately, rather than

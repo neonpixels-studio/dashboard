@@ -165,6 +165,9 @@ export interface AppDetailResponse {
   // only way the detail page can tell "not configured" from "not synced".
   integrations: IntegrationHealth[];
   lastSyncedAt: string | null;
+  // The Users page of the app's Clerk dashboard; null when the app has no
+  // enabled Clerk integration (see server/integrations/clerk/dashboardLink.ts).
+  clerkUsersUrl: string | null;
   // The GA4 property id behind this app's traffic panels as configured (not a
   // secret; the client validates it before building a link), or null when GA4
   // isn't enabled for it.
