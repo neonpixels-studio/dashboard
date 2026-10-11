@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 
 const mockRequireUser = vi.fn();
@@ -26,6 +26,11 @@ describe("GET /api/overview/alerts", () => {
     vi.resetAllMocks();
     mockListSyncHealthRows.mockResolvedValue([]);
     mockFetchDeployStatuses.mockResolvedValue([]);
+    vi.stubEnv("NUXT_NETLIFY_TOKEN", "nfp_test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("requires auth before touching the database", async () => {
@@ -105,5 +110,21 @@ describe("GET /api/overview/alerts", () => {
     ]);
 
     expect(await alertsHandler({} as H3Event)).toEqual([]);
+  });
+
+  it("drops deploy alerts when the token is no longer configured, matching the detail tile", async () => {
+    vi.stubEnv("NUXT_NETLIFY_TOKEN", "");
+    mockFetchDeployStatuses.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        deployId: "abc123",
+        state: "error",
+        finishedAt: new Date("2026-10-10T12:00:00Z"),
+      },
+    ]);
+
+    expect(await alertsHandler({} as H3Event)).toEqual([]);
+    expect(mockFetchDeployStatuses).not.toHaveBeenCalled();
   });
 });

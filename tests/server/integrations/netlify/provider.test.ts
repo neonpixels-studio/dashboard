@@ -112,7 +112,7 @@ describe("netlifyProvider", () => {
     ]);
   });
 
-  it("prefers a resolved config.secret over the env var", async () => {
+  it("uses the env token even when the config row carries a secret, matching what the detail API treats as configured", async () => {
     vi.stubEnv("NUXT_NETLIFY_TOKEN", "nfp_env");
     const fetchStub = vi.fn(async () => new Response("[]"));
     vi.stubGlobal("fetch", fetchStub);
@@ -126,7 +126,22 @@ describe("netlifyProvider", () => {
     );
 
     const [, init] = fetchStub.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(init.headers).toEqual({ Authorization: "Bearer nfp_row" });
+    expect(init.headers).toEqual({ Authorization: "Bearer nfp_env" });
+  });
+
+  it("skips when only the config row carries a secret", async () => {
+    vi.stubEnv("NUXT_NETLIFY_TOKEN", "");
+    vi.stubGlobal("fetch", vi.fn());
+
+    const result = await netlifyProvider.fetch(
+      createTestIntegrationConfig({
+        slug: "basin",
+        vendor: "netlify",
+        secret: "nfp_row",
+      }),
+    );
+
+    expect(result.skipped).toBe(true);
   });
 
   it("threads the shared deadline into the client", async () => {

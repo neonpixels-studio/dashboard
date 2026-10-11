@@ -237,4 +237,14 @@ describe("buildOverviewAlerts", () => {
 
     expect(alerts.map((alert) => alert.source)).toEqual(["netlify", "stripe"]);
   });
+
+  it("sorts a deploy alert with no time after timed alerts", () => {
+    const alerts = buildOverviewAlerts(
+      [row({ ok: false, error: "boom", lastAttemptedAt: hoursAgo(5) })],
+      [deployRow({ finishedAt: null })],
+      NOW,
+    );
+
+    expect(alerts.map((alert) => alert.source)).toEqual(["stripe", "netlify"]);
+  });
 });

@@ -64,7 +64,9 @@ export const netlifyProvider: IntegrationProvider = {
     config: IntegrationConfig,
     deadline: FetchDeadline = NO_DEADLINE,
   ): Promise<ProviderResult> {
-    const token = config.secret ?? readNetlifyToken();
+    // Env token only, never config.secret: the detail API decides "not
+    // configured" from this same readNetlifyToken(), so the two can't disagree.
+    const token = readNetlifyToken();
     // No token yet is a normal, expected state (the detail page shows "not
     // configured"), so skip rather than fail: a skipped run is recorded
     // without raising a sync-failed alert.
