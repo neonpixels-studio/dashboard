@@ -257,6 +257,7 @@ describe("buildDatabasePanel when the stored period has ended", () => {
     );
 
     expect(panel.compute.projectedCuHours).toBeNull();
+    expect(panel.compute.periodEnded).toBe(true);
     expect(panel.alerts).toEqual([]);
   });
 

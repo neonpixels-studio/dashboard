@@ -1,8 +1,9 @@
 // Neon free-plan allowances and the alert rules measured against them. Kept
 // in one place so a plan change (or a move off the free plan) is a one-file
 // edit. Source: https://neon.com/docs/introduction/plans (Free plan, checked
-// October 10th, 2026): 100 CU-hours of compute per project per month, 1 GB of
-// storage per project, 5 GB of public network transfer per project per month.
+// October 10th, 2026): 100 CU-hours of compute per project per month and 1 GB
+// of storage per project. Storage was 0.5 GB until Neon doubled it on
+// October 1st, 2026, and many third-party pages still print the old figure.
 // Neon counts storage in binary units, hence GiB.
 export const SECONDS_PER_HOUR = 3_600;
 export const BYTES_PER_GIB = 1_024 ** 3;

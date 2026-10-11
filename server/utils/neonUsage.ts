@@ -142,6 +142,7 @@ export function buildDatabasePanel(
       usedCuHours,
       allowanceCuHours: NEON_FREE_PLAN_COMPUTE_CU_HOURS,
       projectedCuHours,
+      periodEnded: !periodIsCurrent,
     },
     storage: {
       usedBytes: usage.storageBytes,

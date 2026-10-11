@@ -14,6 +14,7 @@ export function databasePanelFixture(
       usedCuHours: 24,
       allowanceCuHours: 100,
       projectedCuHours: 61.5,
+      periodEnded: false,
     },
     storage: { usedBytes: 31 * 1024 ** 2, allowanceBytes: 1024 ** 3 },
     dataTransferBytes: 9 * 1024 ** 2,

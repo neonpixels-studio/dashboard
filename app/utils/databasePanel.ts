@@ -70,16 +70,31 @@ export interface DatabasePanelView {
 }
 
 const NO_PROJECTION_LABEL = "Not enough data yet";
+const PERIOD_ENDED_LABEL = "Period ended, awaiting sync";
+const NEUTRAL_METER_COLOR = "var(--ink-3)";
 
-function projectionLabelFor(
-  projectedCuHours: number | null,
-  allowanceCuHours: number,
-): string {
-  if (projectedCuHours === null) {
+function projectionLabelFor(compute: DatabasePanelData["compute"]): string {
+  if (compute.periodEnded) {
+    return PERIOD_ENDED_LABEL;
+  }
+  if (compute.projectedCuHours === null) {
     return NO_PROJECTION_LABEL;
   }
-  const share = shareOfAllowance(projectedCuHours, allowanceCuHours);
-  return `${formatCuHours(projectedCuHours)} (${formatSharePct(share)})`;
+  const share = shareOfAllowance(
+    compute.projectedCuHours,
+    compute.allowanceCuHours,
+  );
+  return `${formatCuHours(compute.projectedCuHours)} (${formatSharePct(share)})`;
+}
+
+// Mirrors the server's compute alert: nothing alerts on an ended period's
+// usage, so its bar stays neutral rather than red.
+function computeColorFor(compute: DatabasePanelData["compute"]): string {
+  if (compute.periodEnded) {
+    return NEUTRAL_METER_COLOR;
+  }
+  const judgedCuHours = compute.projectedCuHours ?? compute.usedCuHours;
+  return meterColor(shareOfAllowance(judgedCuHours, compute.allowanceCuHours));
 }
 
 /**
@@ -99,18 +114,12 @@ export function toDatabasePanelView(
     storage.usedBytes,
     storage.allowanceBytes,
   );
-  const judgedComputeCuHours = compute.projectedCuHours ?? compute.usedCuHours;
   return {
     computeValue: `${formatCuHours(compute.usedCuHours)} of ${formatCuHours(compute.allowanceCuHours)}`,
     computePct: meterPct(compute.usedCuHours, compute.allowanceCuHours),
     computeShareLabel: formatSharePct(computeShare),
-    computeColor: meterColor(
-      shareOfAllowance(judgedComputeCuHours, compute.allowanceCuHours),
-    ),
-    projectionLabel: projectionLabelFor(
-      compute.projectedCuHours,
-      compute.allowanceCuHours,
-    ),
+    computeColor: computeColorFor(compute),
+    projectionLabel: projectionLabelFor(compute),
     storageValue: `${formatDatabaseBytes(storage.usedBytes)} of ${formatDatabaseBytes(storage.allowanceBytes)}`,
     storagePct: meterPct(storage.usedBytes, storage.allowanceBytes),
     storageShareLabel: formatSharePct(storageShare),

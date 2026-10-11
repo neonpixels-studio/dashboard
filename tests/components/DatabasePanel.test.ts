@@ -86,6 +86,7 @@ describe("DatabasePanel", () => {
           usedCuHours: 26,
           allowanceCuHours: 100,
           projectedCuHours: 81,
+          periodEnded: false,
         },
       }),
     });
@@ -145,6 +146,7 @@ describe("DatabasePanel", () => {
             usedCuHours: 26,
             allowanceCuHours: 100,
             projectedCuHours: 81,
+            periodEnded: false,
           },
           alerts: ALERTS,
         }),

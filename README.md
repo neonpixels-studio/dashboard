@@ -252,7 +252,7 @@ no database and no Neon row.
   storage vs the allowance, data transfer, and the branch list.
 - The **allowances** are named constants in `shared/constants/neonPlan.ts`,
   taken from <https://neon.com/docs/introduction/plans> (Free plan: 100
-  CU-hours of compute, 1 GB storage and 5 GB transfer per project per month).
+  CU-hours of compute per project per month, 1 GB of storage per project).
   Update them there if the plan changes.
 - **Alerts** (shown in the overview Alerts panel and on the DATABASE panel):
   projected compute, or current storage, at or above 80% of the allowance; and

@@ -65,6 +65,7 @@ describe("toDatabasePanelView", () => {
           usedCuHours: 26,
           allowanceCuHours: 100,
           projectedCuHours: 81,
+          periodEnded: false,
         },
       }),
     );
@@ -80,12 +81,29 @@ describe("toDatabasePanelView", () => {
           usedCuHours: 90,
           allowanceCuHours: 100,
           projectedCuHours: null,
+          periodEnded: false,
         },
       }),
     );
 
     expect(view.projectionLabel).toBe("Not enough data yet");
     expect(view.computeColor).toBe("var(--err)");
+  });
+
+  it("keeps an ended period's bar neutral and says the sync is awaited, even at high usage", () => {
+    const view = toDatabasePanelView(
+      databasePanelFixture({
+        compute: {
+          usedCuHours: 85,
+          allowanceCuHours: 100,
+          projectedCuHours: null,
+          periodEnded: true,
+        },
+      }),
+    );
+
+    expect(view.computeColor).toBe("var(--ink-3)");
+    expect(view.projectionLabel).toBe("Period ended, awaiting sync");
   });
 
   it("labels branches with their creation date, and none when there is none", () => {

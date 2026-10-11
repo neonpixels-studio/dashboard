@@ -21,6 +21,10 @@ export interface DatabaseComputeMeter {
   // End-of-period estimate from usage so far; null until enough of the period
   // has elapsed to extrapolate honestly.
   projectedCuHours: number | null;
+  // True when the stored billing period has already ended (the sync that would
+  // replace it has not landed): the figures are last period's, so the panel
+  // neither colours nor projects from them.
+  periodEnded: boolean;
 }
 
 export interface DatabaseStorageMeter {
