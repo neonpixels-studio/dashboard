@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import SentryIssuesPanel from "../../app/components/SentryIssuesPanel.vue";
 import PanelHead from "../../app/components/PanelHead.vue";
@@ -64,6 +64,10 @@ function mountPanel(
 }
 
 describe("SentryIssuesPanel", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("links every issue row to its Sentry issue in a new tab", () => {
     const links = mountPanel().findAll(".issue-link");
 
@@ -115,6 +119,12 @@ describe("SentryIssuesPanel", () => {
     expect(wrapper.find(".view-all").exists()).toBe(true);
   });
 
+  it("shows the skeleton before the client-side fetch has started", () => {
+    const wrapper = mountPanel({ panel: null, pending: false });
+
+    expect(wrapper.findComponent(SkeletonBlock).exists()).toBe(true);
+  });
+
   it("shows a skeleton while loading", () => {
     const wrapper = mountPanel({ panel: null, pending: true });
 
@@ -133,6 +143,17 @@ describe("SentryIssuesPanel", () => {
     expect(wrapper.emitted("retry")).toHaveLength(1);
   });
 
+  it("says Sentry is not configured on a 404, without a pointless retry", () => {
+    const wrapper = mountPanel({
+      panel: null,
+      error: Object.assign(new Error("nf"), { statusCode: 404 }),
+    });
+
+    expect(wrapper.text()).toContain("Sentry isn't configured");
+    expect(wrapper.find(".retry-btn").exists()).toBe(false);
+    expect(wrapper.find("[role=alert]").exists()).toBe(false);
+  });
+
   it("keeps showing the last data when a refresh errors", () => {
     const wrapper = mountPanel({ error: new Error("boom") });
 
@@ -146,7 +167,6 @@ describe("SentryIssuesPanel", () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.findAll("time")[0]!.text()).toBe("12m ago");
-    vi.useRealTimers();
   });
 
   it("matches its snapshot", () => {

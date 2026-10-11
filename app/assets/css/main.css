@@ -724,6 +724,19 @@ h4 {
   border-radius: 2px;
   flex: none;
 }
+/* Screen-reader-only text, e.g. the "(opens in a new tab)" hints on external
+   links. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .level-chip {
   padding: 1px 5px;
   border-radius: var(--r-xs);

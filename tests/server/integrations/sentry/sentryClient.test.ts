@@ -673,6 +673,6 @@ describe("createSentryTopIssuesFetcher", () => {
         projectSlug: "markpost",
         query: "is:unresolved",
       }),
-    ).rejects.toThrow("not an https URL");
+    ).rejects.toThrow("not an https sentry.io URL");
   });
 });

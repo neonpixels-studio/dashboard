@@ -32,6 +32,19 @@ describe("useSentryPanel", () => {
     expect(options.key()).toBe("app-sentry-a%2Fb%3Fc");
   });
 
+  it("loads client-side only so it cannot block server rendering", () => {
+    const mockUseFetch = stubUseFetch();
+
+    useSentryPanel("basin");
+
+    const [, options] = mockUseFetch.mock.calls[0] as unknown as [
+      unknown,
+      { server: boolean; lazy: boolean },
+    ];
+    expect(options.server).toBe(false);
+    expect(options.lazy).toBe(true);
+  });
+
   it("does not fetch for an empty slug", () => {
     const mockUseFetch = stubUseFetch();
 

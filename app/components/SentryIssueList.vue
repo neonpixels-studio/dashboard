@@ -96,15 +96,4 @@ function lastSeenLabel(lastSeen: string): string {
   font-size: 10px;
   color: var(--ink-3);
 }
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
 </style>

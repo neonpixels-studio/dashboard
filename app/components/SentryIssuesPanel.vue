@@ -20,6 +20,10 @@
       <SkeletonBlock height="96px" radius="var(--r-sm)" />
     </div>
 
+    <p v-else-if="isNotConfigured" class="state">
+      Sentry isn't configured for this property.
+    </p>
+
     <div v-else-if="showError" class="state" role="alert">
       <span>Couldn't load Sentry issues.</span>
       <button type="button" class="retry-btn" @click="emit('retry')">
@@ -52,6 +56,8 @@ import {
   buildSentryTrendPath,
 } from "~/utils/sentryPanel";
 
+const HTTP_NOT_FOUND = 404;
+
 const props = defineProps<{
   app: DashboardApp;
   panel: SentryPanelResponse | null;
@@ -61,7 +67,16 @@ const props = defineProps<{
 
 const emit = defineEmits<{ retry: [] }>();
 
-const showSkeleton = computed(() => props.pending && !props.panel);
+// No panel and no error covers the pre-fetch moment of a client-only fetch.
+const showSkeleton = computed(() => !props.panel && !props.error);
+// The endpoint 404s when the app has no Sentry project/token; retrying can't
+// fix that, so it gets its own state instead of the retryable error.
+const isNotConfigured = computed(
+  () =>
+    !props.panel &&
+    (props.error as { statusCode?: number } | null)?.statusCode ===
+      HTTP_NOT_FOUND,
+);
 const showError = computed(() => !!props.error && !props.panel);
 const rows = computed(() => buildSentryIssueRows(props.panel?.issues ?? []));
 const trendPath = computed(() =>
@@ -112,16 +127,5 @@ const trendTotal = computed(() =>
   font-size: 10px;
   color: var(--ink-2);
   cursor: pointer;
-}
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 </style>

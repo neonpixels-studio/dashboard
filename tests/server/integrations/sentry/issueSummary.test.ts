@@ -31,6 +31,15 @@ function summary(
 }
 
 describe("toSentryIssueSummary", () => {
+  it("accepts a sentry.io subdomain permalink", () => {
+    expect(
+      toSentryIssueSummary({
+        ...RAW_ISSUE,
+        permalink: "https://acme.sentry.io/issues/10/",
+      }).permalink,
+    ).toBe("https://acme.sentry.io/issues/10/");
+  });
+
   it("maps a raw issue, parsing the string event count", () => {
     expect(toSentryIssueSummary(RAW_ISSUE)).toEqual({
       id: "10",
@@ -86,14 +95,28 @@ describe("toSentryIssueSummary", () => {
     [
       "http permalink",
       { ...RAW_ISSUE, permalink: "http://sentry.io/x" },
-      "https URL",
+      "https sentry.io URL",
     ],
     [
       "javascript permalink",
       { ...RAW_ISSUE, permalink: "javascript:alert(1)" },
-      "https URL",
+      "https sentry.io URL",
     ],
-    ["unparseable permalink", { ...RAW_ISSUE, permalink: "nope" }, "https URL"],
+    [
+      "foreign-host permalink",
+      { ...RAW_ISSUE, permalink: "https://evil.example/sentry.io" },
+      "https sentry.io URL",
+    ],
+    [
+      "look-alike-host permalink",
+      { ...RAW_ISSUE, permalink: "https://notsentry.io/x" },
+      "https sentry.io URL",
+    ],
+    [
+      "unparseable permalink",
+      { ...RAW_ISSUE, permalink: "nope" },
+      "https sentry.io URL",
+    ],
   ])("fails loud on %s", (_name, raw, message) => {
     expect(() => toSentryIssueSummary(raw)).toThrow(message);
   });

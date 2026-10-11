@@ -8,6 +8,7 @@ export const SENTRY_STATS_PERIOD = "14d";
 const SENTRY_WEB_BASE_URL = "https://sentry.io";
 const MS_PER_SECOND = 1_000;
 const HTTPS_PROTOCOL = "https:";
+const SENTRY_HOST = "sentry.io";
 const DECIMAL_RADIX = 10;
 
 type RawRecord = Record<string, unknown>;
@@ -35,12 +36,23 @@ function requireCount(raw: RawRecord, field: string): number {
   return parsed;
 }
 
-// The permalink becomes an href, so anything but https is refused rather than
-// rendered (a `javascript:` URL from a compromised response would be XSS).
-function requireHttpsUrl(raw: RawRecord, field: string): string {
+function isSentryHttpsUrl(value: string): boolean {
+  if (!URL.canParse(value)) {
+    return false;
+  }
+  const { protocol, hostname } = new URL(value);
+  const onSentryHost =
+    hostname === SENTRY_HOST || hostname.endsWith(`.${SENTRY_HOST}`);
+  return protocol === HTTPS_PROTOCOL && onSentryHost;
+}
+
+// The permalink becomes an href, so anything but an https sentry.io URL is
+// refused rather than rendered (a `javascript:` URL from a compromised
+// response would be XSS, and a foreign host a phishing link).
+function requireSentryUrl(raw: RawRecord, field: string): string {
   const value = requireString(raw, field);
-  if (!URL.canParse(value) || new URL(value).protocol !== HTTPS_PROTOCOL) {
-    throw new Error(`Sentry issue "${field}" is not an https URL.`);
+  if (!isSentryHttpsUrl(value)) {
+    throw new Error(`Sentry issue "${field}" is not an https sentry.io URL.`);
   }
   return value;
 }
@@ -97,7 +109,7 @@ export function toSentryIssueSummary(raw: unknown): SentryIssueSummary {
     eventCount: requireCount(raw, "count"),
     userCount: requireCount(raw, "userCount"),
     lastSeen: requireString(raw, "lastSeen"),
-    permalink: requireHttpsUrl(raw, "permalink"),
+    permalink: requireSentryUrl(raw, "permalink"),
     projectId: readProjectId(raw),
     eventStats: readEventStats(raw),
   };

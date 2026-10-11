@@ -12,6 +12,10 @@ export function useSentryPanel(slug: MaybeRefOrGetter<string>) {
     () => `/api/apps/${encodedSlug()}/sentry`,
     {
       key: () => `app-sentry-${encodedSlug()}`,
+      // Client-only: the live Sentry call must not hold up server rendering
+      // of the rest of the detail page.
+      server: false,
+      lazy: true,
       enabled: () => toValue(slug).length > 0,
     },
   );

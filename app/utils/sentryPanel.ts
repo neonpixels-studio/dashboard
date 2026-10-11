@@ -5,13 +5,15 @@ import { buildSparklinePath } from "./sparklinePath";
 export const SENTRY_TREND_VIEWBOX_WIDTH = 300;
 export const SENTRY_TREND_VIEWBOX_HEIGHT = 60;
 
-const LEVEL_COLOR_ERROR = "var(--err)";
-const LEVEL_COLOR_WARNING = "var(--warn)";
-const LEVEL_COLOR_QUIET = "var(--ink-2)";
+// Each Sentry level renders one step quieter than its name suggests, matching
+// the design: error is amber, warning (and anything else) is muted.
+const COLOR_RED = "var(--err)";
+const COLOR_AMBER = "var(--warn)";
+const COLOR_MUTED = "var(--ink-2)";
 const LEVEL_COLORS: Record<string, string> = {
-  fatal: LEVEL_COLOR_ERROR,
-  error: LEVEL_COLOR_WARNING,
-  warning: LEVEL_COLOR_QUIET,
+  fatal: COLOR_RED,
+  error: COLOR_AMBER,
+  warning: COLOR_MUTED,
 };
 
 export interface SentryIssueRowView {
@@ -35,7 +37,7 @@ function toIssueRowView(issue: SentryPanelIssue): SentryIssueRowView {
     id: issue.id,
     title: issue.title,
     levelLabel: issue.level.toUpperCase(),
-    levelColor: LEVEL_COLORS[issue.level] ?? LEVEL_COLOR_QUIET,
+    levelColor: LEVEL_COLORS[issue.level] ?? COLOR_MUTED,
     location: issue.culprit,
     eventsLabel: countLabel(issue.eventCount, "event"),
     usersLabel: countLabel(issue.userCount, "user"),
