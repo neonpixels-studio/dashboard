@@ -9,7 +9,7 @@ import { buildSyncOrchestratorDeps } from "../integrations/syncDeps";
 import { reportError } from "../utils/errorReporting";
 import { requireSyncTriggerSecret } from "../utils/syncTrigger";
 
-// Silent when a drained backlog leaves nothing to delete, so the 15-minute
+// Silent when a drained backlog leaves nothing to delete, so the hourly
 // cadence doesn't log a no-op line on every run.
 function logPruneSummary(summary: PruneSummary): void {
   if (summary.metricSnapshotDeleted + summary.trafficBreakdownDeleted === 0) {

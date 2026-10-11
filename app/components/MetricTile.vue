@@ -11,13 +11,15 @@
     </div>
     <div class="value-row">
       <span class="value display-num">{{ value }}</span>
-      <span class="delta" :class="deltaTone">{{ delta }}</span>
+      <span v-if="showDelta" class="delta" :class="deltaTone">{{ delta }}</span>
     </div>
     <div class="sub">{{ sub }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { isDeltaVisible } from "~/utils/rollupFormat";
+
 const props = withDefaults(
   defineProps<{
     label: string;
@@ -36,6 +38,8 @@ const TONE_ICONS = {
   danger: "triangle",
   ok: "checkCircle",
 } as const;
+
+const showDelta = computed(() => isDeltaVisible(props.delta));
 
 const iconName = computed(() =>
   props.tone ? TONE_ICONS[props.tone] : undefined,

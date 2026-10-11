@@ -13,7 +13,7 @@
       <SkeletonBlock height="180px" radius="var(--r-lg)" />
     </template>
 
-    <SectionLabel label="REACH" meta="NO STRIPE OR CLERK ON THIS PROPERTY" />
+    <SectionLabel label="REACH" />
 
     <MetricTileGrid :tiles="tiles" />
 
@@ -38,7 +38,11 @@
       label="TRAFFIC"
       meta="GOOGLE ANALYTICS · GA4"
       class="section-gap"
-    />
+    >
+      <template #action>
+        <Ga4ViewLink :detail="app.detail" />
+      </template>
+    </SectionLabel>
 
     <TrafficPanel
       :app="app"

@@ -4,6 +4,7 @@
     <span class="label">{{ label }}</span>
     <span class="grow"></span>
     <span v-if="meta" class="meta">{{ meta }}</span>
+    <slot name="action" />
   </div>
 </template>
 

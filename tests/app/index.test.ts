@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { nextTick, ref } from "vue";
 import IndexPage from "../../app/pages/index.vue";
 import ControlTopBar from "../../app/components/ControlTopBar.vue";
+import OverviewRangeSelector from "../../app/components/OverviewRangeSelector.vue";
 import BrandMark from "../../app/components/BrandMark.vue";
 import SectionLabel from "../../app/components/SectionLabel.vue";
 import MetricTileSkeleton from "../../app/components/MetricTileSkeleton.vue";
@@ -33,7 +34,16 @@ import type { OverviewSessionsResponse } from "../../shared/types/overviewSessio
 // contract is covered by its own tests/composables/*.test.ts.
 const mockUseOverview = vi.fn();
 vi.mock("../../app/composables/useOverview", () => ({
-  useOverview: () => mockUseOverview(),
+  useOverview: (...args: unknown[]) => mockUseOverview(...args),
+}));
+
+// The selected range is URL state (useRoute/useRouter), which doesn't exist
+// outside a running Nuxt app; useOverviewRange has its own test. Here it's a
+// ref the tests drive directly.
+const selectedRange = ref<7 | 30 | 60>(30);
+const mockSetRange = vi.fn();
+vi.mock("../../app/composables/useOverviewRange", () => ({
+  useOverviewRange: () => ({ range: selectedRange, setRange: mockSetRange }),
 }));
 
 const mockUseOverviewSessions = vi.fn();
@@ -48,6 +58,7 @@ vi.mock("../../app/composables/useApps", () => ({
 
 const GLOBAL_COMPONENTS = {
   ControlTopBar,
+  OverviewRangeSelector,
   BrandMark,
   SectionLabel,
   MetricTileSkeleton,
@@ -228,6 +239,8 @@ function mountPage() {
 }
 
 beforeEach(() => {
+  selectedRange.value = 30;
+  mockSetRange.mockReset();
   vi.stubGlobal("useHead", vi.fn());
   // Every rollup-tile test below only cares about useOverview; default the
   // property grid's fetch to its idle state so mounting the page doesn't
@@ -494,6 +507,35 @@ describe("index.vue rollup tiles", () => {
     // text depends on wall-clock time via the mount-timing test above)
     // renders in a sibling SectionLabel outside this element entirely.
     expect(mountPage().find(".rollup-grid").html()).toMatchSnapshot();
+  });
+});
+
+describe("index.vue range selector", () => {
+  it("passes the selected range to useOverview and labels the sessions tile with it", () => {
+    selectedRange.value = 7;
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(mockUseOverview).toHaveBeenCalledWith(selectedRange);
+    expect(wrapper.text()).toContain("SESSIONS · 7 DAYS");
+    expect(wrapper.text()).not.toContain("SESSIONS · 30 DAYS");
+  });
+
+  it("marks the selected range pressed in the top bar and routes a click to setRange", async () => {
+    selectedRange.value = 60;
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+    const pressed = wrapper
+      .findAll(".range-option")
+      .filter((option) => option.attributes("aria-pressed") === "true");
+    expect(pressed.map((option) => option.text())).toEqual([
+      "60D (last 60 days)",
+    ]);
+
+    await wrapper.findAll(".range-option")[0]!.trigger("click");
+    expect(mockSetRange).toHaveBeenCalledWith(7);
   });
 });
 

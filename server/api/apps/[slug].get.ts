@@ -2,6 +2,7 @@ import { getRouterParam } from "h3";
 import { findAppBySlug } from "../../../app/config/apps";
 import { useDb } from "../../db";
 import { clerkDashboardUsersUrl } from "../../integrations/clerk/dashboardLink";
+import { ga4PropertyIdForApp } from "../../integrations/ga4/propertyId";
 import { integrationEnvironments } from "../../integrations/credentialEnvironment";
 import { requireUser } from "../../utils/auth";
 import {
@@ -15,6 +16,7 @@ import {
 import {
   alertsForApp,
   computeAppStatus,
+  integrationHealthForApp,
   latestMetricsBySlug,
   latestSyncedAt,
   metricSeriesBySlug,
@@ -57,6 +59,8 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     fetchSyndicationPosts(db, slug),
   ]);
 
+  const environments = integrationEnvironments(configRows);
+
   return {
     slug,
     status: computeAppStatus(syncRows, configRows, slug, latestMetricRows),
@@ -65,12 +69,15 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),
     syndication: syndicationMatrixForApp(posts),
     alerts: alertsForApp(syncRows, configRows, slug),
-    sources: syncSourcesForApp(
+    sources: syncSourcesForApp(syncRows, slug, environments),
+    integrations: integrationHealthForApp(
       syncRows,
+      configRows,
       slug,
-      integrationEnvironments(configRows),
+      environments,
     ),
     lastSyncedAt: latestSyncedAt(syncRows),
     clerkUsersUrl: clerkDashboardUsersUrl(configRows),
+    ga4PropertyId: ga4PropertyIdForApp(configRows, slug),
   };
 });

@@ -11,6 +11,7 @@ function mountTile(props: Record<string, unknown> = {}) {
       deltaLabel: "▲ 8.2%",
       deltaTone: "ok",
       hasSparkline: true,
+      rangeDays: 30,
       sparklinePath: "M0 36 L320 36",
       ...props,
     },
@@ -32,6 +33,16 @@ describe("RollupMrrTile", () => {
     expect(sparkline.exists()).toBe(true);
     expect(sparkline.props("path")).toBe("M0 36 L320 36");
   });
+
+  it.each([7, 30, 60])(
+    "labels the sparkline for the last %i days",
+    (rangeDays) => {
+      const wrapper = mountTile({ rangeDays });
+      expect(wrapper.findComponent(SparkLine).attributes("aria-label")).toBe(
+        `Monthly recurring revenue across all apps over the last ${rangeDays} days`,
+      );
+    },
+  );
 
   it("hides the sparkline and shows an empty message when hasSparkline is false", () => {
     const wrapper = mountTile({ hasSparkline: false });

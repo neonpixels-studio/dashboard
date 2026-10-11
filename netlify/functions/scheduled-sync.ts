@@ -293,4 +293,4 @@ export default async function scheduledSync(): Promise<Response> {
 // executing it, and its parser only accepts an inline literal. A variable or
 // constant here parses as no schedule at all, deploying this as a plain HTTP
 // function that never runs on its own. A change needs a redeploy.
-export const config: ScheduledFunctionConfig = { schedule: "*/15 * * * *" };
+export const config: ScheduledFunctionConfig = { schedule: "0 * * * *" };

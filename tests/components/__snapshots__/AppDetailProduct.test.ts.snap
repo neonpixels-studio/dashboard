@@ -70,21 +70,27 @@ exports[`AppDetailProduct > matches its tile-grid snapshot 1`] = `
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">ACTIVE SUBSCRIBERS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">96</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">96</span>
+      <!--v-if-->
+    </div>
     <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">USERS</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1,204</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1,204</span>
+      <!--v-if-->
+    </div>
     <div data-v-d6008d9b="" class="sub">Synced 19 SEP 2026</div>
   </div>
   <div data-v-d6008d9b="" data-v-71379453="" class="card tile">
     <div data-v-d6008d9b="" class="tile-head">
       <!--v-if--><span data-v-d6008d9b="" class="tile-label">OPEN ISSUES</span>
     </div>
-    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span><span data-v-d6008d9b="" class="delta muted">—</span></div>
+    <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span>
+      <!--v-if-->
+    </div>
     <div data-v-d6008d9b="" class="sub">Not synced yet</div>
   </div>
 </div>"

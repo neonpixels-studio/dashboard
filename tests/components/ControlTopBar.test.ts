@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import ControlTopBar from "../../app/components/ControlTopBar.vue";
 import BrandMark from "../../app/components/BrandMark.vue";
+import OverviewRangeSelector from "../../app/components/OverviewRangeSelector.vue";
 
 // ControlTopBar relies on Nuxt's <NuxtLink>, its own auto-imported
 // <BrandMark>, and @clerk/nuxt's <UserButton> — none registered outside a
@@ -12,7 +13,7 @@ function mountBar(props: Record<string, unknown> = {}) {
   return mount(ControlTopBar, {
     props,
     global: {
-      components: { BrandMark },
+      components: { BrandMark, OverviewRangeSelector },
       stubs: {
         NuxtLink: { props: ["to"], template: "<a :href='to'><slot /></a>" },
         UserButton: {
@@ -51,6 +52,33 @@ describe("ControlTopBar", () => {
     expect(userButton.props("appearance")).toEqual({
       elements: { avatarBox: { width: "32px", height: "32px" } },
     });
+  });
+
+  it("hides the range selector when no range is given (detail pages)", () => {
+    expect(mountBar().find(".range-selector").exists()).toBe(false);
+    expect(
+      mountBar({ crumb: "basin.fm" }).find(".range-selector").exists(),
+    ).toBe(false);
+  });
+
+  it("shows the range selector with the given range pressed", () => {
+    const wrapper = mountBar({ range: 7 });
+    const pressed = wrapper
+      .findAll(".range-option")
+      .filter((option) => option.attributes("aria-pressed") === "true");
+    expect(pressed.map((option) => option.text())).toEqual([
+      "7D (last 7 days)",
+    ]);
+  });
+
+  it("re-emits a selected range as update:range", async () => {
+    const wrapper = mountBar({ range: 30 });
+    await wrapper.findAll(".range-option")[2]!.trigger("click");
+    expect(wrapper.emitted("update:range")).toEqual([[60]]);
+  });
+
+  it("matches its snapshot with a range selector", () => {
+    expect(mountBar({ range: 30 }).html()).toMatchSnapshot();
   });
 
   it("matches its snapshot without a crumb", () => {

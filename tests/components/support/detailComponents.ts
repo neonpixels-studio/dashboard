@@ -13,6 +13,7 @@ import DetailStateShell from "../../../app/components/DetailStateShell.vue";
 import AppAlert from "../../../app/components/AppAlert.vue";
 import AppIcon from "../../../app/components/AppIcon.vue";
 import SectionLabel from "../../../app/components/SectionLabel.vue";
+import Ga4ViewLink from "../../../app/components/Ga4ViewLink.vue";
 import SparkLine from "../../../app/components/SparkLine.vue";
 import AxisRow from "../../../app/components/AxisRow.vue";
 import BarMeter from "../../../app/components/BarMeter.vue";
@@ -37,6 +38,7 @@ export const DETAIL_COMPONENTS = {
   AppAlert,
   AppIcon,
   SectionLabel,
+  Ga4ViewLink,
   SparkLine,
   AxisRow,
   BarMeter,

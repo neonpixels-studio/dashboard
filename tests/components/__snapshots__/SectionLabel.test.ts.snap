@@ -7,3 +7,5 @@ exports[`SectionLabel > matches its snapshot without meta 1`] = `
   <!--v-if-->
 </div>"
 `;
+
+exports[`SectionLabel > renders the action slot after the meta 1`] = `"<div data-v-823d5be8="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">TRAFFIC</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">GOOGLE ANALYTICS · GA4</span><a class="action" href="#">View</a></div>"`;

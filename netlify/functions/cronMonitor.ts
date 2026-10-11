@@ -11,7 +11,7 @@ export const SCHEDULED_SYNC_MONITOR_SLUG = "scheduled-sync";
 // Mirrors `config.schedule` in ./scheduled-sync.ts, which can't import a
 // shared constant (Netlify parses that literal from source). A test asserts
 // the two stay equal.
-export const SCHEDULED_SYNC_CRON = "*/15 * * * *";
+export const SCHEDULED_SYNC_CRON = "0 * * * *";
 
 // Minutes a check-in may arrive late before Sentry marks the run missed.
 const CHECK_IN_MARGIN_MINUTES = 5;
