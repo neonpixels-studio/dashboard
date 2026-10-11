@@ -26,6 +26,7 @@ import {
 import { findAppBySlug, type AppTemplate } from "~/config/apps";
 import { useApp } from "~/composables/useApp";
 import { toAppDetailViewModel } from "~/utils/appViewModel";
+import { buildHeaderLinks } from "~/utils/headerLinks";
 import { resolveHeaderStatus } from "~/utils/headerStatus";
 
 const route = useRoute();
@@ -43,14 +44,8 @@ const TEMPLATE_COMPONENTS: Record<AppTemplate, Component> = {
   marketing: AppDetailMarketing,
 };
 
-const TEMPLATE_SECONDARY_LINKS: Record<AppTemplate, string[]> = {
-  product: ["Logs", "Settings"],
-  writing: ["Posts"],
-  marketing: [],
-};
-
 const templateComponent = TEMPLATE_COMPONENTS[app.template];
-const secondaryLinks = TEMPLATE_SECONDARY_LINKS[app.template];
+const secondaryLinks = buildHeaderLinks(app);
 
 const { data: detail, pending, error, refresh } = useApp(() => app.slug);
 const headerStatus = computed(() =>

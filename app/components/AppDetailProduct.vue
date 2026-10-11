@@ -19,6 +19,7 @@
       <div class="panel-head">
         <span class="panel-title">Sessions</span>
         <span class="panel-meta">GOOGLE ANALYTICS · DAILY</span>
+        <Ga4ViewLink :detail="app.detail" />
       </div>
       <!-- Drawn again (in more detail, with per-page/referrer context) by
            TrafficPanel's own chart further down — both are wired from this
@@ -42,7 +43,11 @@
       label="TRAFFIC"
       meta="GOOGLE ANALYTICS · GA4"
       class="section-gap"
-    />
+    >
+      <template #action>
+        <Ga4ViewLink :detail="app.detail" />
+      </template>
+    </SectionLabel>
 
     <TrafficPanel
       :app="app"

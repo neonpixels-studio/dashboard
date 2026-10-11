@@ -248,9 +248,9 @@ export async function fetchSyndicationFetchedAtByExternalId(
 // orchestrator on EVERY tick regardless of what a provider's fetch()
 // actually did internally — including a tick where the guard itself decided
 // to skip and returned empty data with no exception. Gating on sync_status
-// would make the row's own timestamp advance every ~15 minutes forever
+// would make the row's own timestamp advance every hour forever
 // (each skip re-stamps "last run" to "just now", which the very next tick
-// then reads back as "attempted 15 minutes ago" — permanently not due,
+// then reads back as "attempted an hour ago" — permanently not due,
 // after the very first sync ever succeeds). metric_snapshot has no such
 // self-feedback loop: a skip returns zero metric rows, so persist.ts writes
 // nothing and this clock only moves on a real, fully-succeeded attempt.

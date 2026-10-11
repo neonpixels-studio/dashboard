@@ -18,6 +18,7 @@
       <div class="panel-head">
         <span class="panel-title">Sessions</span>
         <span class="panel-meta">GOOGLE ANALYTICS · DAILY</span>
+        <Ga4ViewLink :detail="app.detail" />
       </div>
       <SparkLine
         v-if="sessionsPath"

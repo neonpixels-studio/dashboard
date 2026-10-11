@@ -277,7 +277,7 @@ suffix, since there's only one writing-template app today).
 ### Cross-app sync trigger
 
 `NUXT_SYNC_TRIGGER_SECRET` — shared secret a sibling app (or
-`netlify/functions/scheduled-sync.ts`, the 15-minute poller) presents on
+`netlify/functions/scheduled-sync.ts`, the hourly poller) presents on
 `POST /api/sync`'s `Authorization: Bearer` header to trigger a dashboard
 refresh. Generate with `openssl rand -hex 32`; no external account needed.
 
@@ -295,7 +295,7 @@ Every `POST /api/sync` ends with a bounded prune
 (`server/integrations/retention.ts`) of `metric_snapshot` and
 `traffic_breakdown`. Rows older than `SNAPSHOT_RETENTION_DAYS` (the sparkline
 window plus 30 days) are deleted, at most `PRUNE_BATCH_LIMIT` per table per
-run, so a backlog drains over several 15-minute syncs. The newest row per
+run, so a backlog drains over several hourly syncs. The newest row per
 `(slug, vendor, metric, period)` and each slug's latest traffic batch are
 always kept, because the current-value tiles read them with no time bound.
 No new env vars or services; migration `0007` adds `captured_at` indexes so
@@ -337,7 +337,7 @@ function logs.
 `scheduled-sync.ts` also sends Sentry Cron check-ins
 (`netlify/functions/cronMonitor.ts`): `in_progress` at the start, then `ok` or
 `error` (non-2xx response or a throw). The first check-in upserts a
-`scheduled-sync` monitor (every 15 minutes, 5 minute margin), so there is no
+`scheduled-sync` monitor (hourly, 5 minute margin), so there is no
 manual setup in Sentry; Sentry alerts when a check-in is missed, i.e. when the
 scheduler stops invoking the function entirely. It needs only `SENTRY_DSN` and
 no-ops without it. If the schedule in `scheduled-sync.ts` changes, update

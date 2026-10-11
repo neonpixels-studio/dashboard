@@ -34,6 +34,7 @@ const detail: AppDetailResponse = {
   sources: [],
   integrations: [],
   lastSyncedAt: null,
+  ga4PropertyId: null,
 };
 
 describe("toAppCardViewModel", () => {

@@ -1,6 +1,11 @@
 import { APPS, INTERNAL_APPS } from "../../app/config/apps";
 import { useDb } from "../db";
 import { requireUser } from "../utils/auth";
+import { readOverviewRange } from "../utils/overviewRange";
+import {
+  DEFAULT_OVERVIEW_RANGE,
+  type OverviewRangeDays,
+} from "../../shared/constants/overviewRange";
 import {
   METRIC_ACTIVE_SUBSCRIBERS,
   METRIC_MRR,
@@ -8,6 +13,7 @@ import {
   METRIC_SESSIONS,
   PERIOD_30D,
   PERIOD_CURRENT,
+  PERIOD_DAILY,
 } from "../utils/dashboardMetrics";
 import {
   fetchLatestMetricSnapshots,
@@ -21,6 +27,7 @@ import {
   rollupDelta,
   rollupSeriesAcrossApps,
   trafficChannelSplitAcrossApps,
+  windowedTotalAcrossApps,
 } from "../utils/dashboardShaping";
 import type {
   MetricSnapshotRow,
@@ -63,33 +70,85 @@ function withDelta<Total extends RollupTotal>(
   return { ...total, delta: rollupDelta(series) };
 }
 
-// Named field-by-field (not `...metricRollupWithSplit(...)`):
-// metricRollupWithSplit's `byApp` isn't part of `sessions30d` (that field is
-// `bySource` instead), so spreading it in would leak an undeclared property
-// into the response.
+// Sessions is the one rollup whose headline number the vendor hands over
+// already aggregated over a fixed 30 days (GA4's rolling `30d` row), so
+// slicing stored rows can't re-window it. At the default 30-day range the
+// vendor's own total IS the exact answer, so it wins whenever it exists
+// (a partially backfilled daily series must never undercut it). Other
+// ranges are derived from the stored per-day rows (GA4 backfills them),
+// summed over the selected range; thin history just sums fewer days, per
+// the issue. No daily rows at all means no honest number: null (a dash).
+function resolveSessionsTotal(
+  vendorTotal: RollupTotal,
+  seriesRows: MetricSnapshotRow[],
+  slugs: string[],
+  range: OverviewRangeDays,
+): RollupTotal {
+  if (range === DEFAULT_OVERVIEW_RANGE && vendorTotal.value !== null) {
+    return vendorTotal;
+  }
+  const derived = windowedTotalAcrossApps(
+    seriesRows,
+    slugs,
+    METRIC_SESSIONS,
+    PERIOD_DAILY,
+    range,
+  );
+  if (derived === null) {
+    return { value: null, period: null, capturedAt: null };
+  }
+  return {
+    value: derived,
+    period: `${range}d`,
+    capturedAt: vendorTotal.capturedAt,
+  };
+}
+
+// Named field-by-field (not spreading metricRollupWithSplit): its `byApp`
+// isn't part of `sessions30d` (that field is `bySource` instead), so
+// spreading it in would leak an undeclared property into the response.
+// The channel split stays on the vendor's fixed 30-day basis (GA4's channel
+// report has no per-day rows to re-window), so it's weighted against the
+// vendor's 30d total, not the range total.
 function buildSessionsRollup(
   metricRows: MetricSnapshotRow[],
   seriesRows: MetricSnapshotRow[],
   breakdownRows: TrafficBreakdownRow[],
   slugs: string[],
+  range: OverviewRangeDays,
 ): OverviewResponse["sessions30d"] {
-  const sessionsRollup = metricRollupWithSplit(
+  const vendorTotal = metricRollupWithSplit(
     metricRows,
     slugs,
     METRIC_SESSIONS,
     PERIOD_30D,
   );
-  const { value, period, capturedAt } = sessionsRollup;
+  const total = resolveSessionsTotal(
+    {
+      value: vendorTotal.value,
+      period: vendorTotal.period,
+      capturedAt: vendorTotal.capturedAt,
+    },
+    seriesRows,
+    slugs,
+    range,
+  );
+  const withRangeDelta = withDelta(total, {
+    seriesRows,
+    slugs,
+    metric: METRIC_SESSIONS,
+    period: PERIOD_30D,
+    windowDays: range,
+  });
   return {
-    ...withDelta(
-      { value, period, capturedAt },
-      { seriesRows, slugs, metric: METRIC_SESSIONS, period: PERIOD_30D },
-    ),
+    // No total means nothing for a delta to sit beside.
+    ...withRangeDelta,
+    delta: total.value === null ? null : withRangeDelta.delta,
     bySource: trafficChannelSplitAcrossApps(
       breakdownRows,
       metricRows,
       slugs,
-      sessionsRollup.value ?? 0,
+      vendorTotal.value ?? 0,
     ),
   };
 }
@@ -100,6 +159,7 @@ function buildSessionsRollup(
 // frontend, not here.
 export default defineEventHandler(async (event): Promise<OverviewResponse> => {
   requireUser(event);
+  const range = readOverviewRange(event);
 
   const db = useDb();
   const slugs = APPS.map((app) => app.slug);
@@ -125,6 +185,7 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
     slugs,
     METRIC_MRR,
     PERIOD_CURRENT,
+    range,
   );
 
   return {
@@ -145,6 +206,7 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
         slugs,
         metric: METRIC_ACTIVE_SUBSCRIBERS,
         period: PERIOD_CURRENT,
+        windowDays: range,
       },
     ),
     sessions30d: buildSessionsRollup(
@@ -152,6 +214,7 @@ export default defineEventHandler(async (event): Promise<OverviewResponse> => {
       seriesRows,
       breakdownRows,
       slugs,
+      range,
     ),
     openIssues: withDelta(
       metricRollupWithSplit(

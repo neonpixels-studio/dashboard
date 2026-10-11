@@ -419,7 +419,7 @@ async function syncOneIntegration(
 // That's deliberately not tracked as a `SyncOutcome` failure —
 // listEnabledIntegrationConfigs (server/integrations/persist.ts) orders
 // rows oldest-attempted-first, so an unattempted row is both eligible for
-// and favored by the very next scheduled invocation (every 15 minutes; see
+// and favored by the very next scheduled invocation (hourly; see
 // netlify/functions/scheduled-sync.ts), rotating which rows a routinely-hit
 // budget leaves behind rather than starving the same tail forever, with no
 // deferred-work state needed here. This rotation guarantee used to have two

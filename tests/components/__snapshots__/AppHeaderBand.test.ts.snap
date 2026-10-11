@@ -8,7 +8,7 @@ exports[`AppHeaderBand > matches its snapshot in the error state 1`] = `
       <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1><span data-v-aecea9a4="" class="status-chip" style="color: var(--err);">UNAVAILABLE</span>
     </div>
     <p data-v-aecea9a4="" class="tagline">Everything you consume, in one stream · production</p>
-  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/analytics-and-metrics/observability" target="_blank" rel="noopener" class="secondary-btn">Logs</a><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/configuration/general" target="_blank" rel="noopener" class="secondary-btn">Settings</a><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
     </svg></a>
 </div>"
@@ -22,7 +22,7 @@ exports[`AppHeaderBand > matches its snapshot once status has loaded 1`] = `
       <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1><span data-v-aecea9a4="" class="status-chip" style="color: var(--ok);">LIVE</span>
     </div>
     <p data-v-aecea9a4="" class="tagline">Everything you consume, in one stream · production</p>
-  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/analytics-and-metrics/observability" target="_blank" rel="noopener" class="secondary-btn">Logs</a><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/configuration/general" target="_blank" rel="noopener" class="secondary-btn">Settings</a><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
     </svg></a>
 </div>"
@@ -36,7 +36,49 @@ exports[`AppHeaderBand > matches its snapshot while status is loading 1`] = `
       <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1><span data-v-bf48201a="" data-v-aecea9a4="" class="skeleton-block" style="width: 60px; height: 18px; border-radius: var(--r-sm);" aria-hidden="true"></span>
     </div>
     <p data-v-aecea9a4="" class="tagline">Everything you consume, in one stream · production</p>
-  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/analytics-and-metrics/observability" target="_blank" rel="noopener" class="secondary-btn">Logs</a><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/configuration/general" target="_blank" rel="noopener" class="secondary-btn">Settings</a><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></a>
+</div>"
+`;
+
+exports[`AppHeaderBand > renders new-tab links with real hrefs for the marketing template 1`] = `
+"<div data-v-aecea9a4="" class="header-band" aria-busy="true">
+  <div data-v-aecea9a4="" class="accent-bar" style="background: #B4F03C;" aria-hidden="true"></div>
+  <div data-v-aecea9a4="" class="title-wrap">
+    <div data-v-aecea9a4="" class="title-row">
+      <h1 data-v-aecea9a4="" class="app-title display-num">grimicorn<span data-v-aecea9a4="" style="color: #B4F03C;">.dev</span></h1><span data-v-bf48201a="" data-v-aecea9a4="" class="skeleton-block" style="width: 60px; height: 18px; border-radius: var(--r-sm);" aria-hidden="true"></span>
+    </div>
+    <p data-v-aecea9a4="" class="tagline">The agent workflow that ships the rest of the studio · production</p>
+  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://app.netlify.com/projects/grimicorn-dev/analytics-and-metrics/observability" target="_blank" rel="noopener" class="secondary-btn">Logs</a><a data-v-aecea9a4="" href="https://app.netlify.com/projects/grimicorn-dev/configuration/general" target="_blank" rel="noopener" class="secondary-btn">Settings</a><a data-v-aecea9a4="" href="https://grimicorn.dev" target="_blank" rel="noopener" class="open-btn" style="background: #B4F03C;"> Open grimicorn.dev <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></a>
+</div>"
+`;
+
+exports[`AppHeaderBand > renders new-tab links with real hrefs for the product template 1`] = `
+"<div data-v-aecea9a4="" class="header-band" aria-busy="true">
+  <div data-v-aecea9a4="" class="accent-bar" style="background: #FFB020;" aria-hidden="true"></div>
+  <div data-v-aecea9a4="" class="title-wrap">
+    <div data-v-aecea9a4="" class="title-row">
+      <h1 data-v-aecea9a4="" class="app-title display-num">basin<span data-v-aecea9a4="" style="color: #FFB020;">.fm</span></h1><span data-v-bf48201a="" data-v-aecea9a4="" class="skeleton-block" style="width: 60px; height: 18px; border-radius: var(--r-sm);" aria-hidden="true"></span>
+    </div>
+    <p data-v-aecea9a4="" class="tagline">Everything you consume, in one stream · production</p>
+  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/analytics-and-metrics/observability" target="_blank" rel="noopener" class="secondary-btn">Logs</a><a data-v-aecea9a4="" href="https://app.netlify.com/projects/basin-fm/configuration/general" target="_blank" rel="noopener" class="secondary-btn">Settings</a><a data-v-aecea9a4="" href="https://basin.fm" target="_blank" rel="noopener" class="open-btn" style="background: #FFB020;"> Open basin.fm <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg></a>
+</div>"
+`;
+
+exports[`AppHeaderBand > renders new-tab links with real hrefs for the writing template 1`] = `
+"<div data-v-aecea9a4="" class="header-band" aria-busy="true">
+  <div data-v-aecea9a4="" class="accent-bar" style="background: #A78BFA;" aria-hidden="true"></div>
+  <div data-v-aecea9a4="" class="title-wrap">
+    <div data-v-aecea9a4="" class="title-row">
+      <h1 data-v-aecea9a4="" class="app-title display-num">danholloran<span data-v-aecea9a4="" style="color: #A78BFA;">.me</span></h1><span data-v-bf48201a="" data-v-aecea9a4="" class="skeleton-block" style="width: 60px; height: 18px; border-radius: var(--r-sm);" aria-hidden="true"></span>
+    </div>
+    <p data-v-aecea9a4="" class="tagline">Landscape photography, travel and dev writing · Nuxt on Netlify</p>
+  </div><span data-v-aecea9a4="" class="grow"></span><a data-v-aecea9a4="" href="https://app.netlify.com/projects/danholloran-me/analytics-and-metrics/observability" target="_blank" rel="noopener" class="secondary-btn">Logs</a><a data-v-aecea9a4="" href="https://app.netlify.com/projects/danholloran-me/configuration/general" target="_blank" rel="noopener" class="secondary-btn">Settings</a><a data-v-aecea9a4="" href="https://danholloran.me/posts/" target="_blank" rel="noopener" class="secondary-btn">Posts</a><a data-v-aecea9a4="" href="https://danholloran.me" target="_blank" rel="noopener" class="open-btn" style="background: #A78BFA;"> Open danholloran.me <svg data-v-aecea9a4="" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path data-v-aecea9a4="" d="M5.5 10.5 10.5 5.5M6.4 5.5h4.1v4.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
     </svg></a>
 </div>"

@@ -17,6 +17,7 @@ const DETAIL_RESPONSE: AppDetailResponse = {
   sources: [],
   integrations: [],
   lastSyncedAt: null,
+  ga4PropertyId: null,
 };
 
 afterEach(() => {

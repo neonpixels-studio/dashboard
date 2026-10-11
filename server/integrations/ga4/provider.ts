@@ -56,7 +56,7 @@ const NO_SESSIONS = 0;
  * resolveProductIdsSource and config.ts's own row-overrides-shared-default
  * precedent.
  */
-function resolvePropertyId(config: IntegrationConfig): string | null {
+export function resolvePropertyId(config: IntegrationConfig): string | null {
   const externalId = config.externalId?.trim();
   if (externalId) {
     return externalId;

@@ -10,7 +10,7 @@ import type { DrizzleDb } from "../utils/dashboardQueries";
 // never reads into pruned history.
 export const SNAPSHOT_RETENTION_DAYS = SERIES_WINDOW_DAYS + 30;
 
-// Caps rows deleted per table per run. The sync route runs every 15 minutes
+// Caps rows deleted per table per run. The sync route runs hourly
 // under a short serverless time limit, so a large backlog drains over
 // several runs instead of one long DELETE.
 export const PRUNE_BATCH_LIMIT = 1_000;

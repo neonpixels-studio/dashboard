@@ -79,7 +79,27 @@ describe("GET /api/apps/[slug]", () => {
       sources: [],
       integrations: [],
       lastSyncedAt: null,
+      ga4PropertyId: null,
     });
+  });
+
+  it("exposes the enabled GA4 property id for the app", async () => {
+    mockFetchIntegrationConfigs.mockResolvedValue([
+      {
+        id: 1,
+        slug: "basin",
+        vendor: "ga4",
+        enabled: true,
+        externalId: "412345678",
+        secretRef: "SHOULD_NOT_LEAK",
+        encryptedSecret: null,
+      },
+    ]);
+
+    const result = await appDetailHandler(makeEvent("basin"));
+
+    expect(result.ga4PropertyId).toBe("412345678");
+    expect(JSON.stringify(result)).not.toContain("SHOULD_NOT_LEAK");
   });
 
   it("scopes every fetch to the requested slug", async () => {

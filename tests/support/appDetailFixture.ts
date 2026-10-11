@@ -17,6 +17,7 @@ export function appDetailFixture(
     sources: [],
     integrations: [],
     lastSyncedAt: null,
+    ga4PropertyId: null,
     ...overrides,
   };
 }
