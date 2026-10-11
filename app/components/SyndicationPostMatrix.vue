@@ -9,27 +9,34 @@
     </div>
     <ul class="matrix-rows">
       <li v-for="post in posts" :key="post.title" class="matrix-row">
-        <span class="col-post">{{ post.title }}</span>
-        <span v-for="(cell, index) in post.cells" :key="index" class="col-cell">
-          <span class="cell-pill" :class="cell.tone">{{ cell.label }}</span>
-          <span v-if="cell.views" class="cell-views">{{ cell.views }}</span>
+        <span class="col-post">
+          <a
+            class="post-link"
+            :href="post.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            >{{ post.title }}</a
+          >
         </span>
+        <SyndicationPostCell
+          v-for="(cell, index) in post.cells"
+          :key="index"
+          class="col-cell"
+          :cell="cell"
+          :link-label="`${post.title} on ${platforms[index]}`"
+        />
       </li>
     </ul>
   </div>
 </template>
 
 <script setup lang="ts">
+import SyndicationPostCell from "./SyndicationPostCell.vue";
+import type { SyndicationMatrixPostView } from "~/utils/syndicationMatrix";
+
 defineProps<{
   platforms: string[];
-  posts: {
-    title: string;
-    cells: {
-      label: string;
-      tone: "live" | "failed" | "queued" | "off";
-      views: string | null;
-    }[];
-  }[];
+  posts: SyndicationMatrixPostView[];
 }>();
 </script>
 
@@ -85,32 +92,12 @@ defineProps<{
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cell-pill {
-  padding: 2px 8px;
-  border-radius: var(--r-sm);
-  font-size: 9px;
-  font-weight: 700;
-  white-space: nowrap;
+.post-link {
+  color: inherit;
+  text-decoration: none;
 }
-.cell-views {
-  font-size: 10px;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-.cell-pill.live {
-  color: var(--ok);
-  background: var(--ok-tint);
-}
-.cell-pill.failed {
-  color: var(--err);
-  background: var(--err-tint);
-}
-.cell-pill.queued {
-  color: var(--warn);
-  background: var(--warn-tint);
-}
-.cell-pill.off {
-  color: var(--ink-3);
-  background: var(--line-3);
+.post-link:hover,
+.post-link:focus-visible {
+  text-decoration: underline;
 }
 </style>

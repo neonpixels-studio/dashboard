@@ -969,6 +969,9 @@ export function syndicationMatrixForApp(
       status: row.status,
       syncedAt: toIsoOrNull(row.syncedAt),
       views: row.views,
+      url: row.url,
+      likes: row.likes,
+      comments: row.comments,
     })),
   }));
 }

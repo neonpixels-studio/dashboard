@@ -113,6 +113,48 @@ describe("parseHashnodeIngestPayload", () => {
   });
 });
 
+describe("parseHashnodeIngestPayload engagement fields", () => {
+  it("accepts optional url, likes and comments", () => {
+    const post = {
+      ...VALID_POST,
+      url: "https://danholloran.hashnode.dev/shipping-a-nuxt-dashboard",
+      likes: 3,
+      comments: 0,
+    };
+
+    expect(parseHashnodeIngestPayload(payloadWith([post])).posts[0]).toEqual(
+      post,
+    );
+  });
+
+  it("leaves them off a post that omits them", () => {
+    const parsed = parseHashnodeIngestPayload(payloadWith([VALID_POST]));
+
+    expect(parsed.posts[0]).toEqual(VALID_POST);
+  });
+
+  it.each(["javascript:alert(1)", "https://", "/relative", "", 5])(
+    "rejects the non-http(s) or unparseable url %j",
+    (url) => {
+      expectRejected(
+        payloadWith([{ ...VALID_POST, url }]),
+        /posts\[0\]\.url must be an http\(s\) URL/,
+      );
+    },
+  );
+
+  const BAD_COUNTS = ["likes", "comments"].flatMap((key) =>
+    [-1, 1.5, "3", null].map((value) => [key, value] as const),
+  );
+
+  it.each(BAD_COUNTS)("rejects %s = %j", (key, value) => {
+    expectRejected(
+      payloadWith([{ ...VALID_POST, [key]: value }]),
+      new RegExp(`posts\\[0\\]\\.${key} must be a non-negative integer`),
+    );
+  });
+});
+
 describe("toHashnodeProviderResult", () => {
   it("builds hashnode syndication rows with views plus posts and summed views metrics", () => {
     const result = toHashnodeProviderResult({
@@ -123,6 +165,9 @@ describe("toHashnodeProviderResult", () => {
           slug: "landscape-photography-in-iceland",
           publishedAt: "2026-08-15T09:30:00.000Z",
           views: 30,
+          url: "https://danholloran.hashnode.dev/landscape-photography-in-iceland",
+          likes: 9,
+          comments: 2,
         },
       ],
     });
@@ -150,6 +195,10 @@ describe("toHashnodeProviderResult", () => {
         syncedAt: new Date("2026-09-01T12:00:00.000Z"),
         views: 120,
         externalId: null,
+        // The scraper omitted these for this post: null, never zero.
+        url: null,
+        likes: null,
+        comments: null,
       },
       {
         platform: "hashnode",
@@ -159,6 +208,9 @@ describe("toHashnodeProviderResult", () => {
         syncedAt: new Date("2026-08-15T09:30:00.000Z"),
         views: 30,
         externalId: null,
+        url: "https://danholloran.hashnode.dev/landscape-photography-in-iceland",
+        likes: 9,
+        comments: 2,
       },
     ]);
   });

@@ -1,5 +1,5 @@
 import { assertValidDate } from "../dates";
-import type { SyndicationSourcePost } from "../types";
+import { reportedEngagement, type SyndicationSourcePost } from "../types";
 import type { DevtoArticle } from "./types";
 
 // DEV.to appends a random 3-4 character suffix to every slug (e.g.
@@ -32,5 +32,10 @@ export function toSyndicationSourcePost(
     postRef: toPostRef(article.slug),
     publishedAt,
     views: article.page_views_count,
+    ...reportedEngagement({
+      url: article.url,
+      likes: article.public_reactions_count,
+      comments: article.comments_count,
+    }),
   };
 }

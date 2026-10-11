@@ -85,6 +85,13 @@
       "when": 1791605252850,
       "tag": "0011_add_syndication_post_fetched_at",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791673786019,
+      "tag": "0012_add_syndication_post_engagement",
+      "breakpoints": true
     }
   ]
 }

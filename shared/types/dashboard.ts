@@ -88,6 +88,11 @@ export interface SyndicationMatrixCell {
   status: "synced" | "pending" | "failed";
   syncedAt: string | null;
   views: number | null;
+  // The platform's own address for the post and its engagement counts. Each is
+  // null when the platform didn't report it, never a fabricated zero.
+  url: string | null;
+  likes: number | null;
+  comments: number | null;
 }
 
 // One row of the syndication matrix: a single local post and its status on

@@ -69,6 +69,40 @@ describe("toSyndicationSourcePost (medium)", () => {
     }
   });
 
+  it("carries url, claps as likes and responses_count as comments from the same response", () => {
+    const post = toSyndicationSourcePost({
+      id: "1a2b3c4d5e6f",
+      unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+      published_at: 1798108800000,
+      url: "https://medium.com/@grimicorn/shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+      claps: 603,
+      responses_count: 0,
+    });
+
+    expect(post).toMatchObject({
+      url: "https://medium.com/@grimicorn/shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+      likes: 603,
+      comments: 0,
+    });
+  });
+
+  it("omits url, likes and comments when missing or malformed", () => {
+    for (const bad of [undefined, -1, 1.5, "12", "ftp://x", "https://"]) {
+      const post = toSyndicationSourcePost({
+        id: "1a2b3c4d5e6f",
+        unique_slug: "shipping-a-nuxt-dashboard-1a2b3c4d5e6f",
+        published_at: 1798108800000,
+        url: bad as string | undefined,
+        claps: bad as number | undefined,
+        responses_count: bad as number | undefined,
+      });
+
+      expect(post).not.toHaveProperty("url");
+      expect(post).not.toHaveProperty("likes");
+      expect(post).not.toHaveProperty("comments");
+    }
+  });
+
   it("also handles a bare 'YYYY-MM-DD HH:mm:ss' UTC string published_at (the other documented shape)", () => {
     const post = toSyndicationSourcePost({
       id: "1a2b3c4d5e6f",

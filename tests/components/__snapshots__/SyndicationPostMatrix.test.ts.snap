@@ -4,13 +4,27 @@ exports[`SyndicationPostMatrix > matches its snapshot 1`] = `
 "<div data-v-bcce6923="" class="post-matrix"><span data-v-bcce6923="" class="metric-label">RECENT POSTS × PLATFORM</span>
   <div data-v-bcce6923="" class="matrix-head"><span data-v-bcce6923="" class="col-post">POST</span><span data-v-bcce6923="" class="col-cell">MEDIUM</span><span data-v-bcce6923="" class="col-cell">HASHNODE</span><span data-v-bcce6923="" class="col-cell">DEV.TO</span><span data-v-bcce6923="" class="col-cell">ZYVOP</span></div>
   <ul data-v-bcce6923="" class="matrix-rows">
-    <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post">Shipping a Nuxt site with an agent that never sleeps</span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span><span data-v-bcce6923="" class="cell-views">1,204 views</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span>
-      <!--v-if--></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span><span data-v-bcce6923="" class="cell-views">88 views</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill failed">✗ FAILED</span>
+    <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post"><a data-v-bcce6923="" class="post-link" href="https://danholloran.me/posts/shipping-a-nuxt-site" target="_blank" rel="noopener noreferrer">Shipping a Nuxt site with an agent that never sleeps</a></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><a data-v-6fe83b8c="" class="cell-pill cell-link live" href="https://medium.com/@grimicorn/shipping-1a2b3c4d5e6f" aria-label="Shipping a Nuxt site with an agent that never sleeps on Medium, ✓ LIVE" target="_blank" rel="noopener noreferrer">✓ LIVE</a><span data-v-6fe83b8c="" class="cell-stat cell-stat--views">1,204 views</span><span data-v-6fe83b8c="" class="cell-stat cell-stat--likes">30 likes</span><span data-v-6fe83b8c="" class="cell-stat cell-stat--comments">2 comments</span></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><span data-v-6fe83b8c="" class="cell-pill live">✓ LIVE</span>
+      <!--v-if-->
+      <!--v-if-->
+      <!--v-if--></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><span data-v-6fe83b8c="" class="cell-pill live">✓ LIVE</span><span data-v-6fe83b8c="" class="cell-stat cell-stat--views">88 views</span>
+      <!--v-if-->
+      <!--v-if--></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><span data-v-6fe83b8c="" class="cell-pill failed">✗ FAILED</span>
+      <!--v-if-->
+      <!--v-if-->
       <!--v-if--></span>
     </li>
-    <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post">Three days in the Missouri Ozarks</span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill live">✓ LIVE</span><span data-v-bcce6923="" class="cell-views">3 views</span></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill off">— NOT POSTED</span>
-      <!--v-if--></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill off">— NOT POSTED</span>
-      <!--v-if--></span><span data-v-bcce6923="" class="col-cell"><span data-v-bcce6923="" class="cell-pill queued">• QUEUED</span>
+    <li data-v-bcce6923="" class="matrix-row"><span data-v-bcce6923="" class="col-post"><a data-v-bcce6923="" class="post-link" href="https://danholloran.me/posts/missouri-ozarks" target="_blank" rel="noopener noreferrer">Three days in the Missouri Ozarks</a></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><span data-v-6fe83b8c="" class="cell-pill live">✓ LIVE</span><span data-v-6fe83b8c="" class="cell-stat cell-stat--views">3 views</span>
+      <!--v-if-->
+      <!--v-if--></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><span data-v-6fe83b8c="" class="cell-pill off">— NOT POSTED</span>
+      <!--v-if-->
+      <!--v-if-->
+      <!--v-if--></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><span data-v-6fe83b8c="" class="cell-pill off">— NOT POSTED</span>
+      <!--v-if-->
+      <!--v-if-->
+      <!--v-if--></span><span data-v-6fe83b8c="" data-v-bcce6923="" class="col-cell"><span data-v-6fe83b8c="" class="cell-pill queued">• QUEUED</span>
+      <!--v-if-->
+      <!--v-if-->
       <!--v-if--></span>
     </li>
   </ul>

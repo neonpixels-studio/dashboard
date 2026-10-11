@@ -8,6 +8,11 @@ export interface DevtoArticle {
   published_at: string;
   // Lifetime views. Only present on the authenticated /articles/me/* endpoints.
   page_views_count: number;
+  // The article's public dev.to address.
+  url: string;
+  // Reactions of every kind (the number dev.to shows next to the heart).
+  public_reactions_count: number;
+  comments_count: number;
 }
 
 // The seam devtoProvider.ts's core logic is tested against instead of a real
