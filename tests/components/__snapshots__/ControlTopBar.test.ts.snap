@@ -26,7 +26,6 @@ exports[`ControlTopBar > matches its snapshot with a range selector 1`] = `
       <li data-v-2e629669=""><a data-v-2e629669="" href="/" class="nav-link active">Overview</a></li>
       <li data-v-2e629669=""><a data-v-2e629669="" href="#properties" class="nav-link">Properties</a></li>
       <li data-v-2e629669=""><a data-v-2e629669="" href="#alerts" class="nav-link">Alerts</a></li>
-      <li data-v-2e629669=""><a data-v-2e629669="" href="#integrations" class="nav-link">Integrations</a></li>
     </ul>
   </nav>
   <ul data-v-434991f8="" data-v-2e629669="" class="range-selector" aria-label="Date range">
@@ -50,7 +49,6 @@ exports[`ControlTopBar > matches its snapshot without a crumb 1`] = `
       <li data-v-2e629669=""><a data-v-2e629669="" href="/" class="nav-link active">Overview</a></li>
       <li data-v-2e629669=""><a data-v-2e629669="" href="#properties" class="nav-link">Properties</a></li>
       <li data-v-2e629669=""><a data-v-2e629669="" href="#alerts" class="nav-link">Alerts</a></li>
-      <li data-v-2e629669=""><a data-v-2e629669="" href="#integrations" class="nav-link">Integrations</a></li>
     </ul>
   </nav>
   <!--v-if-->
