@@ -15,6 +15,7 @@ import {
 import {
   alertsForApp,
   computeAppStatus,
+  integrationHealthForApp,
   latestMetricsBySlug,
   latestSyncedAt,
   metricSeriesBySlug,
@@ -57,6 +58,8 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     fetchSyndicationPosts(db, slug),
   ]);
 
+  const environments = integrationEnvironments(configRows);
+
   return {
     slug,
     status: computeAppStatus(syncRows, configRows, slug, latestMetricRows),
@@ -65,10 +68,12 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     trafficBreakdown: trafficChannelSplitForApp(breakdownRows, slug),
     syndication: syndicationMatrixForApp(posts),
     alerts: alertsForApp(syncRows, configRows, slug),
-    sources: syncSourcesForApp(
+    sources: syncSourcesForApp(syncRows, slug, environments),
+    integrations: integrationHealthForApp(
       syncRows,
+      configRows,
       slug,
-      integrationEnvironments(configRows),
+      environments,
     ),
     lastSyncedAt: latestSyncedAt(syncRows),
     ga4PropertyId: ga4PropertyIdForApp(configRows, slug),

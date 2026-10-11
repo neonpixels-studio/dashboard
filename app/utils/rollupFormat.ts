@@ -211,3 +211,16 @@ export function formatAxisDate(isoTimestamp: string): string | null {
   }
   return dayMonth(date);
 }
+
+const DELTA_NUMBER_PATTERN = /\d[\d,]*(?:\.\d+)?/;
+
+// Whether a formatted delta ("▲ 1", "— 0", "—", "") carries a real change
+// worth rendering. Empty, dash-only, and zero-valued deltas (including
+// "— 0.0%") are noise on a tile, so MetricTile hides them.
+export function isDeltaVisible(delta: string): boolean {
+  const numberMatch = delta.match(DELTA_NUMBER_PATTERN);
+  if (!numberMatch) {
+    return false;
+  }
+  return Number(numberMatch[0].replace(/,/g, "")) !== 0;
+}

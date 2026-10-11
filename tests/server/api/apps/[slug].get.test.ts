@@ -77,6 +77,7 @@ describe("GET /api/apps/[slug]", () => {
       syndication: [],
       alerts: [],
       sources: [],
+      integrations: [],
       lastSyncedAt: null,
       ga4PropertyId: null,
     });
@@ -241,5 +242,9 @@ describe("GET /api/apps/[slug]", () => {
     expect(result.status).toEqual({ label: "NOT SYNCED", tone: "muted" });
     // sources still reflect sync history regardless of enabled/disabled.
     expect(result.sources).toHaveLength(1);
+    // the disabled-but-configured vendor still shows up as an integration.
+    expect(result.integrations.map((entry) => entry.vendor)).toEqual([
+      "sentry",
+    ]);
   });
 });

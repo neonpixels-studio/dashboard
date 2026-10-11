@@ -15,6 +15,7 @@ export function appDetailFixture(
     syndication: [],
     alerts: [],
     sources: [],
+    integrations: [],
     lastSyncedAt: null,
     ga4PropertyId: null,
     ...overrides,

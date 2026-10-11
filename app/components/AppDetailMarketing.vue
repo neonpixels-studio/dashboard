@@ -59,6 +59,7 @@ import {
   METRIC_OPEN_ISSUES,
   METRIC_SESSIONS,
   METRIC_USERS,
+  isMetricIntegrated,
   PERIOD_30D,
   PERIOD_CURRENT,
 } from "~/utils/metricTile";
@@ -77,15 +78,25 @@ const sessionsColor = computed(() =>
   props.app.isStudioSite ? "var(--ink)" : props.app.accent,
 );
 
+const TILE_SPECS = [
+  { metric: METRIC_SESSIONS, period: PERIOD_30D },
+  { metric: METRIC_USERS, period: PERIOD_CURRENT },
+  { metric: METRIC_NEW_USERS, period: PERIOD_30D },
+  { metric: METRIC_OPEN_ISSUES, period: PERIOD_CURRENT },
+];
+
+// Tiles for vendors this property has no integration with are dropped
+// rather than rendered as an empty "Not synced yet" placeholder.
 const tiles = computed(() => {
   const metrics = props.app.detail?.metrics ?? [];
   const series = props.app.detail?.series ?? [];
-  return [
-    buildMetricTileData(METRIC_SESSIONS, PERIOD_30D, metrics, series),
-    buildMetricTileData(METRIC_USERS, PERIOD_CURRENT, metrics, series),
-    buildMetricTileData(METRIC_NEW_USERS, PERIOD_30D, metrics, series),
-    buildMetricTileData(METRIC_OPEN_ISSUES, PERIOD_CURRENT, metrics, series),
-  ];
+  const integrations = props.app.detail?.integrations ?? [];
+  const specs = TILE_SPECS.filter((spec) =>
+    isMetricIntegrated(spec.metric, integrations),
+  );
+  return specs.map((spec) =>
+    buildMetricTileData(spec.metric, spec.period, metrics, series),
+  );
 });
 
 const sessionsPath = computed(() => {

@@ -13,7 +13,7 @@
       <SkeletonBlock height="180px" radius="var(--r-lg)" />
     </template>
 
-    <SectionLabel label="REACH" meta="NO STRIPE OR CLERK ON THIS PROPERTY" />
+    <SectionLabel label="REACH" />
 
     <MetricTileGrid :tiles="tiles" />
 

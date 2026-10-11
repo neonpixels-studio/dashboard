@@ -161,6 +161,9 @@ export interface AppDetailResponse {
   syndication: SyndicationMatrixRow[];
   alerts: AppAlert[];
   sources: SyncSource[];
+  // Every configured integration, whether or not it has synced yet — the
+  // only way the detail page can tell "not configured" from "not synced".
+  integrations: IntegrationHealth[];
   lastSyncedAt: string | null;
   // The GA4 property id behind this app's traffic panels as configured (not a
   // secret; the client validates it before building a link), or null when GA4
