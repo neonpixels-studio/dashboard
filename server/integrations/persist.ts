@@ -263,7 +263,7 @@ export function persistProviderResult(
 // replaced by this column's own migration, 0005): its diff excludes
 // `last_attempt_at` alongside `updated_at` itself, sees no other change, and
 // restores `OLD.updated_at`. Without that exclusion, every enabled row's
-// `updated_at` would track its last sync attempt (every ~15 minutes) rather
+// `updated_at` would track its last sync attempt (every hour) rather
 // than its last real configuration edit.
 //
 // @todo this repo has no real-Postgres test harness yet, so migration

@@ -1,8 +1,10 @@
 import { getCurrentScope, onScopeDispose } from "vue";
 
-// The scheduled sync runs every 15 minutes (netlify/functions/scheduled-sync.ts),
-// so polling at a third of that picks up new data within ~5 minutes of a sync.
-export const DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+// The scheduled sync runs hourly (netlify/functions/scheduled-sync.ts), so
+// polling at a third of that picks up new data within ~20 minutes of a sync.
+// Each poll wakes the Neon database, so polling faster than the sync just
+// burns compute.
+export const DATA_REFRESH_INTERVAL_MS = 20 * 60 * 1000;
 
 // Re-runs `refresh` on an interval. Ticks that land while the tab is hidden
 // are skipped; when the tab becomes visible again it refreshes once, unless a

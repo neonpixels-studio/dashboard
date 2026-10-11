@@ -177,10 +177,15 @@ scoped per property by product ID — see
 
 ### Per-app Clerk
 
-Reports total user count (`users`, current) and a new-signups delta over the
-trailing 30 days (`new_users`, `30d`) for each product-template app's own
-Clerk instance — separate from this dashboard's own Clerk app configured
-above — see `server/integrations/clerk/provider.ts`. Unlike Stripe/GA4's one
+Reports, for each product-template app's own Clerk instance (separate from
+this dashboard's own Clerk app configured above — see
+`server/integrations/clerk/provider.ts`): total users (`users`, current), a
+new-signups delta over the trailing 30 days (`new_users`, `30d`), and — from
+a paged scan of the user list (up to 5,000 users) — `verified_users`,
+`active_users` (`7d`), 30 daily `signups` rows, and one `auth_method:<method>`
+count per primary sign-in method. These feed the USERS & AUTH panel. If the
+instance has more users than the scan cap, the scan-derived metrics are
+omitted for that sync (never extrapolated). Unlike Stripe/GA4's one
 shared studio-wide credential, each app has its own Clerk instance, so
 there's no shared default: the secret key itself is what identifies which
 app's data is being read, and an app with no secret configured anywhere
@@ -191,6 +196,12 @@ simply produces no rows (not a zeroed metric, not a thrown error).
 2. An `integration_config` row (`vendor: "clerk"`) with `secret_ref` pointing
    at that var is what actually resolves the key into `config.secret` at
    sync time (`server/integrations/config.ts`'s `resolveSecret`).
+3. Optional: set that row's `external_id` to `app_xxx/ins_xxx` (the two ids
+   in the instance's Clerk dashboard URL) so the panel's "View users in
+   Clerk" link opens that exact instance. Without it the link falls back to
+   Clerk's last-active-instance Users shortcut. The Backend API exposes
+   neither id, so they can't be derived from the secret key. A key's
+   `sk_test_` prefix tags the panel `development`.
 
 ### Sentry
 
@@ -277,7 +288,7 @@ suffix, since there's only one writing-template app today).
 ### Cross-app sync trigger
 
 `NUXT_SYNC_TRIGGER_SECRET` — shared secret a sibling app (or
-`netlify/functions/scheduled-sync.ts`, the 15-minute poller) presents on
+`netlify/functions/scheduled-sync.ts`, the hourly poller) presents on
 `POST /api/sync`'s `Authorization: Bearer` header to trigger a dashboard
 refresh. Generate with `openssl rand -hex 32`; no external account needed.
 
@@ -295,7 +306,7 @@ Every `POST /api/sync` ends with a bounded prune
 (`server/integrations/retention.ts`) of `metric_snapshot` and
 `traffic_breakdown`. Rows older than `SNAPSHOT_RETENTION_DAYS` (the sparkline
 window plus 30 days) are deleted, at most `PRUNE_BATCH_LIMIT` per table per
-run, so a backlog drains over several 15-minute syncs. The newest row per
+run, so a backlog drains over several hourly syncs. The newest row per
 `(slug, vendor, metric, period)` and each slug's latest traffic batch are
 always kept, because the current-value tiles read them with no time bound.
 No new env vars or services; migration `0007` adds `captured_at` indexes so
@@ -337,7 +348,7 @@ function logs.
 `scheduled-sync.ts` also sends Sentry Cron check-ins
 (`netlify/functions/cronMonitor.ts`): `in_progress` at the start, then `ok` or
 `error` (non-2xx response or a throw). The first check-in upserts a
-`scheduled-sync` monitor (every 15 minutes, 5 minute margin), so there is no
+`scheduled-sync` monitor (hourly, 5 minute margin), so there is no
 manual setup in Sentry; Sentry alerts when a check-in is missed, i.e. when the
 scheduler stops invoking the function entirely. It needs only `SENTRY_DSN` and
 no-ops without it. If the schedule in `scheduled-sync.ts` changes, update

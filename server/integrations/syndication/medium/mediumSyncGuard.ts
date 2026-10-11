@@ -10,8 +10,8 @@
 // on a minimum interval since the last *successful* Medium sync (see
 // server/utils/dashboardQueries.ts's fetchLatestMetricCapturedAt for why
 // success, not "last run", is the right clock here) keeps this provider on
-// that cadence independent of how often the orchestrator itself runs (every
-// 15 minutes — see netlify/functions/scheduled-sync.ts).
+// that cadence independent of how often the orchestrator itself runs (hourly;
+// see netlify/functions/scheduled-sync.ts).
 export const MEDIUM_MIN_SYNC_INTERVAL_HOURS = 24;
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 // Exported so provider.ts's atomic attempt-claim (recordSyncAttempt in
@@ -38,7 +38,7 @@ function laterOf(first: Date | null, second: Date | null): Date | null {
  *
  * `lastAttemptedSyncAt` is what keeps a persistently-failing sync (bad key, a
  * mapping bug, a transient mediumapi.com outage) from retrying on every
- * 15-minute orchestrator tick, since `lastSuccessfulSyncAt` alone only
+ * hourly orchestrator tick, since `lastSuccessfulSyncAt` alone only
  * advances on a full success (provider.ts's buildSyndicationResult) and would
  * otherwise never push the clock forward. It instead advances the moment a
  * real network attempt starts, independent of whether it goes on to succeed

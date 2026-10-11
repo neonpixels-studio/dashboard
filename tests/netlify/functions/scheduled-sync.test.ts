@@ -57,11 +57,11 @@ afterEach(() => {
 });
 
 describe("scheduled-sync config", () => {
-  it("declares a 15-minute cron schedule", () => {
+  it("declares an hourly cron schedule", () => {
     // Exact match (not just "looks like 5 cron fields") so an accidental
     // edit to the schedule is caught here rather than only noticed
     // once the cadence silently changes in production.
-    expect(config.schedule).toBe("*/15 * * * *");
+    expect(config.schedule).toBe("0 * * * *");
   });
 });
 
