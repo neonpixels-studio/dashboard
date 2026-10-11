@@ -18,7 +18,6 @@
         <li><NuxtLink to="/" class="nav-link active">Overview</NuxtLink></li>
         <li><a href="#properties" class="nav-link">Properties</a></li>
         <li><a href="#alerts" class="nav-link">Alerts</a></li>
-        <li><a href="#integrations" class="nav-link">Integrations</a></li>
       </ul>
     </nav>
 

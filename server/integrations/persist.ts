@@ -13,7 +13,7 @@ import {
 } from "../db/schema";
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
-import type { SyncHealthRow } from "./staleVendorAlert";
+import type { SyncAlertRow } from "./staleVendorAlert";
 import type { IntegrationConfigRow, ProviderResult } from "./types";
 
 // Stamps the orchestrator's own slug onto every row a provider returned
@@ -109,19 +109,23 @@ export async function findIntegrationConfig(
 }
 
 // Health of every enabled (slug, vendor) row, for the stale-vendor alert (see
-// staleVendorAlert.ts). Inner join so a disabled or removed integration, whose
-// sync_status row is left behind, never alerts.
+// staleVendorAlert.ts) and the overview Alerts panel (overviewAlerts.ts).
+// Inner join so a disabled or removed integration, whose sync_status row is
+// left behind, never alerts.
 // integration_config.vendor is the integration_vendor enum and
 // sync_status.vendor is free text, and Postgres has no enum = text operator,
 // so the enum side is cast to text (not text to enum, which would throw on a
 // metrics-only vendor like "github").
-export function listSyncHealthRows(db: DrizzleDb): Promise<SyncHealthRow[]> {
+export function listSyncHealthRows(db: DrizzleDb): Promise<SyncAlertRow[]> {
   return db
     .select({
       slug: syncStatus.slug,
       vendor: syncStatus.vendor,
       lastRunAt: syncStatus.lastRunAt,
       lastSuccessAt: syncStatus.lastSuccessAt,
+      lastAttemptedAt: syncStatus.lastAttemptedAt,
+      ok: syncStatus.ok,
+      error: syncStatus.error,
     })
     .from(syncStatus)
     .innerJoin(

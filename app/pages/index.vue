@@ -53,6 +53,13 @@
         </template>
       </div>
 
+      <OverviewAlertsPanel
+        :alerts="alertsData ?? []"
+        :pending="alertsPending"
+        :has-error="!!alertsError"
+        @retry="refreshAlerts"
+      />
+
       <SessionsByPropertyPanel
         :properties="sessionsData ?? []"
         :pending="sessionsPending"
@@ -67,7 +74,7 @@
         class="section-gap"
       />
 
-      <div id="integrations" class="property-grid">
+      <div class="property-grid">
         <PropertyCard
           v-for="app in cardViewModels"
           :key="app.slug"
@@ -86,6 +93,7 @@ import { toAppCardViewModel } from "~/utils/appViewModel";
 import { useOverview } from "~/composables/useOverview";
 import { useOverviewRange } from "~/composables/useOverviewRange";
 import { useApps } from "~/composables/useApps";
+import { useOverviewAlerts } from "~/composables/useOverviewAlerts";
 import { useOverviewSessions } from "~/composables/useOverviewSessions";
 import { formatRelativeTime } from "~/utils/relativeTime";
 import { buildSparklinePath } from "~/utils/sparklinePath";
@@ -330,6 +338,13 @@ const {
   error: sessionsError,
   refresh: refreshSessions,
 } = useOverviewSessions();
+
+const {
+  data: alertsData,
+  pending: alertsPending,
+  error: alertsError,
+  refresh: refreshAlerts,
+} = useOverviewAlerts();
 </script>
 
 <style scoped>
