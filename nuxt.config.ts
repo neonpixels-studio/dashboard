@@ -70,6 +70,9 @@ export default defineNuxtConfig({
     stripeProductIdBasin: process.env.NUXT_STRIPE_PRODUCT_ID_BASIN || "",
     stripeProductIdMarkpost: process.env.NUXT_STRIPE_PRODUCT_ID_MARKPOST || "",
     stripeProductIdFarflung: process.env.NUXT_STRIPE_PRODUCT_ID_FARFLUNG || "",
+    // Same reasoning again: server/utils/stripeDetailShaping.ts reads it
+    // through readIntegrationEnv to put the acct_ segment in dashboard links.
+    stripeAccountId: process.env.NUXT_STRIPE_ACCOUNT_ID || "",
     // Shared secret POST /api/sync (server/api/sync.post.ts) requires on the
     // Authorization: Bearer header — see server/utils/syncTrigger.ts. Read
     // via useRuntimeConfig() (not process.env directly) since, unlike

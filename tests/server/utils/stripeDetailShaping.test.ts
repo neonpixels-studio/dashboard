@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   stripeAppDashboardUrl,
   stripeDetailForApp,
@@ -82,6 +82,39 @@ describe("stripeObjectUrl", () => {
 
   it("returns null for an object id it doesn't know how to link", () => {
     expect(stripeObjectUrl("production", "ch_1")).toBeNull();
+  });
+});
+
+describe("Stripe dashboard links with NUXT_STRIPE_ACCOUNT_ID", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("pins test-mode links to the configured account", () => {
+    vi.stubEnv("NUXT_STRIPE_ACCOUNT_ID", "acct_studio");
+
+    expect(stripeAppDashboardUrl("development", ["prod_pro"])).toBe(
+      "https://dashboard.stripe.com/acct_studio/test/products/prod_pro",
+    );
+    expect(stripeObjectUrl("development", "sub_1")).toBe(
+      "https://dashboard.stripe.com/acct_studio/test/subscriptions/sub_1",
+    );
+  });
+
+  it("pins live-mode links to the configured account", () => {
+    vi.stubEnv("NUXT_STRIPE_ACCOUNT_ID", "acct_studio");
+
+    expect(stripeObjectUrl("production", "in_1")).toBe(
+      "https://dashboard.stripe.com/acct_studio/invoices/in_1",
+    );
+  });
+
+  it("omits the account segment when the value is blank", () => {
+    vi.stubEnv("NUXT_STRIPE_ACCOUNT_ID", "   ");
+
+    expect(stripeAppDashboardUrl("production", [])).toBe(
+      "https://dashboard.stripe.com/products",
+    );
   });
 });
 

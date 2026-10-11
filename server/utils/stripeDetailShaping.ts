@@ -2,6 +2,7 @@
 // panel's response (StripeDetail). No `db` here, same as dashboardShaping.ts.
 import { CENTS_PER_DOLLAR } from "../integrations/stripe/mrr";
 import { configuredProductIds } from "../integrations/stripe/productIds";
+import { readIntegrationEnv } from "../integrations/integrationEnv";
 import type {
   IntegrationEnvironment,
   StripeDetail,
@@ -15,6 +16,7 @@ import type {
 
 const STRIPE_VENDOR = "stripe";
 const STRIPE_DASHBOARD_URL = "https://dashboard.stripe.com";
+const STRIPE_ACCOUNT_ID_ENV = "NUXT_STRIPE_ACCOUNT_ID";
 
 // Stripe object id prefix -> dashboard path segment. An id with any other
 // prefix gets no link rather than a guessed one.
@@ -23,14 +25,23 @@ const OBJECT_PATH_BY_PREFIX: Record<string, string> = {
   in_: "invoices",
 };
 
+// Without the acct_ segment Stripe opens the link on whichever account the
+// viewer last used, and the object is "not found" on any other account.
+function stripeAccountUrl(): string {
+  const accountId = readIntegrationEnv(STRIPE_ACCOUNT_ID_ENV)?.trim();
+  if (!accountId) {
+    return STRIPE_DASHBOARD_URL;
+  }
+  return `${STRIPE_DASHBOARD_URL}/${accountId}`;
+}
+
 // Test-mode keys view the same account under /test. An unknown environment
 // (key without a recognizable prefix) falls back to the live dashboard.
 export function stripeDashboardBase(
   environment: IntegrationEnvironment | null,
 ): string {
-  return environment === "development"
-    ? `${STRIPE_DASHBOARD_URL}/test`
-    : STRIPE_DASHBOARD_URL;
+  const accountUrl = stripeAccountUrl();
+  return environment === "development" ? `${accountUrl}/test` : accountUrl;
 }
 
 // An app configured with one product links straight to its product page;
