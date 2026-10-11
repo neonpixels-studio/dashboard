@@ -5,11 +5,26 @@ import type { SearchSentryIssues, SentryIssuePage } from "./types";
 // A hung Sentry request would otherwise block a sync indefinitely (no
 // independent deadline on a Netlify function) — same reasoning as
 // server/integrations/stripe/stripeClient.ts's STRIPE_REQUEST_TIMEOUT_MS.
+// One timer covers a whole search, including any 429 retries and their waits.
 const SENTRY_REQUEST_TIMEOUT_MS = 20_000;
 // SaaS Sentry only — a self-hosted install would need its own base URL, not
 // currently a studio requirement (every property's Sentry org lives on
 // sentry.io).
 const SENTRY_API_BASE_URL = "https://sentry.io/api/0";
+
+// Sentry's issue-search endpoint allows 5 requests per 1-second window per
+// token, and one sync batch can burst past that (issue #107). A 429 is
+// transient, so it is retried a bounded number of times instead of failing
+// the whole project's sync.
+const HTTP_TOO_MANY_REQUESTS = 429;
+const SENTRY_MAX_RATE_LIMIT_RETRIES = 3;
+// The rate-limit window is 1s, so this is a sensible wait when Sentry sends
+// no usable hint header.
+const SENTRY_DEFAULT_RETRY_DELAY_MS = 1_000;
+// Clamp so a large or bogus header can never stall a sync.
+const SENTRY_MAX_RETRY_DELAY_MS = 2_000;
+const SENTRY_MIN_RETRY_DELAY_MS = 250;
+const MS_PER_SECOND = 1_000;
 
 // Only the subset of the global `fetch` signature this package calls —
 // narrowing the parameter type (rather than depending on the ambient global
@@ -37,6 +52,29 @@ function buildIssueSearchUrl(
     url.searchParams.set("cursor", cursor);
   }
   return url;
+}
+
+// Relabels an abort with project context. Checks `deadline` before
+// `abortController` (see fetchIssuesPage). Returns null when neither fired.
+function buildAbortedSearchError(
+  abortController: AbortController,
+  deadline: FetchDeadline,
+  projectSlug: string,
+  cause: unknown,
+): Error | null {
+  if (deadline.signal.aborted) {
+    return new Error(
+      `Sentry issue search for project "${projectSlug}" was aborted because the sync's shared run budget was exhausted.`,
+      { cause },
+    );
+  }
+  if (abortController.signal.aborted) {
+    return new Error(
+      `Sentry issue search for project "${projectSlug}" timed out after ${SENTRY_REQUEST_TIMEOUT_MS}ms.`,
+      { cause },
+    );
+  }
+  return null;
 }
 
 async function fetchIssuesPage(
@@ -71,19 +109,122 @@ async function fetchIssuesPage(
     // matching syndication/httpClient.ts's identical sendRequest check — so
     // the rare case where BOTH have already fired by the time this runs
     // reports the same message regardless of which vendor's client it is.
-    if (deadline.signal.aborted) {
-      throw new Error(
-        `Sentry issue search for project "${projectSlug}" was aborted because the sync's shared run budget was exhausted.`,
-        { cause },
-      );
-    }
-    if (abortController.signal.aborted) {
-      throw new Error(
-        `Sentry issue search for project "${projectSlug}" timed out after ${SENTRY_REQUEST_TIMEOUT_MS}ms.`,
-        { cause },
-      );
+    const abortedError = buildAbortedSearchError(
+      abortController,
+      deadline,
+      projectSlug,
+      cause,
+    );
+    if (abortedError) {
+      throw abortedError;
     }
     throw cause;
+  }
+}
+
+function parseRetryAfterMs(headers: Headers): number | null {
+  const rawRetryAfter = headers.get("retry-after");
+  if (!rawRetryAfter) {
+    return null;
+  }
+  const seconds = Number(rawRetryAfter);
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return null;
+  }
+  return seconds * MS_PER_SECOND;
+}
+
+function parseRateLimitResetMs(headers: Headers, nowMs: number): number | null {
+  const rawReset = headers.get("x-sentry-rate-limit-reset");
+  if (!rawReset) {
+    return null;
+  }
+  const resetEpochSeconds = Number(rawReset);
+  if (!Number.isFinite(resetEpochSeconds)) {
+    return null;
+  }
+  return resetEpochSeconds * MS_PER_SECOND - nowMs;
+}
+
+// Prefers Retry-After, then x-sentry-rate-limit-reset (epoch seconds), then a
+// default; always clamped to [MIN, MAX] so a zero/past hint (clock skew) can't
+// burn every retry instantly and a huge one can't stall the sync.
+function resolveRetryDelayMs(headers: Headers, nowMs: number): number {
+  const hintedDelayMs =
+    parseRetryAfterMs(headers) ??
+    parseRateLimitResetMs(headers, nowMs) ??
+    SENTRY_DEFAULT_RETRY_DELAY_MS;
+  return Math.max(
+    SENTRY_MIN_RETRY_DELAY_MS,
+    Math.min(hintedDelayMs, SENTRY_MAX_RETRY_DELAY_MS),
+  );
+}
+
+// Resolves after `delayMs`, or rejects as soon as either the request timeout
+// or the shared run budget fires, so a retry wait never outlives either.
+function waitForRetry(
+  delayMs: number,
+  abortController: AbortController,
+  deadline: FetchDeadline,
+  projectSlug: string,
+): Promise<void> {
+  const waitSignal = AbortSignal.any([abortController.signal, deadline.signal]);
+  const buildAbortError = () =>
+    buildAbortedSearchError(
+      abortController,
+      deadline,
+      projectSlug,
+      waitSignal.reason,
+    ) ?? waitSignal.reason;
+
+  return new Promise((resolve, reject) => {
+    if (waitSignal.aborted) {
+      reject(buildAbortError());
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timerId);
+      reject(buildAbortError());
+    };
+    const timerId = setTimeout(() => {
+      waitSignal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    waitSignal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function fetchIssuesPageWithRetry(
+  fetchImpl: FetchIssuesPage,
+  url: URL,
+  authToken: string,
+  abortController: AbortController,
+  deadline: FetchDeadline,
+  projectSlug: string,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetchIssuesPage(
+      fetchImpl,
+      url,
+      authToken,
+      abortController,
+      deadline,
+      projectSlug,
+    );
+    if (
+      response.status !== HTTP_TOO_MANY_REQUESTS ||
+      attempt >= SENTRY_MAX_RATE_LIMIT_RETRIES
+    ) {
+      return response;
+    }
+    // An unread body keeps its socket checked out under undici's fetch.
+    await response.body?.cancel().catch(() => undefined);
+    await waitForRetry(
+      resolveRetryDelayMs(response.headers, Date.now()),
+      abortController,
+      deadline,
+      projectSlug,
+    );
   }
 }
 
@@ -145,7 +286,7 @@ export function createSentryIssueSearcher(
     // body parse stay inside this one try, and the timer only clears once
     // both are done.
     try {
-      const response = await fetchIssuesPage(
+      const response = await fetchIssuesPageWithRetry(
         fetchImpl,
         url,
         authToken,
