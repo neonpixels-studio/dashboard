@@ -2,6 +2,8 @@ import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
   integrationConfig,
   metricSnapshot,
+  neonBranch,
+  neonUsage,
   syndicationPost,
   trafficBreakdown,
 } from "../db/schema";
@@ -54,6 +56,24 @@ export type SyndicationPostInput = Omit<
   "id" | "slug"
 >;
 
+// Neon's usage row is a single latest-value record (overwritten per sync) and
+// its branches are replaced as a set, so they travel together as one optional
+// payload instead of the per-row arrays above. `capturedAt` is required for the
+// same reason as MetricSnapshotInput's.
+export type NeonUsageInput = Omit<
+  InferInsertModel<typeof neonUsage>,
+  "id" | "slug"
+> &
+  Required<Pick<InferInsertModel<typeof neonUsage>, "capturedAt">>;
+export type NeonBranchInput = Omit<
+  InferInsertModel<typeof neonBranch>,
+  "id" | "slug"
+>;
+export interface NeonDatabaseInput {
+  usage: NeonUsageInput;
+  branches: NeonBranchInput[];
+}
+
 // Normalized shape every provider returns, regardless of vendor. The
 // orchestrator maps each array onto its matching table and stamps `slug` on
 // the way in. A provider that doesn't produce a given kind of data (e.g. a
@@ -62,6 +82,8 @@ export interface ProviderResult {
   metrics: MetricSnapshotInput[];
   trafficBreakdown: TrafficBreakdownInput[];
   syndicationPosts: SyndicationPostInput[];
+  // Only the Neon provider sets this; every other vendor omits it.
+  neonDatabase?: NeonDatabaseInput;
   // True when the provider's own guard decided no real fetch was due this
   // tick (Medium's once-per-24h rate limit). The orchestrator then records
   // the run without overwriting the last real attempt's ok/error, so a

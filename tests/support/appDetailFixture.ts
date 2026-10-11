@@ -19,6 +19,7 @@ export function appDetailFixture(
     lastSyncedAt: null,
     clerkUsersUrl: null,
     ga4PropertyId: null,
+    database: null,
     ...overrides,
   };
 }

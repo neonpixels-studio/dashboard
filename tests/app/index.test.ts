@@ -22,12 +22,17 @@ import RollupMrrTile from "../../app/components/RollupMrrTile.vue";
 import RollupStatTile from "../../app/components/RollupStatTile.vue";
 import OverviewAlertsPanel from "../../app/components/OverviewAlertsPanel.vue";
 import OverviewAlertRow from "../../app/components/OverviewAlertRow.vue";
+import DatabasePanel from "../../app/components/DatabasePanel.vue";
+import DatabasePanelBody from "../../app/components/DatabasePanelBody.vue";
+import BarMeter from "../../app/components/BarMeter.vue";
 import RollupIssuesTile from "../../app/components/RollupIssuesTile.vue";
 import RollupValueRow from "../../app/components/RollupValueRow.vue";
 import type {
   AppsResponse,
   OverviewResponse,
 } from "../../shared/types/dashboard";
+import type { DatabasePanel as DatabasePanelData } from "../../shared/types/database";
+import { databasePanelFixture } from "../support/databasePanelFixture";
 import type { OverviewSessionsResponse } from "../../shared/types/overviewSessions";
 
 // index.vue imports useOverview/useApps directly (not via the global
@@ -58,6 +63,11 @@ vi.mock("../../app/composables/useOverviewAlerts", () => ({
   useOverviewAlerts: () => mockUseOverviewAlerts(),
 }));
 
+const mockUseOverviewDatabase = vi.fn();
+vi.mock("../../app/composables/useOverviewDatabase", () => ({
+  useOverviewDatabase: () => mockUseOverviewDatabase(),
+}));
+
 const mockUseApps = vi.fn();
 vi.mock("../../app/composables/useApps", () => ({
   useApps: () => mockUseApps(),
@@ -78,6 +88,9 @@ const GLOBAL_COMPONENTS = {
   SessionsByPropertyPanel,
   OverviewAlertsPanel,
   OverviewAlertRow,
+  DatabasePanel,
+  DatabasePanelBody,
+  BarMeter,
   AxisRow,
   PropertyCard,
   PropertyCardMetrics,
@@ -247,6 +260,25 @@ function mountPage() {
   });
 }
 
+function mockDatabase({
+  data = null,
+  pending = false,
+  error = null,
+  refresh = vi.fn(),
+}: {
+  data?: DatabasePanelData | null;
+  pending?: boolean;
+  error?: Error | null;
+  refresh?: () => void;
+}) {
+  mockUseOverviewDatabase.mockReturnValue({
+    data: ref(data),
+    pending: ref(pending),
+    error: ref(error),
+    refresh,
+  });
+}
+
 beforeEach(() => {
   selectedRange.value = 30;
   mockSetRange.mockReset();
@@ -262,6 +294,7 @@ beforeEach(() => {
     error: ref(null),
     refresh: vi.fn(),
   });
+  mockDatabase({});
 });
 
 afterEach(() => {
@@ -827,6 +860,48 @@ describe("index.vue alerts panel", () => {
     const wrapper = mountPage();
     await wrapper
       .findComponent(OverviewAlertsPanel)
+      .find(".retry-btn")
+      .trigger("click");
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("index.vue database block", () => {
+  it("shows the dashboard's own Neon usage next to the alerts panel", () => {
+    mockDatabase({
+      data: databasePanelFixture({ slug: "dashboard" }),
+    });
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+    const panel = wrapper.findComponent(DatabasePanel);
+
+    expect(panel.exists()).toBe(true);
+    expect(panel.element.parentElement).toBe(
+      wrapper.findComponent(OverviewAlertsPanel).element.parentElement,
+    );
+    expect(panel.text()).toContain("24.0 CU-hours of 100.0 CU-hours");
+  });
+
+  it("shows the empty state before the dashboard's Neon sync has run", () => {
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+
+    expect(wrapper.findComponent(DatabasePanel).text()).toContain(
+      "No Neon usage synced yet.",
+    );
+  });
+
+  it("wires the panel's retry to the composable's refresh", async () => {
+    const refresh = vi.fn();
+    mockDatabase({ error: new Error("boom"), refresh });
+    mockOverview({ data: overviewFixture() });
+
+    const wrapper = mountPage();
+    await wrapper
+      .findComponent(DatabasePanel)
       .find(".retry-btn")
       .trigger("click");
 

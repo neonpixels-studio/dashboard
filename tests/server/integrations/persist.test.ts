@@ -13,6 +13,8 @@ import {
 import {
   integrationConfig,
   metricSnapshot,
+  neonBranch,
+  neonUsage,
   syncStatus,
   syndicationPost,
   trafficBreakdown,
@@ -76,8 +78,21 @@ function createFakeDb() {
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
   const update = vi.fn().mockReturnValue({ set: updateSet });
 
+  // Neon's stale-branch cleanup: delete -> where, awaited directly (or handed
+  // to db.batch()).
+  const deleteWhere = vi.fn().mockImplementation(() => thenableQuery());
+  const deleteFrom = vi.fn().mockReturnValue({ where: deleteWhere });
+
   return {
-    db: { select, insert, update, batch } as unknown as FakeDb,
+    db: {
+      select,
+      insert,
+      update,
+      delete: deleteFrom,
+      batch,
+    } as unknown as FakeDb,
+    deleteFrom,
+    deleteWhere,
     select,
     from,
     where,
@@ -803,5 +818,85 @@ describe("listSyncHealthRows", () => {
     const whereQuery = dialect.sqlToQuery(where.mock.calls[0]![0]);
     expect(whereQuery.sql).toContain('"enabled" = $1');
     expect(whereQuery.params).toEqual([true]);
+  });
+});
+
+describe("persistProviderResult with Neon data", () => {
+  const NEON_RESULT: ProviderResult = {
+    metrics: [],
+    trafficBreakdown: [],
+    syndicationPosts: [],
+    neonDatabase: {
+      usage: {
+        computeTimeSeconds: 86_400,
+        activeTimeSeconds: 310_000,
+        storageBytes: 31_000_000,
+        dataTransferBytes: 9_000_000,
+        writtenDataBytes: 1_000,
+        periodStart: new Date("2026-10-01T00:00:00Z"),
+        periodEnd: new Date("2026-11-01T00:00:00Z"),
+        capturedAt: new Date("2026-10-10T12:00:00Z"),
+      },
+      branches: [
+        { name: "production", createdAt: new Date("2026-07-01T00:00:00Z") },
+        { name: "agent-leftover", createdAt: null },
+      ],
+    },
+  };
+
+  it("upserts the slug's usage row, upserts its branches, and removes branches Neon no longer lists, in one batch", async () => {
+    const { db, insert, values, deleteFrom, deleteWhere, batch } =
+      createFakeDb();
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), NEON_RESULT);
+
+    expect(insert).toHaveBeenCalledWith(neonUsage);
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: "basin", computeTimeSeconds: 86_400 }),
+    );
+    expect(insert).toHaveBeenCalledWith(neonBranch);
+    expect(values).toHaveBeenCalledWith([
+      expect.objectContaining({ slug: "basin", name: "production" }),
+      expect.objectContaining({ slug: "basin", name: "agent-leftover" }),
+    ]);
+    expect(deleteFrom).toHaveBeenCalledWith(neonBranch);
+    const staleBranchWhere = deleteWhere.mock.calls[0]![0] as SQL;
+    expect(renderSql(staleBranchWhere)).toContain("not in");
+    expect(renderSqlParams(staleBranchWhere)).toEqual([
+      "basin",
+      "production",
+      "agent-leftover",
+    ]);
+    expect(batch).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes every branch for the slug when Neon lists none", async () => {
+    const { db, insert, deleteWhere } = createFakeDb();
+    const result: ProviderResult = {
+      ...NEON_RESULT,
+      neonDatabase: { ...NEON_RESULT.neonDatabase!, branches: [] },
+    };
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), result);
+
+    expect(insert).not.toHaveBeenCalledWith(neonBranch);
+    const staleBranchWhere = deleteWhere.mock.calls[0]![0] as SQL;
+    expect(renderSql(staleBranchWhere)).not.toContain("not in");
+    expect(renderSqlParams(staleBranchWhere)).toEqual(["basin"]);
+  });
+
+  it("writes nothing for a Neon result that was skipped as not configured", async () => {
+    const { db, insert, deleteFrom, batch } = createFakeDb();
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), {
+      metrics: [],
+      trafficBreakdown: [],
+      syndicationPosts: [],
+      skipped: true,
+    });
+
+    expect(insert).not.toHaveBeenCalled();
+    expect(deleteFrom).not.toHaveBeenCalled();
+    expect(batch).not.toHaveBeenCalled();
   });
 });

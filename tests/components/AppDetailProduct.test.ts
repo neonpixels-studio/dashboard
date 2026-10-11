@@ -18,6 +18,8 @@ import {
 } from "./support/mountDetailTemplate";
 import { expectGa4Links } from "../support/ga4Links";
 import { appDetailFixture } from "../support/appDetailFixture";
+import { databasePanelFixture } from "../support/databasePanelFixture";
+import DatabasePanel from "../../app/components/DatabasePanel.vue";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
 const app = findAppBySlug("basin")!;
@@ -361,5 +363,53 @@ describe("AppDetailProduct", () => {
   it("omits the GA4 link when no property id is configured", () => {
     const wrapper = mountDetail({ detail: appDetailFixture() });
     expectGa4Links(wrapper, 0);
+  });
+
+  describe("DATABASE panel", () => {
+    const NEON_INTEGRATION = {
+      vendor: "neon",
+      enabled: true,
+      environment: null,
+      ok: true,
+      lastRunAt: null,
+      lastSuccessAt: null,
+      error: null,
+    };
+
+    it("renders the synced Neon usage", () => {
+      const wrapper = mountDetail({
+        detail: appDetailFixture({ database: databasePanelFixture() }),
+      });
+
+      const panel = wrapper.findComponent(DatabasePanel);
+      expect(panel.exists()).toBe(true);
+      expect(panel.text()).toContain("24.0 CU-hours of 100.0 CU-hours");
+    });
+
+    it("shows the empty state for a property with a Neon integration that has not synced", () => {
+      const wrapper = mountDetail({
+        detail: appDetailFixture({ integrations: [NEON_INTEGRATION] }),
+      });
+
+      expect(wrapper.findComponent(DatabasePanel).text()).toContain(
+        "No Neon usage synced yet.",
+      );
+    });
+
+    it("renders nothing when the property's Neon integration is disabled", () => {
+      const wrapper = mountDetail({
+        detail: appDetailFixture({
+          integrations: [{ ...NEON_INTEGRATION, enabled: false }],
+        }),
+      });
+
+      expect(wrapper.findComponent(DatabasePanel).exists()).toBe(false);
+    });
+
+    it("renders nothing for a property with no Neon database", () => {
+      const wrapper = mountDetail({ detail: appDetailFixture() });
+
+      expect(wrapper.findComponent(DatabasePanel).exists()).toBe(false);
+    });
   });
 });

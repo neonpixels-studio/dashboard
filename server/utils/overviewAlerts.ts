@@ -54,7 +54,7 @@ function toStaleVendorAlert(staleVendor: StaleVendor): OverviewAlert {
   };
 }
 
-function byNewestFirst(a: OverviewAlert, b: OverviewAlert): number {
+export function byNewestFirst(a: OverviewAlert, b: OverviewAlert): number {
   if (a.occurredAt === b.occurredAt) {
     return 0;
   }

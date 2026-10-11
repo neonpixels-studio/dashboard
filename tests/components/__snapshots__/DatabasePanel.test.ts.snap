@@ -1,0 +1,87 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DatabasePanel > matches its snapshot with alerts 1`] = `
+"<section data-v-feca0035="" id="database" class="card database-panel" aria-labelledby="database-title">
+  <div data-v-feca0035="" class="panel-head">
+    <h2 data-v-feca0035="" id="database-title" class="panel-title">DATABASE</h2><span data-v-feca0035="" class="panel-meta">NEON · FREE PLAN</span><span data-v-feca0035="" class="panel-count">2</span>
+  </div>
+  <ul data-v-4fb92f4e="" class="database-alerts">
+    <li data-v-4fb92f4e="" class="database-alert"><svg data-v-4fb92f4e="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg><span data-v-4fb92f4e="">Projected 81 of 100 CU-hours (81% of the free-plan allowance)</span></li>
+    <li data-v-4fb92f4e="" class="database-alert"><svg data-v-4fb92f4e="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg><span data-v-4fb92f4e="">Unexpected branch: agent-neon-usage-panel</span></li>
+  </ul>
+  <div data-v-4fb92f4e="" class="meters">
+    <div data-v-f350e699="" data-v-4fb92f4e="" class="bar-meter">
+      <div data-v-f350e699="" class="bar-head">
+        <!--v-if--><span data-v-f350e699="" class="label">COMPUTE</span><span data-v-f350e699="" class="value">26.0 CU-hours of 100.0 CU-hours</span><span data-v-f350e699="" class="pct">26%</span>
+      </div>
+      <div data-v-f350e699="" class="track">
+        <div data-v-f350e699="" class="fill" style="width: 26%; background: var(--err);"></div>
+      </div>
+    </div>
+    <p data-v-4fb92f4e="" class="projection"><span data-v-4fb92f4e="" class="stat-label">PROJECTED BY END OF PERIOD</span><span data-v-4fb92f4e="" class="stat-value">81.0 CU-hours (81%)</span></p>
+    <div data-v-f350e699="" data-v-4fb92f4e="" class="bar-meter">
+      <div data-v-f350e699="" class="bar-head">
+        <!--v-if--><span data-v-f350e699="" class="label">STORAGE</span><span data-v-f350e699="" class="value">31 MB of 1.00 GB</span><span data-v-f350e699="" class="pct">3%</span>
+      </div>
+      <div data-v-f350e699="" class="track">
+        <div data-v-f350e699="" class="fill" style="width: 3%; background: var(--ok);"></div>
+      </div>
+    </div>
+  </div>
+  <p data-v-4fb92f4e="" class="transfer"><span data-v-4fb92f4e="" class="stat-label">DATA TRANSFER THIS PERIOD</span><span data-v-4fb92f4e="" class="stat-value">9 MB</span></p>
+  <div data-v-4fb92f4e="" class="branches">
+    <h3 data-v-4fb92f4e="" class="stat-label">BRANCHES</h3>
+    <ul data-v-4fb92f4e="" class="branch-list">
+      <li data-v-4fb92f4e="" class="branch-row"><span data-v-4fb92f4e="" class="branch-name">development</span><time data-v-4fb92f4e="" class="branch-date" datetime="2026-08-01T00:00:00.000Z">01 AUG 2026</time></li>
+      <li data-v-4fb92f4e="" class="branch-row"><span data-v-4fb92f4e="" class="branch-name">production</span><time data-v-4fb92f4e="" class="branch-date" datetime="2026-07-01T00:00:00.000Z">01 JUL 2026</time></li>
+    </ul>
+  </div>
+  <p data-v-4fb92f4e="" class="synced"><span data-v-4fb92f4e="" class="stat-label">SYNCED</span><time data-v-4fb92f4e="" datetime="2026-10-10T12:00:00.000Z">10 OCT 2026 · 12:00 UTC</time></p>
+</section>"
+`;
+
+exports[`DatabasePanel > matches its snapshot without alerts 1`] = `
+"<section data-v-feca0035="" id="database" class="card database-panel" aria-labelledby="database-title">
+  <div data-v-feca0035="" class="panel-head">
+    <h2 data-v-feca0035="" id="database-title" class="panel-title">DATABASE</h2><span data-v-feca0035="" class="panel-meta">NEON · FREE PLAN</span>
+    <!--v-if-->
+  </div>
+  <!--v-if-->
+  <div data-v-4fb92f4e="" class="meters">
+    <div data-v-f350e699="" data-v-4fb92f4e="" class="bar-meter">
+      <div data-v-f350e699="" class="bar-head">
+        <!--v-if--><span data-v-f350e699="" class="label">COMPUTE</span><span data-v-f350e699="" class="value">24.0 CU-hours of 100.0 CU-hours</span><span data-v-f350e699="" class="pct">24%</span>
+      </div>
+      <div data-v-f350e699="" class="track">
+        <div data-v-f350e699="" class="fill" style="width: 24%; background: var(--ok);"></div>
+      </div>
+    </div>
+    <p data-v-4fb92f4e="" class="projection"><span data-v-4fb92f4e="" class="stat-label">PROJECTED BY END OF PERIOD</span><span data-v-4fb92f4e="" class="stat-value">61.5 CU-hours (62%)</span></p>
+    <div data-v-f350e699="" data-v-4fb92f4e="" class="bar-meter">
+      <div data-v-f350e699="" class="bar-head">
+        <!--v-if--><span data-v-f350e699="" class="label">STORAGE</span><span data-v-f350e699="" class="value">31 MB of 1.00 GB</span><span data-v-f350e699="" class="pct">3%</span>
+      </div>
+      <div data-v-f350e699="" class="track">
+        <div data-v-f350e699="" class="fill" style="width: 3%; background: var(--ok);"></div>
+      </div>
+    </div>
+  </div>
+  <p data-v-4fb92f4e="" class="transfer"><span data-v-4fb92f4e="" class="stat-label">DATA TRANSFER THIS PERIOD</span><span data-v-4fb92f4e="" class="stat-value">9 MB</span></p>
+  <div data-v-4fb92f4e="" class="branches">
+    <h3 data-v-4fb92f4e="" class="stat-label">BRANCHES</h3>
+    <ul data-v-4fb92f4e="" class="branch-list">
+      <li data-v-4fb92f4e="" class="branch-row"><span data-v-4fb92f4e="" class="branch-name">development</span><time data-v-4fb92f4e="" class="branch-date" datetime="2026-08-01T00:00:00.000Z">01 AUG 2026</time></li>
+      <li data-v-4fb92f4e="" class="branch-row"><span data-v-4fb92f4e="" class="branch-name">production</span><time data-v-4fb92f4e="" class="branch-date" datetime="2026-07-01T00:00:00.000Z">01 JUL 2026</time></li>
+    </ul>
+  </div>
+  <p data-v-4fb92f4e="" class="synced"><span data-v-4fb92f4e="" class="stat-label">SYNCED</span><time data-v-4fb92f4e="" datetime="2026-10-10T12:00:00.000Z">10 OCT 2026 · 12:00 UTC</time></p>
+</section>"
+`;

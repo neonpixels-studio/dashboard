@@ -2,11 +2,22 @@
 // orchestration loop in orchestrator.ts — the loop takes these as injected
 // functions, so it never imports this module (or drizzle) directly, and
 // this module never needs a fake provider or a fake clock to be exercised.
-import { and, eq, getTableColumns, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  getTableColumns,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
   integrationConfig,
   metricSnapshot,
+  neonBranch,
+  neonUsage,
   syncStatus,
   syndicationPost,
   trafficBreakdown,
@@ -14,7 +25,11 @@ import {
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
 import type { SyncAlertRow } from "./staleVendorAlert";
-import type { IntegrationConfigRow, ProviderResult } from "./types";
+import type {
+  IntegrationConfigRow,
+  NeonDatabaseInput,
+  ProviderResult,
+} from "./types";
 
 // Stamps the orchestrator's own slug onto every row a provider returned
 // (see types.ts's *Input types, which omit `slug` for exactly this reason).
@@ -138,6 +153,86 @@ export function listSyncHealthRows(db: DrizzleDb): Promise<SyncAlertRow[]> {
     .where(eq(integrationConfig.enabled, true));
 }
 
+function upsertNeonUsage(
+  db: DrizzleDb,
+  slug: string,
+  usage: NeonDatabaseInput["usage"],
+) {
+  return db
+    .insert(neonUsage)
+    .values({ ...usage, slug })
+    .onConflictDoUpdate({
+      target: neonUsage.slug,
+      set: {
+        computeTimeSeconds: sql`excluded.compute_time_seconds`,
+        activeTimeSeconds: sql`excluded.active_time_seconds`,
+        storageBytes: sql`excluded.storage_bytes`,
+        dataTransferBytes: sql`excluded.data_transfer_bytes`,
+        writtenDataBytes: sql`excluded.written_data_bytes`,
+        periodStart: sql`excluded.period_start`,
+        periodEnd: sql`excluded.period_end`,
+        capturedAt: sql`excluded.captured_at`,
+      },
+    });
+}
+
+function upsertNeonBranches(
+  db: DrizzleDb,
+  slug: string,
+  branches: NeonDatabaseInput["branches"],
+) {
+  if (!branches.length) {
+    return [];
+  }
+  return [
+    db
+      .insert(neonBranch)
+      .values(withSlug(branches, slug))
+      .onConflictDoUpdate({
+        target: [neonBranch.slug, neonBranch.name],
+        set: { createdAt: sql`excluded.created_at` },
+      }),
+  ];
+}
+
+// Deletes the slug's branches Neon no longer lists; with none listed, all of
+// them.
+function deleteStaleNeonBranches(
+  db: DrizzleDb,
+  slug: string,
+  currentBranchNames: string[],
+) {
+  const forSlug = eq(neonBranch.slug, slug);
+  if (!currentBranchNames.length) {
+    return db.delete(neonBranch).where(forSlug);
+  }
+  return db
+    .delete(neonBranch)
+    .where(and(forSlug, notInArray(neonBranch.name, currentBranchNames)));
+}
+
+// Neon's latest usage is overwritten in place, and its branch list is
+// reconciled to exactly what Neon returned (upsert the current ones, delete the
+// rest), so a removed branch stops showing and alerting.
+function neonDatabaseWrites(
+  db: DrizzleDb,
+  slug: string,
+  neonDatabase: NeonDatabaseInput | undefined,
+) {
+  if (!neonDatabase) {
+    return [];
+  }
+  return [
+    upsertNeonUsage(db, slug, neonDatabase.usage),
+    ...upsertNeonBranches(db, slug, neonDatabase.branches),
+    deleteStaleNeonBranches(
+      db,
+      slug,
+      neonDatabase.branches.map((branch) => branch.name),
+    ),
+  ];
+}
+
 // Every row a provider's fetch() returned, stamped with the slug the
 // orchestrator already knows (see types.ts's *Input types), written as one
 // batched request. server/db/index.ts's neon-http driver has no interactive
@@ -234,6 +329,7 @@ export function persistProviderResult(
             }),
         ]
       : []),
+    ...neonDatabaseWrites(db, row.slug, result.neonDatabase),
   ];
 
   if (!writes.length) {

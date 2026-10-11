@@ -39,6 +39,13 @@
     <SectionLabel label="USERS &amp; AUTH" meta="CLERK" class="section-gap" />
     <AppDetailProductAuthPanel :app="app" />
 
+    <DatabasePanel
+      v-if="showDatabasePanel"
+      :panel="app.detail?.database ?? null"
+      :pending="false"
+      :has-error="false"
+    />
+
     <SectionLabel
       label="TRAFFIC"
       meta="GOOGLE ANALYTICS · GA4"
@@ -63,6 +70,7 @@
 </template>
 
 <script setup lang="ts">
+import { NEON_VENDOR } from "#shared/constants/neonPlan";
 import type { AppDetailTemplateProps } from "~/utils/appViewModel";
 import {
   buildMetricTileData,
@@ -123,6 +131,19 @@ const sessionsChartSeries = computed(() => {
 const sessionsAxisLabels = computed(() => {
   const points = dailySessionsPoints(props.app.detail?.series ?? []);
   return points ? buildAxisLabels(points) : [];
+});
+
+// A property with a Neon integration row shows the panel even before its
+// first sync (as an empty state); one without a database shows nothing.
+const showDatabasePanel = computed(() => {
+  const detail = props.app.detail;
+  return (
+    !!detail?.database ||
+    !!detail?.integrations.some(
+      (integration) =>
+        integration.vendor === NEON_VENDOR && integration.enabled,
+    )
+  );
 });
 
 const { trafficPanelData, sourceChips } = useAppDetailPanels(
