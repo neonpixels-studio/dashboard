@@ -16,7 +16,7 @@ import type {
 
 const STRIPE_VENDOR = "stripe";
 const STRIPE_DASHBOARD_URL = "https://dashboard.stripe.com";
-const STRIPE_ACCOUNT_ID_ENV = "NUXT_STRIPE_ACCOUNT_ID";
+const STRIPE_ACCOUNT_ID_ENV_PREFIX = "NUXT_STRIPE_ACCOUNT_ID_";
 
 // Stripe object id prefix -> dashboard path segment. An id with any other
 // prefix gets no link rather than a guessed one.
@@ -25,10 +25,13 @@ const OBJECT_PATH_BY_PREFIX: Record<string, string> = {
   in_: "invoices",
 };
 
-// Without the acct_ segment Stripe opens the link on whichever account the
-// viewer last used, and the object is "not found" on any other account.
-function stripeAccountUrl(): string {
-  const accountId = readIntegrationEnv(STRIPE_ACCOUNT_ID_ENV)?.trim();
+// Each app has its own Stripe account. Without the acct_ segment Stripe opens
+// the link on whichever account the viewer last used, and the object is "not
+// found" on any other account.
+function stripeAccountUrl(slug: string): string {
+  const accountId = readIntegrationEnv(
+    `${STRIPE_ACCOUNT_ID_ENV_PREFIX}${slug.toUpperCase()}`,
+  )?.trim();
   if (!accountId) {
     return STRIPE_DASHBOARD_URL;
   }
@@ -38,29 +41,28 @@ function stripeAccountUrl(): string {
 // Test-mode keys view the same account under /test. An unknown environment
 // (key without a recognizable prefix) falls back to the live dashboard.
 export function stripeDashboardBase(
+  slug: string,
   environment: IntegrationEnvironment | null,
 ): string {
-  const accountUrl = stripeAccountUrl();
+  const accountUrl = stripeAccountUrl(slug);
   return environment === "development" ? `${accountUrl}/test` : accountUrl;
 }
 
 // An app configured with one product links straight to its product page;
-// several (or none) link to the product list, since the shared studio account
-// has no per-app page.
+// several (or none) link to the account's product list.
 export function stripeAppDashboardUrl(
-  environment: IntegrationEnvironment | null,
+  dashboardBase: string,
   productIds: string[],
 ): string {
-  const base = stripeDashboardBase(environment);
   const [onlyProductId] = productIds;
   if (productIds.length === 1 && onlyProductId) {
-    return `${base}/products/${onlyProductId}`;
+    return `${dashboardBase}/products/${onlyProductId}`;
   }
-  return `${base}/products`;
+  return `${dashboardBase}/products`;
 }
 
 export function stripeObjectUrl(
-  environment: IntegrationEnvironment | null,
+  dashboardBase: string,
   objectId: string,
 ): string | null {
   const prefix = Object.keys(OBJECT_PATH_BY_PREFIX).find((candidate) =>
@@ -69,12 +71,12 @@ export function stripeObjectUrl(
   if (!prefix) {
     return null;
   }
-  return `${stripeDashboardBase(environment)}/${OBJECT_PATH_BY_PREFIX[prefix]}/${objectId}`;
+  return `${dashboardBase}/${OBJECT_PATH_BY_PREFIX[prefix]}/${objectId}`;
 }
 
 function toRecentEvent(
   row: StripeEventRow,
-  environment: IntegrationEnvironment | null,
+  dashboardBase: string,
 ): StripeRecentEvent {
   return {
     id: row.eventId,
@@ -84,7 +86,7 @@ function toRecentEvent(
     plan: row.planName,
     amount:
       row.amountCents === null ? null : row.amountCents / CENTS_PER_DOLLAR,
-    url: stripeObjectUrl(environment, row.objectId),
+    url: stripeObjectUrl(dashboardBase, row.objectId),
   };
 }
 
@@ -108,10 +110,11 @@ export function stripeDetailForApp(
   if (!stripeConfig) {
     return null;
   }
+  const dashboardBase = stripeDashboardBase(slug, environment);
   return {
     environment,
     dashboardUrl: stripeAppDashboardUrl(
-      environment,
+      dashboardBase,
       configuredProductIds(stripeConfig),
     ),
     plans: planRows.map((row) => ({
@@ -120,6 +123,6 @@ export function stripeDetailForApp(
       monthlyRevenue: row.monthlyRevenue,
       subscribers: row.subscribers,
     })),
-    events: eventRows.map((row) => toRecentEvent(row, environment)),
+    events: eventRows.map((row) => toRecentEvent(row, dashboardBase)),
   };
 }
