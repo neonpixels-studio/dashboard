@@ -1,7 +1,7 @@
 import { reportError, reportErrorCondition } from "../utils/errorReporting";
 
 // A vendor's last success older than this is reported. The scheduled sync
-// runs every 15 minutes, so this is ~24 consecutive failed or skipped runs:
+// runs hourly, so this is ~6 consecutive failed or skipped runs:
 // long enough to ride out a vendor incident or a rotation-heavy window, short
 // enough that a dead credential doesn't go unnoticed for days. A time bound
 // rather than a consecutive-failure count because sync_status keeps no
@@ -84,7 +84,7 @@ async function loadSyncHealthRows(
 
 // Runs after every sync. Monitoring only: a query failure is reported and
 // swallowed so it can never fail the sync response that already succeeded.
-// One event per stale vendor per sync (~every 15 minutes while stale, so it
+// One event per stale vendor per sync (~hourly while stale, so it
 // counts against Sentry quota until fixed). The message is static (see
 // errorReporting.ts) and the slug/vendor fingerprint gives each vendor its
 // own Sentry issue.
