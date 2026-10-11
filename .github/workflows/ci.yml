@@ -186,11 +186,22 @@ jobs:
           # before the retry loop ever saw it. The `|| raw=$'\n000'` fallback
           # keeps that case inside the loop as a synthetic non-2xx status
           # instead of killing the step outright.
+          # Fork from the `e2e` branch rather than the project default
+          # (production). `search` is a substring match, so pick the exact
+          # name out of the results.
+          parent_raw=$(curl -s -w '\n%{http_code}' \
+            --url "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches?search=${PARENT_BRANCH_NAME}" \
+            --header "Authorization: Bearer ${NEON_API_KEY}") || parent_raw=$'\n000'
+          parent_id=$(echo "$parent_raw" | sed '$d' | jq -r --arg name "$PARENT_BRANCH_NAME" '.branches[]? | select(.name == $name) | .id' 2>/dev/null || true)
+          if [ -z "$parent_id" ]; then
+            echo "::error::Neon parent branch \"$PARENT_BRANCH_NAME\" not found (HTTP $(echo "$parent_raw" | tail -n1)); e2e branches fork from it." >&2
+            exit 1
+          fi
           max_attempts=4
           attempt=0
           response=""
           http_code=""
-          payload=$(jq -n --arg name "$BRANCH_NAME" '{branch: {name: $name}, endpoints: [{type: "read_write"}]}')
+          payload=$(jq -n --arg name "$BRANCH_NAME" --arg parent "$parent_id" '{branch: {name: $name, parent_id: $parent}, endpoints: [{type: "read_write"}]}')
           while [ $attempt -lt $max_attempts ]; do
             attempt=$((attempt + 1))
             raw=$(curl -s -w '\n%{http_code}' \
@@ -247,6 +258,7 @@ jobs:
         env:
           DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
           BRANCH_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.slug.outputs.slug }}
+          PARENT_BRANCH_NAME: e2e
       # `npm run e2e` is `dotenvx run -f .env.e2e -- playwright test`; the spec
       # path is appended after `--`. dotenvx decrypts the Clerk keys from
       # .env.e2e, while E2E_DATABASE_URL below (the fresh Neon branch)
