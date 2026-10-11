@@ -22,13 +22,13 @@ import type {
 // normalizeItemToMonthlyDollars fails loud on anything else (no FX lookup is
 // wired up) — see the PR's follow-up suggestions for adding real conversion
 // if the account ever prices in more than one currency.
-const BILLING_CURRENCY = "usd";
-const CENTS_PER_DOLLAR = 100;
+export const BILLING_CURRENCY = "usd";
+export const CENTS_PER_DOLLAR = 100;
 const MONTHS_PER_YEAR = 12;
 const WEEKS_PER_MONTH = 52 / MONTHS_PER_YEAR;
 const DAYS_PER_MONTH = 30;
 const MINIMUM_INTERVAL_COUNT = 1;
-const MILLISECONDS_PER_SECOND = 1000;
+export const MILLISECONDS_PER_SECOND = 1000;
 
 // PRODUCT DECISIONS (issue #73) - flip these to change what MRR means.
 // Subscription statuses that count toward MRR and the subscriber count.
@@ -121,7 +121,7 @@ export function normalizeItemToMonthlyDollars(
   return amountPerCycleDollars / monthlyIntervalDivisor(price.recurring);
 }
 
-function roundToCents(value: number): number {
+export function roundToCents(value: number): number {
   return Math.round(value * CENTS_PER_DOLLAR) / CENTS_PER_DOLLAR;
 }
 
@@ -191,7 +191,7 @@ function trackedItemsForSubscription(
 
 // Stripe requires every item on a subscription to share one billing
 // interval, so the first recurring item's cycle is the subscription's.
-function subscriptionMonthlyDollars(
+export function subscriptionMonthlyDollars(
   subscription: StripeSubscription,
   matchingItems: StripeSubscriptionItem[],
   nowSeconds: number,
@@ -247,15 +247,7 @@ export function computeMrrForProducts(
   now: Date = new Date(),
 ): StripeMrrResult {
   const nowSeconds = Math.floor(now.getTime() / MILLISECONDS_PER_SECOND);
-  const matching = subscriptions
-    .filter((subscription) => MRR_COUNTED_STATUSES.has(subscription.status))
-    .map((subscription) => ({
-      subscription,
-      items: subscription.items.data.filter((item) =>
-        productIds.has(item.price.product),
-      ),
-    }))
-    .filter(({ items }) => items.length > 0);
+  const matching = matchSubscriptionsToProducts(subscriptions, productIds);
 
   const mrr = matching.reduce(
     (sum, { subscription, items }) =>
@@ -267,6 +259,31 @@ export function computeMrrForProducts(
     mrr: roundToCents(mrr),
     activeSubscribers: matching.length,
   };
+}
+
+export interface MatchedSubscription {
+  subscription: StripeSubscription;
+  items: StripeSubscriptionItem[];
+}
+
+/**
+ * The MRR-counted subscriptions that carry at least one item for
+ * `productIds`, paired with only those matching items. Shared by the MRR
+ * total and the per-plan split so both always count the same subscriptions.
+ */
+export function matchSubscriptionsToProducts(
+  subscriptions: StripeSubscription[],
+  productIds: Set<string>,
+): MatchedSubscription[] {
+  return subscriptions
+    .filter((subscription) => MRR_COUNTED_STATUSES.has(subscription.status))
+    .map((subscription) => ({
+      subscription,
+      items: subscription.items.data.filter((item) =>
+        productIds.has(item.price.product),
+      ),
+    }))
+    .filter(({ items }) => items.length > 0);
 }
 
 // Two ways a misbehaving `listActiveSubscriptions` (a stub, a proxy, a

@@ -92,6 +92,13 @@
       "when": 1791673786019,
       "tag": "0012_add_syndication_post_engagement",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791673837858,
+      "tag": "0013_add_stripe_detail_tables",
+      "breakpoints": true
     }
   ]
 }

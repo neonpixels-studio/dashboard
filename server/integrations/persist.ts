@@ -2,15 +2,27 @@
 // orchestration loop in orchestrator.ts — the loop takes these as injected
 // functions, so it never imports this module (or drizzle) directly, and
 // this module never needs a fake provider or a fake clock to be exercised.
-import { and, eq, getTableColumns, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  getTableColumns,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
   integrationConfig,
   metricSnapshot,
+  stripeEvent,
+  stripePlanRevenue,
   syncStatus,
   syndicationPost,
   trafficBreakdown,
 } from "../db/schema";
+import { activityCutoff } from "./stripe/activity";
 import type { DrizzleDb } from "../utils/dashboardQueries";
 import type { SyncAttemptWrite, SyncStatusWrite } from "./orchestrator";
 import type { SyncAlertRow } from "./staleVendorAlert";
@@ -138,6 +150,39 @@ export function listSyncHealthRows(db: DrizzleDb): Promise<SyncAlertRow[]> {
     .where(eq(integrationConfig.enabled, true));
 }
 
+// Stripe's detail rows. Plan revenue is replaced wholesale (delete + insert,
+// atomic inside the caller's db.batch) so a plan with no subscribers left
+// disappears; events are insert-if-new on the Stripe event id, so re-fetching
+// the same 30-day window is a no-op for rows already stored. Events older than
+// that window are pruned in the same batch: Stripe can't return them again, so
+// the table (and the panel's "recent" list) stays bounded to the window.
+function stripeDetailWrites(
+  db: DrizzleDb,
+  slug: string,
+  detail: NonNullable<ProviderResult["stripeDetail"]>,
+) {
+  const planRows = withSlug(detail.planRevenue, slug);
+  const eventRows = dedupeByConflictKey(
+    withSlug(detail.events, slug),
+    (eventRow) => [eventRow.slug, eventRow.eventId],
+  );
+  return [
+    db.delete(stripePlanRevenue).where(eq(stripePlanRevenue.slug, slug)),
+    db
+      .delete(stripeEvent)
+      .where(
+        and(
+          eq(stripeEvent.slug, slug),
+          lt(stripeEvent.occurredAt, activityCutoff()),
+        ),
+      ),
+    ...(planRows.length ? [db.insert(stripePlanRevenue).values(planRows)] : []),
+    ...(eventRows.length
+      ? [db.insert(stripeEvent).values(eventRows).onConflictDoNothing()]
+      : []),
+  ];
+}
+
 // Every row a provider's fetch() returned, stamped with the slug the
 // orchestrator already knows (see types.ts's *Input types), written as one
 // batched request. server/db/index.ts's neon-http driver has no interactive
@@ -233,6 +278,9 @@ export function persistProviderResult(
               },
             }),
         ]
+      : []),
+    ...(result.stripeDetail
+      ? stripeDetailWrites(db, row.slug, result.stripeDetail)
       : []),
   ];
 

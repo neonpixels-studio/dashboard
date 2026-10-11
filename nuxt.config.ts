@@ -63,6 +63,11 @@ export default defineNuxtConfig({
     // process.env never holds it. Every integration key below follows Nuxt's
     // NUXT_FOO_BAR <-> fooBar naming so that fallback can find it.
     stripeSecretKey: process.env.NUXT_STRIPE_SECRET_KEY || "",
+    // One Stripe account per app, so each row's secret_ref points at its own
+    // key (the shared key above only reaches one account).
+    stripeSecretKeyBasin: process.env.NUXT_STRIPE_SECRET_KEY_BASIN || "",
+    stripeSecretKeyMarkpost: process.env.NUXT_STRIPE_SECRET_KEY_MARKPOST || "",
+    stripeSecretKeyFarflung: process.env.NUXT_STRIPE_SECRET_KEY_FARFLUNG || "",
     // Same reasoning as stripeSecretKey above, one per product-template app
     // (server/integrations/stripe/provider.ts's resolveProductIdsSource):
     // declared here purely so Netlify forwards each into the deployed
@@ -70,6 +75,12 @@ export default defineNuxtConfig({
     stripeProductIdBasin: process.env.NUXT_STRIPE_PRODUCT_ID_BASIN || "",
     stripeProductIdMarkpost: process.env.NUXT_STRIPE_PRODUCT_ID_MARKPOST || "",
     stripeProductIdFarflung: process.env.NUXT_STRIPE_PRODUCT_ID_FARFLUNG || "",
+    // Same reasoning again, one Stripe account per app:
+    // server/utils/stripeDetailShaping.ts reads these through
+    // readIntegrationEnv to put the acct_ segment in dashboard links.
+    stripeAccountIdBasin: process.env.NUXT_STRIPE_ACCOUNT_ID_BASIN || "",
+    stripeAccountIdMarkpost: process.env.NUXT_STRIPE_ACCOUNT_ID_MARKPOST || "",
+    stripeAccountIdFarflung: process.env.NUXT_STRIPE_ACCOUNT_ID_FARFLUNG || "",
     // Shared secret POST /api/sync (server/api/sync.post.ts) requires on the
     // Authorization: Bearer header — see server/utils/syncTrigger.ts. Read
     // via useRuntimeConfig() (not process.env directly) since, unlike

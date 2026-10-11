@@ -3,6 +3,7 @@ import {
   METRIC_MRR,
   PERIOD_CURRENT,
 } from "../../utils/dashboardMetrics";
+import { reportError } from "../../utils/errorReporting";
 import { NO_DEADLINE } from "../types";
 import type {
   FetchDeadline,
@@ -11,33 +12,61 @@ import type {
   ProviderResult,
 } from "../types";
 import { createStripeSubscriptionLister } from "./stripeClient";
-import {
-  computeMrrForProducts,
-  fetchAllActiveSubscriptions,
-  parseProductIds,
-} from "./mrr";
-import type { ListActiveSubscriptions } from "./types";
-import { readIntegrationEnv } from "../integrationEnv";
+import { createStripeDetailSource } from "./stripeDetailClient";
+import { buildEventRows, fetchActivityEvents } from "./activity";
+import { computePlanRevenue } from "./planRevenue";
+import { computeMrrForProducts, fetchAllActiveSubscriptions } from "./mrr";
+import { configuredProductIds } from "./productIds";
+import type {
+  ListActiveSubscriptions,
+  StripeDetailSource,
+  StripeSubscription,
+} from "./types";
 
 const STRIPE_VENDOR = "stripe";
 
-/**
- * Per the issue's account model, an app's product ids can live in either of
- * two places: `integration_config.external_id` (a per-row, DB-driven value
- * — set this way once an admin path for editing rows exists) or the shared
- * studio env var `NUXT_STRIPE_PRODUCT_ID_<SLUG>` (the deploy-time default —
- * see .env.example, and nuxt.config.ts's runtimeConfig for why each app's
- * var is declared there even though it's read here via `process.env`
- * directly, not `useRuntimeConfig()`). The DB row wins when set, mirroring
- * config.ts's own row-overrides-shared-default precedent.
- */
-function resolveProductIdsSource(config: IntegrationConfig): string | null {
-  const externalId = config.externalId?.trim();
-  if (externalId) {
-    return externalId;
+async function resolvePlanNames(
+  productIds: Set<string>,
+  detailSource: StripeDetailSource,
+): Promise<Map<string, string>> {
+  const entries = await Promise.all(
+    [...productIds].map(
+      async (productId) =>
+        [productId, await detailSource.getProductName(productId)] as const,
+    ),
+  );
+  return new Map(entries);
+}
+
+async function fetchStripeDetail(
+  subscriptions: StripeSubscription[],
+  productIds: Set<string>,
+  detailSource: StripeDetailSource,
+  now: Date,
+): Promise<NonNullable<ProviderResult["stripeDetail"]>> {
+  const planNames = await resolvePlanNames(productIds, detailSource);
+  const events = await fetchActivityEvents(detailSource);
+  return {
+    planRevenue: computePlanRevenue(subscriptions, productIds, planNames, now),
+    events: await buildEventRows(events, productIds, planNames, detailSource),
+  };
+}
+
+// The revenue-by-plan / events enrichment must never cost the core MRR
+// metrics: a key without Events read, a customer lookup failing, or a
+// non-USD event would otherwise fail the whole Stripe sync. A failure here is
+// reported to Sentry and leaves the previously stored detail untouched
+// (`stripeDetail` omitted) while the metrics still persist.
+async function fetchStripeDetailSafely(
+  slug: string,
+  ...detailArguments: Parameters<typeof fetchStripeDetail>
+): Promise<ProviderResult["stripeDetail"]> {
+  try {
+    return await fetchStripeDetail(...detailArguments);
+  } catch (error) {
+    reportError("stripe: detail fetch failed", error, { slug });
+    return undefined;
   }
-  const envVarName = `NUXT_STRIPE_PRODUCT_ID_${config.slug.toUpperCase()}`;
-  return readIntegrationEnv(envVarName) ?? null;
 }
 
 /**
@@ -53,12 +82,17 @@ function resolveProductIdsSource(config: IntegrationConfig): string | null {
  * config rows), and the empty-productIds branch below is this function's
  * own defense-in-depth copy of that "unconfigured -> no rows, never zeros"
  * guarantee.
+ *
+ * `detailSource` is optional: when given, the result also carries the money
+ * panel's revenue-by-plan and recent events (`stripeDetail`); without it the
+ * result is exactly the two MRR metrics.
  */
 export async function fetchStripeMetrics(
   config: IntegrationConfig,
   listActiveSubscriptions: ListActiveSubscriptions,
+  detailSource?: StripeDetailSource,
 ): Promise<ProviderResult> {
-  const productIds = parseProductIds(resolveProductIdsSource(config));
+  const productIds = configuredProductIds(config);
   if (!productIds.length) {
     return { metrics: [], trafficBreakdown: [], syndicationPosts: [] };
   }
@@ -66,11 +100,21 @@ export async function fetchStripeMetrics(
   const subscriptions = await fetchAllActiveSubscriptions(
     listActiveSubscriptions,
   );
+  const productIdSet = new Set(productIds);
   const { mrr, activeSubscribers } = computeMrrForProducts(
     subscriptions,
-    new Set(productIds),
+    productIdSet,
   );
   const capturedAt = new Date();
+  const stripeDetail = detailSource
+    ? await fetchStripeDetailSafely(
+        config.slug,
+        subscriptions,
+        productIdSet,
+        detailSource,
+        capturedAt,
+      )
+    : undefined;
 
   return {
     metrics: [
@@ -91,6 +135,7 @@ export async function fetchStripeMetrics(
     ],
     trafficBreakdown: [],
     syndicationPosts: [],
+    ...(stripeDetail ? { stripeDetail } : {}),
   };
 }
 
@@ -113,6 +158,11 @@ export const stripeProvider: IntegrationProvider = {
       undefined,
       deadline,
     );
-    return fetchStripeMetrics(config, listActiveSubscriptions);
+    const detailSource = createStripeDetailSource(
+      config.secret,
+      undefined,
+      deadline,
+    );
+    return fetchStripeMetrics(config, listActiveSubscriptions, detailSource);
   },
 };

@@ -162,12 +162,18 @@ Stripe's product IDs.
 ### Stripe
 
 Reports MRR and active subscriber counts for the product-template apps
-(basin, markpost, farflung). One shared Stripe account across properties,
-scoped per property by product ID — see
-`server/integrations/stripe/provider.ts`.
+(basin, markpost, farflung), plus what the product page's Stripe panel shows:
+revenue by plan and the last 30 days of new / canceled / payment-failed
+subscription events (customer emails are masked before they are stored). One
+shared Stripe account across properties, scoped per property by product ID —
+see `server/integrations/stripe/provider.ts`. A test-mode key (`sk_test_`,
+`rk_test_`) tags the panel `development` and links to Stripe's test-mode
+dashboard.
 
 1. Secret key — <https://dashboard.stripe.com/apikeys> (restricted,
-   read-only: Subscriptions, Customers, Products) → `NUXT_STRIPE_SECRET_KEY`.
+   read-only: Subscriptions, Customers, Products, Events) →
+   `NUXT_STRIPE_SECRET_KEY`. A key without Events read still syncs MRR, but the revenue-by-plan and
+   events sections stop updating (the failure is reported to Sentry).
 2. Per-property product ID(s) — <https://dashboard.stripe.com/products> → the
    product → copy its `prod_...` ID → `NUXT_STRIPE_PRODUCT_ID_*`. A comma-
    separated list scopes MRR across several tiers/products for the same app

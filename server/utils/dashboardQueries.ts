@@ -16,12 +16,15 @@ import {
   max,
   or,
 } from "drizzle-orm";
+import { activityCutoff } from "../integrations/stripe/activity";
 import type { InferSelectModel } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/neon-http";
 import type * as schema from "../db/schema";
 import {
   integrationConfig,
   metricSnapshot,
+  stripeEvent,
+  stripePlanRevenue,
   syncStatus,
   syndicationPost,
   trafficBreakdown,
@@ -32,6 +35,8 @@ export type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
 export type MetricSnapshotRow = InferSelectModel<typeof metricSnapshot>;
 export type TrafficBreakdownRow = InferSelectModel<typeof trafficBreakdown>;
 export type SyndicationPostRow = InferSelectModel<typeof syndicationPost>;
+export type StripePlanRevenueRow = InferSelectModel<typeof stripePlanRevenue>;
+export type StripeEventRow = InferSelectModel<typeof stripeEvent>;
 export type SyncStatusRow = InferSelectModel<typeof syncStatus>;
 export type IntegrationConfigRow = InferSelectModel<typeof integrationConfig>;
 
@@ -203,6 +208,36 @@ export function fetchSyndicationPosts(
     .from(syndicationPost)
     .where(eq(syndicationPost.slug, slug))
     .orderBy(desc(syndicationPost.syncedAt), asc(syndicationPost.platform));
+}
+
+export function fetchStripePlanRevenue(
+  db: DrizzleDb,
+  slug: string,
+): Promise<StripePlanRevenueRow[]> {
+  return db
+    .select()
+    .from(stripePlanRevenue)
+    .where(eq(stripePlanRevenue.slug, slug))
+    .orderBy(desc(stripePlanRevenue.monthlyRevenue));
+}
+
+export const RECENT_STRIPE_EVENT_LIMIT = 10;
+
+export function fetchRecentStripeEvents(
+  db: DrizzleDb,
+  slug: string,
+): Promise<StripeEventRow[]> {
+  return db
+    .select()
+    .from(stripeEvent)
+    .where(
+      and(
+        eq(stripeEvent.slug, slug),
+        gte(stripeEvent.occurredAt, activityCutoff()),
+      ),
+    )
+    .orderBy(desc(stripeEvent.occurredAt))
+    .limit(RECENT_STRIPE_EVENT_LIMIT);
 }
 
 // Every stored external id (Medium's article id) for one (slug, platform),

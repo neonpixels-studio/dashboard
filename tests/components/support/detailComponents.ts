@@ -23,6 +23,8 @@ import SourcesFooter from "../../../app/components/SourcesFooter.vue";
 import SyndicationPostMatrix from "../../../app/components/SyndicationPostMatrix.vue";
 import PropertySessionsChart from "../../../app/components/PropertySessionsChart.vue";
 import AppDetailProductMoneyHealthPanel from "../../../app/components/AppDetailProductMoneyHealthPanel.vue";
+import AppDetailProductStripePanel from "../../../app/components/AppDetailProductStripePanel.vue";
+import StripeEventList from "../../../app/components/StripeEventList.vue";
 import AppDetailProductAuthPanel from "../../../app/components/AppDetailProductAuthPanel.vue";
 import PanelHead from "../../../app/components/PanelHead.vue";
 import AuthSignupsCard from "../../../app/components/AuthSignupsCard.vue";
@@ -48,6 +50,8 @@ export const DETAIL_COMPONENTS = {
   SyndicationPostMatrix,
   PropertySessionsChart,
   AppDetailProductMoneyHealthPanel,
+  AppDetailProductStripePanel,
+  StripeEventList,
   AppDetailProductAuthPanel,
   PanelHead,
   AuthSignupsCard,

@@ -13,6 +13,8 @@ import {
 import {
   integrationConfig,
   metricSnapshot,
+  stripeEvent,
+  stripePlanRevenue,
   syncStatus,
   syndicationPost,
   trafficBreakdown,
@@ -56,15 +58,22 @@ function createFakeDb() {
     ...thenableQuery(),
     returning,
   });
+  const onConflictDoNothing = vi.fn().mockReturnValue(thenableQuery());
   const values = vi.fn().mockImplementation((rows: unknown[]) => ({
     ...thenableQuery(),
     onConflictDoUpdate,
+    onConflictDoNothing,
     // Distinguish which values() call an onConflictDoUpdate belongs to when
     // a test asserts on it directly, without needing the insert() call's
     // table argument in scope.
     rows,
   }));
   const insert = vi.fn().mockReturnValue({ values });
+
+  // persistProviderResult's stripe detail clears an app's plan rows first:
+  // delete -> where, awaited directly (or handed to db.batch).
+  const deleteWhere = vi.fn().mockReturnValue(thenableQuery());
+  const deleteFrom = vi.fn().mockReturnValue({ where: deleteWhere });
 
   // recordConfigSyncAttempt's chain: update -> set -> where -> returning,
   // with returning's return value being what's actually awaited. Defaults to
@@ -77,7 +86,13 @@ function createFakeDb() {
   const update = vi.fn().mockReturnValue({ set: updateSet });
 
   return {
-    db: { select, insert, update, batch } as unknown as FakeDb,
+    db: {
+      select,
+      insert,
+      update,
+      batch,
+      delete: deleteFrom,
+    } as unknown as FakeDb,
     select,
     from,
     where,
@@ -85,6 +100,9 @@ function createFakeDb() {
     insert,
     values,
     onConflictDoUpdate,
+    onConflictDoNothing,
+    deleteFrom,
+    deleteWhere,
     update,
     updateSet,
     updateWhere,
@@ -527,6 +545,111 @@ describe("persistProviderResult", () => {
       }),
     );
     warnSpy.mockRestore();
+  });
+});
+
+describe("persistProviderResult stripe detail", () => {
+  const BASE: ProviderResult = {
+    metrics: [],
+    trafficBreakdown: [],
+    syndicationPosts: [],
+  };
+  const PLAN = {
+    productId: "prod_pro",
+    planName: "Pro",
+    monthlyRevenue: 4,
+    subscribers: 1,
+  };
+  const EVENT = {
+    eventId: "evt_1",
+    kind: "new" as const,
+    occurredAt: new Date("2026-09-19T00:00:00Z"),
+    emailMasked: "m••••a@hey.com",
+    planName: "Pro",
+    amountCents: 400,
+    objectId: "sub_1",
+  };
+
+  it("replaces the app's plan rows (delete scoped to the slug, then insert) and inserts events if new", async () => {
+    const { db, insert, values, deleteFrom, onConflictDoNothing, batch } =
+      createFakeDb();
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), {
+      ...BASE,
+      stripeDetail: { planRevenue: [PLAN], events: [EVENT] },
+    });
+
+    expect(deleteFrom).toHaveBeenCalledWith(stripePlanRevenue);
+    expect(insert).toHaveBeenCalledWith(stripePlanRevenue);
+    expect(insert).toHaveBeenCalledWith(stripeEvent);
+    expect(values).toHaveBeenCalledWith([{ ...PLAN, slug: "basin" }]);
+    expect(values).toHaveBeenCalledWith([{ ...EVENT, slug: "basin" }]);
+    expect(onConflictDoNothing).toHaveBeenCalledTimes(1);
+    // plan delete + event prune + plan insert + event insert land atomically
+    // in one batch.
+    expect(batch.mock.calls[0]![0]).toHaveLength(4);
+  });
+
+  it("prunes the app's events older than Stripe's 30 day window", async () => {
+    const { db, deleteFrom, deleteWhere } = createFakeDb();
+    const before = Date.now();
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), {
+      ...BASE,
+      stripeDetail: { planRevenue: [], events: [] },
+    });
+
+    expect(deleteFrom).toHaveBeenCalledWith(stripeEvent);
+    const eventDeleteIndex = deleteFrom.mock.calls.findIndex(
+      ([table]) => table === stripeEvent,
+    );
+    const [slug, cutoff] = renderSqlParams(
+      deleteWhere.mock.calls[eventDeleteIndex]![0] as SQL,
+    ) as [string, string];
+    expect(slug).toBe("basin");
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(new Date(cutoff).getTime()).toBeGreaterThanOrEqual(
+      before - thirtyDaysMs - 1000,
+    );
+    expect(new Date(cutoff).getTime()).toBeLessThanOrEqual(
+      Date.now() - thirtyDaysMs + 1000,
+    );
+  });
+
+  it("still clears stale plan rows when the app now has no plans or events", async () => {
+    const { db, insert, deleteFrom, deleteWhere } = createFakeDb();
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), {
+      ...BASE,
+      stripeDetail: { planRevenue: [], events: [] },
+    });
+
+    expect(deleteFrom).toHaveBeenCalledWith(stripePlanRevenue);
+    const planDeleteIndex = deleteFrom.mock.calls.findIndex(
+      ([table]) => table === stripePlanRevenue,
+    );
+    const condition = deleteWhere.mock.calls[planDeleteIndex]![0] as SQL;
+    expect(renderSqlParams(condition)).toEqual(["basin"]);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("leaves stored detail untouched when the provider returned none", async () => {
+    const { db, deleteFrom } = createFakeDb();
+
+    await persistProviderResult(db, configRow(), BASE);
+
+    expect(deleteFrom).not.toHaveBeenCalled();
+  });
+
+  it("collapses events sharing an id before the insert", async () => {
+    const { db, values } = createFakeDb();
+
+    await persistProviderResult(db, configRow({ slug: "basin" }), {
+      ...BASE,
+      stripeDetail: { planRevenue: [], events: [EVENT, { ...EVENT }] },
+    });
+
+    expect(values).toHaveBeenCalledWith([{ ...EVENT, slug: "basin" }]);
   });
 });
 

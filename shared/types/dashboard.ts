@@ -102,6 +102,45 @@ export interface SyndicationMatrixRow {
   cells: SyndicationMatrixCell[];
 }
 
+export const STRIPE_EVENT_KINDS = [
+  "new",
+  "canceled",
+  "payment_failed",
+] as const;
+export type StripeEventKind = (typeof STRIPE_EVENT_KINDS)[number];
+
+// Current MRR attributed to one Stripe product ("plan") of an app, in dollars.
+export interface StripePlanRevenue {
+  productId: string;
+  plan: string;
+  monthlyRevenue: number;
+  subscribers: number;
+}
+
+// One recent subscription event. `email` is already masked server-side and
+// `url` is the event's Stripe dashboard page (test-mode URL for test keys),
+// null when the Stripe object kind isn't one we know how to link.
+export interface StripeRecentEvent {
+  id: string;
+  kind: StripeEventKind;
+  occurredAt: string;
+  email: string | null;
+  plan: string;
+  // Dollars; null when the event carried no amount.
+  amount: number | null;
+  url: string | null;
+}
+
+// Everything the product detail Stripe panel renders besides the MRR series
+// (which comes from `series`). Empty `plans` and `events` mean the app has no
+// subscriptions / recent events, not "not loaded".
+export interface StripeDetail {
+  environment: IntegrationEnvironment | null;
+  dashboardUrl: string;
+  plans: StripePlanRevenue[];
+  events: StripeRecentEvent[];
+}
+
 // A rollup total aggregated across every app at a single point in time.
 // `period`/`capturedAt` mirror whichever underlying row is most recent —
 // both null when no app has any data for the metric yet.
@@ -166,6 +205,8 @@ export interface AppDetailResponse {
   syndication: SyndicationMatrixRow[];
   alerts: AppAlert[];
   sources: SyncSource[];
+  // Null when the app has no enabled Stripe integration.
+  stripe: StripeDetail | null;
   // Every configured integration, whether or not it has synced yet — the
   // only way the detail page can tell "not configured" from "not synced".
   integrations: IntegrationHealth[];

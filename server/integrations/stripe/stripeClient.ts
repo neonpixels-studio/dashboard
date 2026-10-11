@@ -140,7 +140,7 @@ function capStripeTimeoutPerAttempt(remainingMs: number): number {
 
 // A non-positive timeout would mean "no timeout" to the Node HTTP layer, so
 // an exhausted shared budget must stop the call instead.
-function perAttemptTimeoutOrThrow(deadline: FetchDeadline): number {
+export function perAttemptTimeoutOrThrow(deadline: FetchDeadline): number {
   const perAttemptTimeoutMs = capStripeTimeoutPerAttempt(
     deadline.remainingMs(),
   );
@@ -150,6 +150,14 @@ function perAttemptTimeoutOrThrow(deadline: FetchDeadline): number {
     );
   }
   return perAttemptTimeoutMs;
+}
+
+export function createStripeSdkClient(secretKey: string): Stripe {
+  return new Stripe(secretKey, {
+    apiVersion: Stripe.API_VERSION,
+    timeout: STRIPE_REQUEST_TIMEOUT_MS,
+    maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
+  });
 }
 
 /**
@@ -165,11 +173,7 @@ function perAttemptTimeoutOrThrow(deadline: FetchDeadline): number {
  */
 export function createStripeSubscriptionLister(
   secretKey: string,
-  stripeClient: StripeSubscriptionsClient = new Stripe(secretKey, {
-    apiVersion: Stripe.API_VERSION,
-    timeout: STRIPE_REQUEST_TIMEOUT_MS,
-    maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
-  }),
+  stripeClient: StripeSubscriptionsClient = createStripeSdkClient(secretKey),
   // See capStripeTimeoutPerAttempt above for how this becomes the per-call
   // `timeout` below. Defaults to NO_DEADLINE so exercising this function
   // directly (every existing unit test) needs no deadline at all.
