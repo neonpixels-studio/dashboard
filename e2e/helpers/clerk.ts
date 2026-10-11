@@ -23,7 +23,7 @@ async function findTestClerkUser(clerk: ReturnType<typeof clerkClient>) {
 }
 
 // CI runs multiple e2e matrix shards in parallel (see .github/workflows/
-// ci.yml's `e2e` job), each calling this from its own globalSetup within
+// e2e.yml's matrix job), each calling this from its own globalSetup within
 // seconds of the others. `getOrCreateTestClerkUser`'s lookup is
 // check-then-create with no locking, so more than one shard can see no
 // existing user and race to create it; Clerk accepts the first and rejects
