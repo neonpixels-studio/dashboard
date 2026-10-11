@@ -38,7 +38,11 @@
       label="TRAFFIC"
       meta="GOOGLE ANALYTICS · GA4"
       class="section-gap"
-    />
+    >
+      <template #action>
+        <Ga4ViewLink :detail="app.detail" />
+      </template>
+    </SectionLabel>
 
     <TrafficPanel
       :app="app"
