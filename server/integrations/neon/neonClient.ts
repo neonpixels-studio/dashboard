@@ -83,9 +83,11 @@ export function createNeonClient(
     for (let page = 0; page < MAX_BRANCH_PAGES; page++) {
       const url = branchesPageUrl(projectId, cursor);
       const body = await getJson(fetchImpl, url, apiKey, deadline);
-      branches.push(...toNeonBranchList(body));
+      const pageBranches = toNeonBranchList(body);
+      branches.push(...pageBranches);
       cursor = nextBranchCursor(body);
-      if (!cursor) {
+      // A short page is the last one even if a cursor is still present.
+      if (!cursor || pageBranches.length < BRANCHES_PAGE_SIZE) {
         return branches;
       }
     }

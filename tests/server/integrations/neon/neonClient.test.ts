@@ -23,6 +23,11 @@ const PROJECT_BODY = {
   },
 };
 
+// A full page (the client asks for 100), so a cursor on it means "more".
+const FULL_PAGE = Array.from({ length: 100 }, (_, index) => ({
+  name: `branch-${index}`,
+}));
+
 describe("createNeonClient", () => {
   it("requests the project with a bearer token and maps the usage", async () => {
     const fetchStub = vi.fn(async () => jsonResponse(PROJECT_BODY));
@@ -92,7 +97,7 @@ describe("createNeonClient", () => {
       .fn()
       .mockResolvedValueOnce(
         jsonResponse({
-          branches: [{ name: "production" }],
+          branches: FULL_PAGE,
           pagination: { next: "c2" },
         }),
       )
@@ -104,18 +109,34 @@ describe("createNeonClient", () => {
 
     const branches = await client.listBranches("proj-1");
 
-    expect(branches.map((branch) => branch.name)).toEqual([
-      "production",
-      "e2e",
-    ]);
+    expect(branches).toHaveLength(101);
+    expect(branches.at(-1)!.name).toBe("e2e");
     const secondUrl = fetchStub.mock.calls[1]![0] as URL;
     expect(secondUrl.searchParams.get("cursor")).toBe("c2");
+  });
+
+  it("stops on a short page even if Neon still sends a cursor", async () => {
+    const fetchStub = vi.fn(async () =>
+      jsonResponse({
+        branches: [{ name: "production" }],
+        pagination: { next: "stale" },
+      }),
+    );
+    const client = createNeonClient(
+      API_KEY,
+      fetchStub as unknown as typeof fetch,
+    );
+
+    const branches = await client.listBranches("proj-1");
+
+    expect(branches).toHaveLength(1);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
   });
 
   it("refuses to follow a cursor forever", async () => {
     const fetchStub = vi.fn(async () =>
       jsonResponse({
-        branches: [{ name: "x" }],
+        branches: FULL_PAGE,
         pagination: { next: "again" },
       }),
     );

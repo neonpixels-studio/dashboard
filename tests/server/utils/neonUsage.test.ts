@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildDatabasePanel,
   buildNeonOverviewAlerts,
@@ -18,6 +18,17 @@ const TEN_DAYS_IN = new Date("2026-10-11T00:00:00Z");
 const SECONDS_PER_HOUR = 3_600;
 const MIB = 1024 ** 2;
 const GIB = 1024 ** 3;
+// "Now" for every test that does not pass its own, inside the stored period, so
+// these never start failing once the real calendar passes November 2026.
+const DURING_PERIOD = new Date("2026-10-12T00:00:00Z");
+
+beforeEach(() => {
+  vi.useFakeTimers({ now: DURING_PERIOD });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function usageRow(overrides: Partial<NeonUsageRow> = {}): NeonUsageRow {
   return {
@@ -228,6 +239,38 @@ describe("buildDatabasePanel alerts", () => {
     expect(panel.alerts[0]!.message).toBe(
       "Unexpected branches: agent-a, agent-b",
     );
+  });
+});
+
+describe("buildDatabasePanel when the stored period has ended", () => {
+  const AFTER_PERIOD = new Date("2026-11-03T00:00:00Z");
+
+  it("neither projects nor raises a compute alert from a past period's usage", () => {
+    // 85 CU-hours would alert if the period were still current.
+    const panel = buildDatabasePanel(
+      usageRow({
+        computeTimeSeconds: 85 * SECONDS_PER_HOUR,
+        capturedAt: new Date("2026-10-31T23:00:00Z"),
+      }),
+      branchRows("production"),
+      AFTER_PERIOD,
+    );
+
+    expect(panel.compute.projectedCuHours).toBeNull();
+    expect(panel.alerts).toEqual([]);
+  });
+
+  it("still alerts on storage and branches, which are not per-period", () => {
+    const panel = buildDatabasePanel(
+      usageRow({ storageBytes: GIB }),
+      branchRows("agent-x"),
+      AFTER_PERIOD,
+    );
+
+    expect(panel.alerts.map((alert) => alert.id)).toEqual([
+      "storage",
+      "branches",
+    ]);
   });
 });
 

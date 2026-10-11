@@ -344,10 +344,6 @@ export function fetchNeonBranches(
   slugs: string[],
 ): Promise<NeonBranchRow[]> {
   return forSlugs(slugs, () =>
-    db
-      .select()
-      .from(neonBranch)
-      .where(inArray(neonBranch.slug, slugs))
-      .orderBy(asc(neonBranch.name)),
+    db.select().from(neonBranch).where(inArray(neonBranch.slug, slugs)),
   );
 }

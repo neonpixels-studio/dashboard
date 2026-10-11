@@ -107,19 +107,28 @@ function isAlert(alert: DatabaseAlert | null): alert is DatabaseAlert {
   return alert !== null;
 }
 
+// `now` only decides whether the stored billing period is still the current
+// one. A usage row whose period has ended (the sync that would replace it is
+// failing, skipped or disabled) says nothing about this period, so it neither
+// projects nor raises a compute alert; storage and branches are not
+// per-period and keep alerting.
 export function buildDatabasePanel(
   usage: NeonUsageRow,
   branches: NeonBranchRow[],
+  now: Date = new Date(),
 ): DatabasePanel {
+  const periodIsCurrent = usage.periodEnd.getTime() > now.getTime();
   const usedCuHours = cuHoursFromSeconds(usage.computeTimeSeconds);
-  const projectedCuHours = projectComputeCuHours({
-    usedCuHours,
-    periodStart: usage.periodStart,
-    periodEnd: usage.periodEnd,
-    capturedAt: usage.capturedAt,
-  });
+  const projectedCuHours = periodIsCurrent
+    ? projectComputeCuHours({
+        usedCuHours,
+        periodStart: usage.periodStart,
+        periodEnd: usage.periodEnd,
+        capturedAt: usage.capturedAt,
+      })
+    : null;
   const alerts = [
-    computeAlert(usedCuHours, projectedCuHours),
+    periodIsCurrent ? computeAlert(usedCuHours, projectedCuHours) : null,
     storageAlert(usage.storageBytes),
     branchAlert(branches.map((branch) => branch.name)),
   ].filter(isAlert);
@@ -144,7 +153,7 @@ export function buildDatabasePanel(
         name: branch.name,
         createdAt: branch.createdAt?.toISOString() ?? null,
       }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+      .sort((first, second) => first.name.localeCompare(second.name)),
     alerts,
   };
 }
@@ -153,7 +162,11 @@ function hrefFor(slug: string): string {
   return slug === DASHBOARD_SLUG ? OVERVIEW_DATABASE_HREF : `/apps/${slug}`;
 }
 
-/** Overview Alerts-panel rows for every alert on the given database panels. */
+/**
+ * Overview Alerts-panel rows for every alert on the given database panels.
+ * `occurredAt` is the sync time, i.e. "last confirmed", since a usage threshold
+ * has no onset time of its own.
+ */
 export function buildNeonOverviewAlerts(
   panels: DatabasePanel[],
 ): OverviewAlert[] {
@@ -173,11 +186,13 @@ export function buildNeonOverviewAlerts(
 export function buildDatabasePanels(
   usageRows: NeonUsageRow[],
   branchRows: NeonBranchRow[],
+  now: Date = new Date(),
 ): DatabasePanel[] {
   return usageRows.map((usage) =>
     buildDatabasePanel(
       usage,
       branchRows.filter((branch) => branch.slug === usage.slug),
+      now,
     ),
   );
 }
