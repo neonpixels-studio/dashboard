@@ -7,14 +7,13 @@
 // Usage (see .github/workflows/ci.yml):
 //   npm audit --json | node scripts/audit-gate.js
 
-import { realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import {
   ALLOWED_ADVISORIES,
   ALLOWLIST_REVIEW_BY,
   advisoryKey,
   isAdvisoryAllowed,
 } from "./audit-allowlist.js";
+import { runIfDirectInvocation } from "./run-if-direct.js";
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 const EXIT_FAILURE = 1;
@@ -272,23 +271,4 @@ async function main() {
   );
 }
 
-// Comparing `import.meta.url` against `pathToFileURL(process.argv[1])`
-// directly would fail open on a symlinked path (e.g. macOS's /tmp ->
-// /private/tmp) — `import.meta.url` resolves to the real path, but
-// `process.argv[1]` doesn't get symlinks resolved, so the two would silently
-// mismatch, `main()` would never run, and the gate would exit 0 having
-// audited nothing. Resolving both through `realpathSync` first closes that.
-function isDirectInvocation() {
-  const entrypoint = process.argv[1];
-  if (!entrypoint) {
-    return false;
-  }
-  return realpathSync(entrypoint) === fileURLToPath(import.meta.url);
-}
-
-if (isDirectInvocation()) {
-  main().catch((error) => {
-    console.error(`audit-gate failed: ${error.message}`);
-    process.exit(EXIT_FAILURE);
-  });
-}
+runIfDirectInvocation(import.meta.url, main, "audit-gate");
