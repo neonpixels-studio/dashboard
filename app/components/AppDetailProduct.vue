@@ -140,7 +140,8 @@ const showDatabasePanel = computed(() => {
   return (
     !!detail?.database ||
     !!detail?.integrations.some(
-      (integration) => integration.vendor === NEON_VENDOR,
+      (integration) =>
+        integration.vendor === NEON_VENDOR && integration.enabled,
     )
   );
 });

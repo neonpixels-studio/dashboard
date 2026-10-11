@@ -44,8 +44,9 @@ function resolveApiKey(config: IntegrationConfig): string | null {
 }
 
 // `synthetic_storage_size` is documented as deprecated and may read 0; the
-// branches' logical sizes are the documented live figure. Summed because the
-// free-plan storage allowance applies across all of a project's branches.
+// branches' logical sizes are the documented live figure. The largest one, not
+// the sum: a child branch's logical size includes the data it shares with its
+// parent, so summing would count the same bytes once per branch.
 function resolveStorageBytes(
   usage: NeonProjectUsage,
   branches: NeonBranchSummary[],
@@ -53,7 +54,7 @@ function resolveStorageBytes(
   if (usage.syntheticStorageBytes > 0) {
     return usage.syntheticStorageBytes;
   }
-  return branches.reduce((total, branch) => total + branch.logicalSizeBytes, 0);
+  return Math.max(0, ...branches.map((branch) => branch.logicalSizeBytes));
 }
 
 /**

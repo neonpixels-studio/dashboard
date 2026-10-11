@@ -1,6 +1,6 @@
 import { useDb } from "../../db";
 import { requireUser } from "../../utils/auth";
-import { fetchDatabasePanels } from "../../utils/databasePanels";
+import { fetchEnabledDatabasePanels } from "../../utils/databasePanels";
 import { DASHBOARD_SLUG } from "../../utils/neonUsage";
 import type { DatabasePanel } from "../../../shared/types/database";
 
@@ -10,7 +10,7 @@ export default defineEventHandler(
   async (event): Promise<DatabasePanel | null> => {
     requireUser(event);
 
-    const [panel] = await fetchDatabasePanels(useDb(), [DASHBOARD_SLUG]);
+    const [panel] = await fetchEnabledDatabasePanels(useDb(), [DASHBOARD_SLUG]);
     return panel ?? null;
   },
 );

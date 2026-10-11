@@ -396,6 +396,16 @@ describe("AppDetailProduct", () => {
       );
     });
 
+    it("renders nothing when the property's Neon integration is disabled", () => {
+      const wrapper = mountDetail({
+        detail: appDetailFixture({
+          integrations: [{ ...NEON_INTEGRATION, enabled: false }],
+        }),
+      });
+
+      expect(wrapper.findComponent(DatabasePanel).exists()).toBe(false);
+    });
+
     it("renders nothing for a property with no Neon database", () => {
       const wrapper = mountDetail({ detail: appDetailFixture() });
 

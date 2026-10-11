@@ -78,7 +78,7 @@ describe("resolveNeonProjectId", () => {
 });
 
 describe("fetchNeonDatabase", () => {
-  it("maps usage and branches, summing branch sizes when Neon reports no storage figure", async () => {
+  it("maps usage and branches, taking the largest branch size when Neon reports no storage figure", async () => {
     const client = fakeClient();
 
     const result = await fetchNeonDatabase(neonConfig(), client, CAPTURED_AT);
@@ -90,7 +90,7 @@ describe("fetchNeonDatabase", () => {
       usage: {
         computeTimeSeconds: 86_400,
         activeTimeSeconds: 309_600,
-        storageBytes: 31_000_000,
+        storageBytes: 20_000_000,
         dataTransferBytes: 9_000_000,
         writtenDataBytes: 500,
         periodStart: USAGE.periodStart,

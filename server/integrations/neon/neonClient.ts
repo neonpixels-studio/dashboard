@@ -50,6 +50,16 @@ async function getJson(
   }
 }
 
+function branchesPageUrl(projectId: string, cursor: string | null): URL {
+  const url = projectUrl(projectId, "/branches");
+  url.searchParams.set("limit", String(BRANCHES_PAGE_SIZE));
+  if (!cursor) {
+    return url;
+  }
+  url.searchParams.set("cursor", cursor);
+  return url;
+}
+
 function projectUrl(projectId: string, suffix = ""): URL {
   // projectId can come from integration_config.external_id (DB-writable), so
   // it is encoded before joining into the path.
@@ -71,11 +81,7 @@ export function createNeonClient(
     const branches: NeonBranchSummary[] = [];
     let cursor: string | null = null;
     for (let page = 0; page < MAX_BRANCH_PAGES; page++) {
-      const url = projectUrl(projectId, "/branches");
-      url.searchParams.set("limit", String(BRANCHES_PAGE_SIZE));
-      if (cursor) {
-        url.searchParams.set("cursor", cursor);
-      }
+      const url = branchesPageUrl(projectId, cursor);
       const body = await getJson(fetchImpl, url, apiKey, deadline);
       branches.push(...toNeonBranchList(body));
       cursor = nextBranchCursor(body);

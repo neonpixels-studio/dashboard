@@ -9,9 +9,9 @@ vi.mock("../../../../server/utils/auth", () => ({
 
 vi.mock("../../../../server/db", () => ({ useDb: () => ({}) }));
 
-const mockFetchDatabasePanels = vi.fn();
+const mockFetchEnabledDatabasePanels = vi.fn();
 vi.mock("../../../../server/utils/databasePanels", () => ({
-  fetchDatabasePanels: mockFetchDatabasePanels,
+  fetchEnabledDatabasePanels: mockFetchEnabledDatabasePanels,
 }));
 
 const { default: databaseHandler } =
@@ -20,7 +20,7 @@ const { default: databaseHandler } =
 describe("GET /api/overview/database", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockFetchDatabasePanels.mockResolvedValue([]);
+    mockFetchEnabledDatabasePanels.mockResolvedValue([]);
   });
 
   it("requires auth before touching the database", async () => {
@@ -31,7 +31,7 @@ describe("GET /api/overview/database", () => {
     await expect(databaseHandler({} as H3Event)).rejects.toMatchObject({
       statusCode: 401,
     });
-    expect(mockFetchDatabasePanels).not.toHaveBeenCalled();
+    expect(mockFetchEnabledDatabasePanels).not.toHaveBeenCalled();
   });
 
   it("returns null until the dashboard's Neon sync has run", async () => {
@@ -40,9 +40,11 @@ describe("GET /api/overview/database", () => {
 
   it("returns the dashboard's own panel, scoped to the dashboard slug", async () => {
     const panel = databasePanelFixture({ slug: "dashboard" });
-    mockFetchDatabasePanels.mockResolvedValue([panel]);
+    mockFetchEnabledDatabasePanels.mockResolvedValue([panel]);
 
     expect(await databaseHandler({} as H3Event)).toEqual(panel);
-    expect(mockFetchDatabasePanels).toHaveBeenCalledWith({}, ["dashboard"]);
+    expect(mockFetchEnabledDatabasePanels).toHaveBeenCalledWith({}, [
+      "dashboard",
+    ]);
   });
 });

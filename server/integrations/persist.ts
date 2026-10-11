@@ -153,10 +153,67 @@ export function listSyncHealthRows(db: DrizzleDb): Promise<SyncAlertRow[]> {
     .where(eq(integrationConfig.enabled, true));
 }
 
+function upsertNeonUsage(
+  db: DrizzleDb,
+  slug: string,
+  usage: NeonDatabaseInput["usage"],
+) {
+  return db
+    .insert(neonUsage)
+    .values({ ...usage, slug })
+    .onConflictDoUpdate({
+      target: neonUsage.slug,
+      set: {
+        computeTimeSeconds: sql`excluded.compute_time_seconds`,
+        activeTimeSeconds: sql`excluded.active_time_seconds`,
+        storageBytes: sql`excluded.storage_bytes`,
+        dataTransferBytes: sql`excluded.data_transfer_bytes`,
+        writtenDataBytes: sql`excluded.written_data_bytes`,
+        periodStart: sql`excluded.period_start`,
+        periodEnd: sql`excluded.period_end`,
+        capturedAt: sql`excluded.captured_at`,
+      },
+    });
+}
+
+function upsertNeonBranches(
+  db: DrizzleDb,
+  slug: string,
+  branches: NeonDatabaseInput["branches"],
+) {
+  if (!branches.length) {
+    return [];
+  }
+  return [
+    db
+      .insert(neonBranch)
+      .values(withSlug(branches, slug))
+      .onConflictDoUpdate({
+        target: [neonBranch.slug, neonBranch.name],
+        set: { createdAt: sql`excluded.created_at` },
+      }),
+  ];
+}
+
+// Deletes the slug's branches Neon no longer lists; with none listed, all of
+// them.
+function deleteStaleNeonBranches(
+  db: DrizzleDb,
+  slug: string,
+  currentBranchNames: string[],
+) {
+  const forSlug = eq(neonBranch.slug, slug);
+  if (!currentBranchNames.length) {
+    return db.delete(neonBranch).where(forSlug);
+  }
+  return db
+    .delete(neonBranch)
+    .where(and(forSlug, notInArray(neonBranch.name, currentBranchNames)));
+}
+
 // Neon's latest usage is overwritten in place, and its branch list is
-// reconciled to exactly what Neon returned: upsert every current branch, then
-// delete the slug's rows whose name is no longer present, so a removed branch
-// stops showing (and alerting). An empty branch list deletes them all.
+// reconciled to exactly what Neon returned (upsert the current ones, delete the
+// rest), so a removed branch stops showing and alerting.
 function neonDatabaseWrites(
   db: DrizzleDb,
   slug: string,
@@ -165,40 +222,14 @@ function neonDatabaseWrites(
   if (!neonDatabase) {
     return [];
   }
-  const branchNames = neonDatabase.branches.map((branch) => branch.name);
-  const staleBranches = branchNames.length
-    ? and(eq(neonBranch.slug, slug), notInArray(neonBranch.name, branchNames))
-    : eq(neonBranch.slug, slug);
-  const upsertBranches = neonDatabase.branches.length
-    ? [
-        db
-          .insert(neonBranch)
-          .values(withSlug(neonDatabase.branches, slug))
-          .onConflictDoUpdate({
-            target: [neonBranch.slug, neonBranch.name],
-            set: { createdAt: sql`excluded.created_at` },
-          }),
-      ]
-    : [];
   return [
-    db
-      .insert(neonUsage)
-      .values({ ...neonDatabase.usage, slug })
-      .onConflictDoUpdate({
-        target: neonUsage.slug,
-        set: {
-          computeTimeSeconds: sql`excluded.compute_time_seconds`,
-          activeTimeSeconds: sql`excluded.active_time_seconds`,
-          storageBytes: sql`excluded.storage_bytes`,
-          dataTransferBytes: sql`excluded.data_transfer_bytes`,
-          writtenDataBytes: sql`excluded.written_data_bytes`,
-          periodStart: sql`excluded.period_start`,
-          periodEnd: sql`excluded.period_end`,
-          capturedAt: sql`excluded.captured_at`,
-        },
-      }),
-    ...upsertBranches,
-    db.delete(neonBranch).where(staleBranches),
+    upsertNeonUsage(db, slug, neonDatabase.usage),
+    ...upsertNeonBranches(db, slug, neonDatabase.branches),
+    deleteStaleNeonBranches(
+      db,
+      slug,
+      neonDatabase.branches.map((branch) => branch.name),
+    ),
   ];
 }
 

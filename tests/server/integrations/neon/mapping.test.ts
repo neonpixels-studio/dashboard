@@ -38,13 +38,19 @@ describe("toNeonProjectUsage", () => {
   it.each([
     "compute_time_seconds",
     "active_time_seconds",
-    "synthetic_storage_size",
     "data_transfer_bytes",
     "written_data_bytes",
   ])("fails loud rather than recording a zero when %s is missing", (field) => {
     expect(() =>
       toNeonProjectUsage(projectBody({ [field]: undefined })),
     ).toThrow(field);
+  });
+
+  it("treats a missing synthetic_storage_size as 0, since Neon deprecates it", () => {
+    expect(
+      toNeonProjectUsage(projectBody({ synthetic_storage_size: undefined }))
+        .syntheticStorageBytes,
+    ).toBe(0);
   });
 
   it("rejects a negative number", () => {

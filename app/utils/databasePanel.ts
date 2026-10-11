@@ -3,6 +3,7 @@ import {
   NEON_ALERT_THRESHOLD_RATIO,
 } from "#shared/constants/neonPlan";
 import type { DatabasePanel as DatabasePanelData } from "#shared/types/database";
+import { formatAlertTime } from "~/utils/alertFormat";
 import { formatSyncedDate } from "~/utils/rollupFormat";
 
 const BYTES_PER_MIB = 1_024 ** 2;
@@ -58,6 +59,9 @@ export interface DatabasePanelView {
   storageShareLabel: string;
   storageColor: string;
   transferLabel: string;
+  // "10 OCT 2026 · 12:00 UTC": when the figures were last synced, so a stale
+  // sync is visible. Null for an unparseable timestamp.
+  syncedLabel: string | null;
   branches: {
     name: string;
     createdAt: string | null;
@@ -112,6 +116,7 @@ export function toDatabasePanelView(
     storageShareLabel: formatSharePct(storageShare),
     storageColor: meterColor(storageShare),
     transferLabel: formatDatabaseBytes(panel.dataTransferBytes),
+    syncedLabel: formatAlertTime(panel.capturedAt),
     branches: panel.branches.map((branch) => ({
       name: branch.name,
       createdAt: branch.createdAt,

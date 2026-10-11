@@ -46,6 +46,11 @@
       </li>
     </ul>
   </div>
+
+  <p v-if="view.syncedLabel" class="synced">
+    <span class="stat-label">SYNCED</span>
+    <time :datetime="panel.capturedAt">{{ view.syncedLabel }}</time>
+  </p>
 </template>
 
 <script setup lang="ts">
@@ -81,7 +86,8 @@ const view = computed(() => toDatabasePanelView(props.panel));
   gap: 10px;
 }
 .projection,
-.transfer {
+.transfer,
+.synced {
   margin: 0;
   display: flex;
   justify-content: space-between;

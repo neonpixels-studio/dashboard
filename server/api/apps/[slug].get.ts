@@ -5,7 +5,7 @@ import { clerkDashboardUsersUrl } from "../../integrations/clerk/dashboardLink";
 import { ga4PropertyIdForApp } from "../../integrations/ga4/propertyId";
 import { integrationEnvironments } from "../../integrations/credentialEnvironment";
 import { requireUser } from "../../utils/auth";
-import { fetchDatabasePanels } from "../../utils/databasePanels";
+import { fetchEnabledDatabasePanels } from "../../utils/databasePanels";
 import {
   fetchIntegrationConfigs,
   fetchLatestMetricSnapshots,
@@ -59,7 +59,7 @@ export default defineEventHandler(async (event): Promise<AppDetailResponse> => {
     fetchSyncStatuses(db, [slug]),
     fetchIntegrationConfigs(db, [slug]),
     fetchSyndicationPosts(db, slug),
-    fetchDatabasePanels(db, [slug]),
+    fetchEnabledDatabasePanels(db, [slug]),
   ]);
 
   const environments = integrationEnvironments(configRows);

@@ -2,25 +2,19 @@ import { APPS, INTERNAL_APPS } from "../../../app/config/apps";
 import { useDb } from "../../db";
 import { listSyncHealthRows } from "../../integrations/persist";
 import { requireUser } from "../../utils/auth";
-import { fetchIntegrationConfigs } from "../../utils/dashboardQueries";
-import { fetchDatabasePanels } from "../../utils/databasePanels";
+import { fetchEnabledDatabasePanels } from "../../utils/databasePanels";
 import { buildNeonOverviewAlerts } from "../../utils/neonUsage";
 import { buildSyncAlerts, byNewestFirst } from "../../utils/overviewAlerts";
-import { NEON_VENDOR } from "../../../shared/constants/neonPlan";
 import type { OverviewAlertsResponse } from "../../../shared/types/alerts";
 
 const NEON_SLUGS = [...APPS, ...INTERNAL_APPS].map((app) => app.slug);
 
-// Only properties whose Neon integration is enabled alert: a disabled one
-// leaves its last usage row behind, which must not alert forever.
 async function neonAlerts(
   db: ReturnType<typeof useDb>,
 ): Promise<OverviewAlertsResponse> {
-  const configRows = await fetchIntegrationConfigs(db, NEON_SLUGS);
-  const enabledSlugs = configRows
-    .filter((row) => row.vendor === NEON_VENDOR && row.enabled)
-    .map((row) => row.slug);
-  return buildNeonOverviewAlerts(await fetchDatabasePanels(db, enabledSlugs));
+  return buildNeonOverviewAlerts(
+    await fetchEnabledDatabasePanels(db, NEON_SLUGS),
+  );
 }
 
 // Active problems for the "/" overview Alerts panel, DB-backed only

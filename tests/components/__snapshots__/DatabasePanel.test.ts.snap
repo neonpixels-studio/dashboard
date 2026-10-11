@@ -44,6 +44,7 @@ exports[`DatabasePanel > matches its snapshot with alerts 1`] = `
       <li data-v-4fb92f4e="" class="branch-row"><span data-v-4fb92f4e="" class="branch-name">production</span><time data-v-4fb92f4e="" class="branch-date" datetime="2026-07-01T00:00:00.000Z">01 JUL 2026</time></li>
     </ul>
   </div>
+  <p data-v-4fb92f4e="" class="synced"><span data-v-4fb92f4e="" class="stat-label">SYNCED</span><time data-v-4fb92f4e="" datetime="2026-10-10T12:00:00.000Z">10 OCT 2026 · 12:00 UTC</time></p>
 </section>"
 `;
 
@@ -81,5 +82,6 @@ exports[`DatabasePanel > matches its snapshot without alerts 1`] = `
       <li data-v-4fb92f4e="" class="branch-row"><span data-v-4fb92f4e="" class="branch-name">production</span><time data-v-4fb92f4e="" class="branch-date" datetime="2026-07-01T00:00:00.000Z">01 JUL 2026</time></li>
     </ul>
   </div>
+  <p data-v-4fb92f4e="" class="synced"><span data-v-4fb92f4e="" class="stat-label">SYNCED</span><time data-v-4fb92f4e="" datetime="2026-10-10T12:00:00.000Z">10 OCT 2026 · 12:00 UTC</time></p>
 </section>"
 `;

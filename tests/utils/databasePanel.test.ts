@@ -108,3 +108,19 @@ describe("toDatabasePanelView", () => {
     ]);
   });
 });
+
+describe("toDatabasePanelView synced label", () => {
+  it("shows when the figures were last synced", () => {
+    const view = toDatabasePanelView(databasePanelFixture());
+
+    expect(view.syncedLabel).toBe("10 OCT 2026 · 12:00 UTC");
+  });
+
+  it("is null for an unparseable timestamp", () => {
+    const view = toDatabasePanelView(
+      databasePanelFixture({ capturedAt: "garbage" }),
+    );
+
+    expect(view.syncedLabel).toBeNull();
+  });
+});

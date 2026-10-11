@@ -14,29 +14,19 @@ vi.mock("../../../../server/integrations/persist", () => ({
   listSyncHealthRows: mockListSyncHealthRows,
 }));
 
-const mockFetchIntegrationConfigs = vi.fn();
-vi.mock("../../../../server/utils/dashboardQueries", () => ({
-  fetchIntegrationConfigs: mockFetchIntegrationConfigs,
-}));
-
-const mockFetchDatabasePanels = vi.fn();
+const mockFetchEnabledDatabasePanels = vi.fn();
 vi.mock("../../../../server/utils/databasePanels", () => ({
-  fetchDatabasePanels: mockFetchDatabasePanels,
+  fetchEnabledDatabasePanels: mockFetchEnabledDatabasePanels,
 }));
 
 const { default: alertsHandler } =
   await import("../../../../server/api/overview/alerts.get");
 
-function neonConfigRow(slug: string, enabled: boolean) {
-  return { slug, vendor: "neon", enabled };
-}
-
 describe("GET /api/overview/alerts", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockListSyncHealthRows.mockResolvedValue([]);
-    mockFetchIntegrationConfigs.mockResolvedValue([]);
-    mockFetchDatabasePanels.mockResolvedValue([]);
+    mockFetchEnabledDatabasePanels.mockResolvedValue([]);
   });
 
   it("requires auth before touching the database", async () => {
@@ -78,12 +68,8 @@ describe("GET /api/overview/alerts", () => {
     });
   });
 
-  it("raises Neon alerts for properties whose Neon integration is enabled", async () => {
-    mockFetchIntegrationConfigs.mockResolvedValue([
-      neonConfigRow("basin", true),
-      neonConfigRow("markpost", false),
-    ]);
-    mockFetchDatabasePanels.mockResolvedValue([
+  it("raises Neon alerts from the enabled databases", async () => {
+    mockFetchEnabledDatabasePanels.mockResolvedValue([
       databasePanelFixture({
         alerts: [{ id: "branches", message: "Unexpected branch: agent-x" }],
       }),
@@ -91,7 +77,6 @@ describe("GET /api/overview/alerts", () => {
 
     const result = await alertsHandler({} as H3Event);
 
-    expect(mockFetchDatabasePanels).toHaveBeenCalledWith({}, ["basin"]);
     expect(result).toEqual([
       expect.objectContaining({
         id: "neon-branches:basin",
@@ -103,13 +88,44 @@ describe("GET /api/overview/alerts", () => {
     ]);
   });
 
-  it("does not look up Neon usage for a disabled integration", async () => {
-    mockFetchIntegrationConfigs.mockResolvedValue([
-      neonConfigRow("basin", false),
-    ]);
-
+  it("looks for Neon databases across every property and internal app", async () => {
     await alertsHandler({} as H3Event);
 
-    expect(mockFetchDatabasePanels).toHaveBeenCalledWith({}, []);
+    expect(mockFetchEnabledDatabasePanels).toHaveBeenCalledWith({}, [
+      "basin",
+      "markpost",
+      "farflung",
+      "danholloran",
+      "grimicorn",
+      "neonpixels",
+      "dashboard",
+    ]);
+  });
+
+  it("merges sync and Neon alerts, newest first", async () => {
+    mockListSyncHealthRows.mockResolvedValue([
+      {
+        slug: "basin",
+        vendor: "stripe",
+        lastRunAt: new Date("2026-10-10T08:00:00Z"),
+        lastSuccessAt: null,
+        lastAttemptedAt: new Date("2026-10-10T08:00:00Z"),
+        ok: false,
+        error: "stripe: 401",
+      },
+    ]);
+    mockFetchEnabledDatabasePanels.mockResolvedValue([
+      databasePanelFixture({
+        capturedAt: "2026-10-10T12:00:00.000Z",
+        alerts: [{ id: "storage", message: "Storage at 85%" }],
+      }),
+    ]);
+
+    const result = await alertsHandler({} as H3Event);
+
+    expect(result.map((alert) => alert.id)).toEqual([
+      "neon-storage:basin",
+      "sync-failed:basin:stripe",
+    ]);
   });
 });

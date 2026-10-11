@@ -24,9 +24,9 @@ vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchSyndicationPosts: mockFetchSyndicationPosts,
 }));
 
-const mockFetchDatabasePanels = vi.fn();
+const mockFetchEnabledDatabasePanels = vi.fn();
 vi.mock("../../../../server/utils/databasePanels", () => ({
-  fetchDatabasePanels: mockFetchDatabasePanels,
+  fetchEnabledDatabasePanels: mockFetchEnabledDatabasePanels,
 }));
 
 const { default: appDetailHandler } =
@@ -45,7 +45,7 @@ describe("GET /api/apps/[slug]", () => {
     mockFetchSyncStatuses.mockResolvedValue([]);
     mockFetchIntegrationConfigs.mockResolvedValue([]);
     mockFetchSyndicationPosts.mockResolvedValue([]);
-    mockFetchDatabasePanels.mockResolvedValue([]);
+    mockFetchEnabledDatabasePanels.mockResolvedValue([]);
   });
 
   it("requires auth before touching the database", async () => {
@@ -278,11 +278,11 @@ describe("GET /api/apps/[slug]", () => {
   });
   it("includes the slug's DATABASE panel when its Neon usage has synced", async () => {
     const panel = databasePanelFixture();
-    mockFetchDatabasePanels.mockResolvedValue([panel]);
+    mockFetchEnabledDatabasePanels.mockResolvedValue([panel]);
 
     const result = await appDetailHandler(makeEvent("basin"));
 
     expect(result.database).toEqual(panel);
-    expect(mockFetchDatabasePanels).toHaveBeenCalledWith({}, ["basin"]);
+    expect(mockFetchEnabledDatabasePanels).toHaveBeenCalledWith({}, ["basin"]);
   });
 });

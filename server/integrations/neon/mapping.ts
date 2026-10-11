@@ -20,6 +20,16 @@ function requireNonNegativeNumber(
   return value;
 }
 
+// Neon documents `synthetic_storage_size` as deprecated and always 0, so its
+// absence must not fail the sync: provider.ts falls back to branch sizes.
+function optionalPositiveNumber(
+  record: Record<string, unknown>,
+  field: string,
+): number {
+  const value = record[field];
+  return typeof value === "number" && value > 0 ? value : 0;
+}
+
 function requireDate(record: Record<string, unknown>, field: string): Date {
   const value = record[field];
   const parsed = typeof value === "string" ? new Date(value) : null;
@@ -45,7 +55,7 @@ export function toNeonProjectUsage(rawBody: unknown): NeonProjectUsage {
       "compute_time_seconds",
     ),
     activeTimeSeconds: requireNonNegativeNumber(project, "active_time_seconds"),
-    syntheticStorageBytes: requireNonNegativeNumber(
+    syntheticStorageBytes: optionalPositiveNumber(
       project,
       "synthetic_storage_size",
     ),
