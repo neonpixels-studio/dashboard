@@ -3,8 +3,8 @@ import AppDetailMarketing from "../../app/components/AppDetailMarketing.vue";
 import MetricTile from "../../app/components/MetricTile.vue";
 import MetricTileSkeleton from "../../app/components/MetricTileSkeleton.vue";
 import DataErrorState from "../../app/components/DataErrorState.vue";
-import SparkLine from "../../app/components/SparkLine.vue";
 import StatList from "../../app/components/StatList.vue";
+import TrafficPanel from "../../app/components/TrafficPanel.vue";
 import SourcesFooter from "../../app/components/SourcesFooter.vue";
 import { findAppBySlug } from "../../app/config/apps";
 import { toAppDetailViewModel } from "../../app/utils/appViewModel";
@@ -135,36 +135,41 @@ describe("AppDetailMarketing", () => {
     ).toEqual(["SESSIONS"]);
   });
 
-  it("charts sessions in the app's accent color for a non-studio property", () => {
+  it.each(["grimicorn", "neonpixels"])(
+    "renders %s traffic in the shared side-by-side TrafficPanel with real data",
+    (slug) => {
+      const wrapper = mountDetail(slug, { detail: LOADED_DETAIL });
+      const panel = wrapper.findComponent(TrafficPanel);
+      expect(panel.props("app")).toStrictEqual(
+        expect.objectContaining({ slug }),
+      );
+      expect(panel.props("path").length).toBeGreaterThan(0);
+      expect(panel.props("stats")).toEqual([
+        { label: "SESSIONS · 30D", value: "6,104" },
+      ]);
+      expect(panel.props("lists")).toEqual([
+        {
+          title: "TRAFFIC SOURCES",
+          items: [
+            { label: "Direct", value: "38%" },
+            { label: "Organic search", value: "17%" },
+          ],
+        },
+      ]);
+    },
+  );
+
+  it("does not render a separate stacked traffic sources card", () => {
     const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
-    const sparkline = wrapper.findComponent(SparkLine);
-    expect(sparkline.props("color")).toBe(findAppBySlug("grimicorn")!.accent);
-    expect(sparkline.props("path").length).toBeGreaterThan(0);
+    expect(wrapper.findAllComponents(StatList)).toHaveLength(1);
+    expect(wrapper.text().match(/TRAFFIC SOURCES/g)).toHaveLength(1);
   });
 
-  it("charts sessions in neutral ink for the studio site", () => {
-    const wrapper = mountDetail("neonpixels", { detail: LOADED_DETAIL });
-    expect(wrapper.findComponent(SparkLine).props("color")).toBe("var(--ink)");
-  });
-
-  it("shows the empty-chart note instead of the sparkline when fewer than two daily points exist", () => {
+  it("omits the traffic sources list when there is no channel split", () => {
     const wrapper = mountDetail("grimicorn", { detail: appDetailFixture() });
-    expect(wrapper.findComponent(SparkLine).exists()).toBe(false);
-    expect(wrapper.text()).toContain(
-      "Not enough synced data for a trend line yet.",
-    );
-  });
-
-  it("renders the real traffic-source split, sorted largest first, and omits the panel when there is none", () => {
-    const wrapper = mountDetail("grimicorn", { detail: LOADED_DETAIL });
-    const list = wrapper.findComponent(StatList);
-    expect(list.props("items")).toEqual([
-      { label: "Direct", value: "38%" },
-      { label: "Organic search", value: "17%" },
-    ]);
-
-    const empty = mountDetail("grimicorn", { detail: appDetailFixture() });
-    expect(empty.findComponent(StatList).exists()).toBe(false);
+    const panel = wrapper.findComponent(TrafficPanel);
+    expect(panel.props("lists")).toEqual([]);
+    expect(panel.props("path")).toBe("");
   });
 
   it("shows real per-integration sync chips in the sources footer", () => {
@@ -174,8 +179,16 @@ describe("AppDetailMarketing", () => {
     ]);
   });
 
+  it("matches its traffic sources list snapshot", () => {
+    const panel = mountDetail("grimicorn", { detail: LOADED_DETAIL }).find(
+      ".traffic-panel",
+    );
+    expect(panel.exists()).toBe(true);
+    expect(panel.find(".traffic-list").html()).toMatchSnapshot();
+  });
+
   it("matches its tile-grid snapshot", () => {
-    // Snapshotting the full component would embed the hardcoded SparkLine
+    // Snapshotting the full component would embed the generated SparkLine
     // bezier paths (hundreds of unreadable coordinates) with no extra
     // coverage beyond the explicit assertions above; the tile grid is the
     // largest subtree that stays human-reviewable in a diff.
