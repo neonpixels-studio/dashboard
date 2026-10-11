@@ -92,7 +92,12 @@ Two external services. `.env.example` documents every var and where to get it.
   403 from `server/middleware/auth.ts` and from `requireUser()`, and never gets
   a database row. It fails closed: unset or empty denies everyone, so set it in
   every dotenvx env file (`npx dotenvx set NUXT_OWNER_CLERK_USER_IDS "user_..."
--f .env[.dev|.e2e|.production]`) and in Netlify before deploying.
+-f .env[.dev|.e2e|.production]`) and in Netlify before deploying. User ids
+  are per Clerk instance: `.env.dev` (test keys) needs your Development
+  instance id, not the production one. Deploy previews copy production's
+  `users` table, which only holds production ids, so `.env.dev` sets
+  `NUXT_DISABLE_SIGNUPS=false` to let the owner's first preview login create
+  its row.
 
 ## Integrations
 
@@ -375,7 +380,7 @@ still-encrypted values.
 ## Deploys
 
 - **Production** deploys weekly, Mondays 14:00 UTC, via a Netlify build hook called by `.github/workflows/weekly-production-deploy.yml`. The run first applies Drizzle migrations to the production database, then triggers the hook (migrations must stay backward compatible with the code still live until the build finishes). It requires CI to be green on `main` HEAD, and scheduled runs skip when `main` has no commits in the last 7 days. Merging to `main` does not deploy or migrate on its own.
-- **Pull requests** get a Netlify Deploy Preview built against `.env.dev` (a non-production database).
+- **Pull requests and branch deploys** get a Netlify build against `.env.dev`, each with its own Neon branch. `npm run build:preview` (`scripts/neon-preview-branch.js`) creates the branch from `production` on the first build (later pushes reuse it), runs the Drizzle migrations against it, then builds with its `DATABASE_URL`. Deploy previews get `preview/pr-<n>` (Netlify's `REVIEW_ID`); branch deploys get `branch/<git branch>` (Netlify's `BRANCH`). It reads `NEON_API_KEY`/`NEON_PROJECT_ID` from `.env.dev`. `.github/workflows/neon-preview-cleanup.yml` deletes the Neon branch when the PR is merged or closed, or when the git branch is deleted, using the same pair from `.env.e2e` (decrypted with the existing `DOTENV_PRIVATE_KEY_E2E` secret). These branches start with a copy-on-write snapshot of production data from when they were created; migrations and writes on them never reach production, and the script refuses to touch Neon's default branch. Scheduled syncs don't run on previews, but `.env.dev` shares `NUXT_INTEGRATION_ENCRYPTION_KEY` with production, so a sync triggered manually on a preview would decrypt the real vendor tokens and spend real API quota.
 - **Hotfix:** Actions tab > Weekly production deploy > Run workflow. Manual runs always migrate and deploy.
 - Production builds started from the Netlify UI are cancelled on purpose. The build hook cannot pin a commit, so a merge landing between the workflow's checks and Netlify's clone is a narrowed, not closed, race. A failed Netlify build does not fail the workflow run; watch Netlify's deploy notifications.
 - Required repo secrets: `NETLIFY_BUILD_HOOK_URL` (build hook on `main`) and `DOTENV_PRIVATE_KEY_PRODUCTION`.
@@ -461,7 +466,7 @@ then `chromium` (everything else, with that session).
 changed), mirroring the pattern in `basin`/`markpost`/`farflung`: it decrypts
 `.env.e2e` with the `DOTENV_PRIVATE_KEY_E2E` repository secret, then uses the
 `NEON_API_KEY`/`NEON_PROJECT_ID` stored inside that same file to create a
-fresh Neon branch per shard (deleted again in a final `if: always()` step)
+fresh Neon branch per shard, forked from the `e2e` branch (deleted again in a final `if: always()` step)
 so specs never collide on shared state.
 
 `NEON_API_KEY` and `NEON_PROJECT_ID` both live encrypted inside `.env.e2e`
