@@ -17,7 +17,7 @@ export const PRODUCTION_DEPLOY_CONTEXT = "production";
 const PRODUCTION_ENV_FILE = ".env.production";
 const NON_PRODUCTION_ENV_FILE = ".env.dev";
 
-export function envFileForDeployContext(deployContext: string): string {
+function envFileForDeployContext(deployContext: string): string {
   if (deployContext === PRODUCTION_DEPLOY_CONTEXT) {
     return PRODUCTION_ENV_FILE;
   }

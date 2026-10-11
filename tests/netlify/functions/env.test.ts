@@ -29,12 +29,19 @@ describe("loadEnv", () => {
     });
   });
 
-  it("decrypts .env.dev for deploy previews and branch deploys", async () => {
-    const { envFileForDeployContext } = await importFreshEnvModule();
+  it.each(["deploy-preview", "branch-deploy"])(
+    "decrypts .env.dev in strict mode for a %s",
+    async (deployContext) => {
+      const { loadEnv } = await importFreshEnvModule();
 
-    expect(envFileForDeployContext("deploy-preview")).toBe(".env.dev");
-    expect(envFileForDeployContext("branch-deploy")).toBe(".env.dev");
-  });
+      loadEnv(deployContext);
+
+      expect(configMock).toHaveBeenCalledWith({
+        path: ".env.dev",
+        strict: true,
+      });
+    },
+  );
 
   it("only decrypts once per function instance", async () => {
     const { loadEnv } = await importFreshEnvModule();
