@@ -450,13 +450,21 @@ then `chromium` (everything else, with that session).
 
 ### e2e in CI
 
-`ci.yml`'s `e2e` job runs each `e2e/*.spec.ts` file as its own matrix shard
-(skipped outside pull requests, and skipped when no e2e-relevant path
-changed), mirroring the pattern in `basin`/`markpost`/`farflung`: it decrypts
-`.env.e2e` with the `DOTENV_PRIVATE_KEY_E2E` repository secret, then uses the
+`ci.yml`'s `e2e` job calls the reusable `e2e.yml` workflow, which runs each
+`e2e/*.spec.ts` file as its own matrix shard (skipped outside pull requests,
+and skipped when no e2e-relevant path changed), mirroring the pattern in
+`basin`/`markpost`/`farflung`: it decrypts `.env.e2e` with the
+`DOTENV_PRIVATE_KEY_E2E` repository secret, then uses the
 `NEON_API_KEY`/`NEON_PROJECT_ID` stored inside that same file to create a
 fresh Neon branch per shard, forked from the `e2e` branch (deleted again in a final `if: always()` step)
 so specs never collide on shared state.
+
+Neon's free plan caps the project at 10 branches, so the caller job holds an
+`e2e-neon` concurrency lock: e2e runs across all PRs queue one after another
+instead of overlapping. GitHub keeps only one pending run per lock, so with
+three PRs waiting the older pending one is cancelled and needs a re-run. After
+upgrading Neon, delete that `concurrency:` block in `ci.yml` to let runs
+overlap again.
 
 `NEON_API_KEY` and `NEON_PROJECT_ID` both live encrypted inside `.env.e2e`
 alongside `E2E_DATABASE_URL`. The `DOTENV_PRIVATE_KEY_E2E` repository secret
