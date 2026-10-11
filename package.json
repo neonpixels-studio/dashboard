@@ -10,6 +10,7 @@
     "dev:test": "TMPDIR=/tmp nuxt dev",
     "build": "dotenvx run -f .env.production -- nuxt build",
     "build:dev": "dotenvx run -f .env.dev -- nuxt build",
+    "build:preview": "dotenvx run -f .env.dev -- node scripts/neon-preview-branch.js build",
     "assert:no-sourcemaps": "node scripts/assert-no-sourcemaps.js",
     "preview": "dotenvx run -f .env.production -- nuxt preview",
     "test": "vitest",
