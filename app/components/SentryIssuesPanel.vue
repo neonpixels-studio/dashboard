@@ -67,8 +67,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{ retry: [] }>();
 
-// No panel and no error covers the pre-fetch moment of a client-only fetch.
-const showSkeleton = computed(() => !props.panel && !props.error);
+// No panel and no error covers the pre-fetch moment of a client-only fetch;
+// `pending` swaps a stale error for the skeleton while Retry is in flight.
+const showSkeleton = computed(
+  () => !props.panel && (props.pending || !props.error),
+);
 // The endpoint 404s when the app has no Sentry project/token; retrying can't
 // fix that, so it gets its own state instead of the retryable error.
 const isNotConfigured = computed(

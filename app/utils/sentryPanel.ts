@@ -10,11 +10,11 @@ export const SENTRY_TREND_VIEWBOX_HEIGHT = 60;
 const COLOR_RED = "var(--err)";
 const COLOR_AMBER = "var(--warn)";
 const COLOR_MUTED = "var(--ink-2)";
-const LEVEL_COLORS: Record<string, string> = {
-  fatal: COLOR_RED,
-  error: COLOR_AMBER,
-  warning: COLOR_MUTED,
-};
+const LEVEL_COLORS = new Map([
+  ["fatal", COLOR_RED],
+  ["error", COLOR_AMBER],
+  ["warning", COLOR_MUTED],
+]);
 
 export interface SentryIssueRowView {
   id: string;
@@ -37,7 +37,7 @@ function toIssueRowView(issue: SentryPanelIssue): SentryIssueRowView {
     id: issue.id,
     title: issue.title,
     levelLabel: issue.level.toUpperCase(),
-    levelColor: LEVEL_COLORS[issue.level] ?? COLOR_MUTED,
+    levelColor: LEVEL_COLORS.get(issue.level) ?? COLOR_MUTED,
     location: issue.culprit,
     eventsLabel: countLabel(issue.eventCount, "event"),
     usersLabel: countLabel(issue.userCount, "user"),

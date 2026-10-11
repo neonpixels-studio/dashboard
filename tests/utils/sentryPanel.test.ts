@@ -37,6 +37,7 @@ describe("buildSentryIssueRows", () => {
     ["error", "var(--warn)"],
     ["warning", "var(--ink-2)"],
     ["something-new", "var(--ink-2)"],
+    ["constructor", "var(--ink-2)"],
   ])("colors level %s", (level, color) => {
     expect(buildSentryIssueRows([{ ...ISSUE, level }])[0]?.levelColor).toBe(
       color,

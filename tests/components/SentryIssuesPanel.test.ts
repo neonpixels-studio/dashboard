@@ -126,9 +126,14 @@ describe("SentryIssuesPanel", () => {
   });
 
   it("shows a skeleton while loading", () => {
-    const wrapper = mountPanel({ panel: null, pending: true });
+    const wrapper = mountPanel({
+      panel: null,
+      pending: true,
+      error: new Error("boom"),
+    });
 
     expect(wrapper.findComponent(SkeletonBlock).exists()).toBe(true);
+    expect(wrapper.find("[role=alert]").exists()).toBe(false);
     expect(wrapper.find(".issues").exists()).toBe(false);
   });
 
