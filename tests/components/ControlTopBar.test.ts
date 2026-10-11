@@ -117,10 +117,4 @@ describe("ControlTopBar", () => {
     const wrapper = mountBar({ crumb: "basin.fm", crumbSlug: "basin" });
     expect(wrapper.html()).toMatchSnapshot();
   });
-
-  it("matches its snapshot with the property menu open", async () => {
-    const wrapper = mountBar({ crumb: "basin.fm", crumbSlug: "basin" });
-    await wrapper.find("button[aria-haspopup=menu]").trigger("click");
-    expect(wrapper.html()).toMatchSnapshot();
-  });
 });

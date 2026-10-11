@@ -2,7 +2,7 @@ const ITEM_SELECTOR = '[role="menuitem"]';
 
 // Open/close, outside-click and keyboard behavior for a button + menu pair.
 // Bind `rootRef` to the wrapper, `triggerRef` to the button and `menuRef` to
-// the menu; spread the handlers onto the trigger and the menu.
+// the menu; bind `onTriggerKeydown` and `onMenuKeydown` to their @keydown.
 export function useDropdown() {
   const rootRef = ref<HTMLElement | null>(null);
   const triggerRef = ref<HTMLElement | null>(null);
@@ -56,11 +56,20 @@ export function useDropdown() {
       return;
     }
     const current = available.indexOf(document.activeElement as HTMLElement);
+    if (current === -1) {
+      available[step === 1 ? 0 : available.length - 1]?.focus();
+      return;
+    }
     const next = (current + step + available.length) % available.length;
     available[next]?.focus();
   }
 
   function onTriggerKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+      return;
+    }
     if (event.key === "ArrowDown") {
       event.preventDefault();
       open("first");

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
+import { APPS } from "../../app/config/apps";
 import PropertySwitcher from "../../app/components/PropertySwitcher.vue";
 
 const NuxtLink = {
@@ -43,7 +44,7 @@ describe("PropertySwitcher", () => {
     await wrapper.find("button").trigger("click");
     expect(wrapper.find("button").attributes("aria-expanded")).toBe("true");
     const links = wrapper.findAll("[role=menuitem]");
-    expect(links).toHaveLength(7);
+    expect(links).toHaveLength(APPS.length + 1);
     expect(links.at(-1)!.text()).toContain("All properties");
     expect(links.at(-1)!.attributes("href")).toBe('"/"');
   });
@@ -103,6 +104,48 @@ describe("PropertySwitcher", () => {
     await wrapper.find("ul").trigger("keydown", { key: "ArrowUp" });
     await wrapper.find("ul").trigger("keydown", { key: "ArrowUp" });
     expect(document.activeElement).toBe(links.at(-1));
+  });
+
+  it("closes on Escape pressed on the trigger after a click open", async () => {
+    mountSwitcher();
+    await wrapper.find("button").trigger("click");
+    await wrapper.find("button").trigger("keydown", { key: "Escape" });
+    expect(wrapper.find("ul").exists()).toBe(false);
+    expect(document.activeElement).toBe(wrapper.find("button").element);
+  });
+
+  it("opens with ArrowUp focusing the last item", async () => {
+    mountSwitcher();
+    await wrapper.find("button").trigger("keydown", { key: "ArrowUp" });
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    const links = wrapper
+      .findAll("[role=menuitem]")
+      .map((link) => link.element);
+    expect(document.activeElement).toBe(links.at(-1));
+  });
+
+  it("jumps with Home and End", async () => {
+    mountSwitcher();
+    await wrapper.find("button").trigger("click");
+    const links = wrapper
+      .findAll("[role=menuitem]")
+      .map((link) => link.element);
+    await wrapper.find("ul").trigger("keydown", { key: "End" });
+    await wrapper.vm.$nextTick();
+    expect(document.activeElement).toBe(links.at(-1));
+    await wrapper.find("ul").trigger("keydown", { key: "Home" });
+    await wrapper.vm.$nextTick();
+    expect(document.activeElement).toBe(links[0]);
+  });
+
+  it("closes on Tab without pulling focus back to the trigger", async () => {
+    mountSwitcher();
+    await wrapper.find("button").trigger("click");
+    (wrapper.findAll("[role=menuitem]")[0]!.element as HTMLElement).focus();
+    await wrapper.find("ul").trigger("keydown", { key: "Tab" });
+    expect(wrapper.find("ul").exists()).toBe(false);
+    expect(document.activeElement).not.toBe(wrapper.find("button").element);
   });
 
   it("matches its snapshot closed", () => {

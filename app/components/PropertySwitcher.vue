@@ -6,7 +6,7 @@
       class="switcher-trigger"
       aria-haspopup="menu"
       :aria-expanded="isOpen"
-      aria-controls="property-switcher-menu"
+      :aria-controls="menuId"
       @click="toggle"
       @keydown="onTriggerKeydown"
     >
@@ -29,7 +29,7 @@
 
     <div v-if="isOpen" class="switcher-panel">
       <ul
-        id="property-switcher-menu"
+        :id="menuId"
         ref="menuRef"
         class="switcher-menu"
         role="menu"
@@ -83,11 +83,13 @@
 </template>
 
 <script setup lang="ts">
+import { useId } from "vue";
 import { useDropdown } from "~/composables/useDropdown";
 import { buildSwitcherItems } from "~/utils/propertySwitcher";
 
 const props = defineProps<{ currentSlug: string; currentName: string }>();
 
+const menuId = useId();
 const route = useRoute();
 const {
   rootRef,
