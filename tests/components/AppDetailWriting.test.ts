@@ -13,6 +13,7 @@ import {
   mountDetailTemplate,
   type MountDetailOptions,
 } from "./support/mountDetailTemplate";
+import { expectGa4Links } from "../support/ga4Links";
 import { appDetailFixture } from "../support/appDetailFixture";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
@@ -241,5 +242,16 @@ describe("AppDetailWriting", () => {
     expect(
       mountDetail({ detail: LOADED_DETAIL }).find(".tile-grid").html(),
     ).toMatchSnapshot();
+  });
+  it("links to the GA4 property in a new tab when one is configured", () => {
+    const wrapper = mountDetail({
+      detail: appDetailFixture({ ga4PropertyId: "412345678" }),
+    });
+    expectGa4Links(wrapper, 1);
+  });
+
+  it("omits the GA4 link when no property id is configured", () => {
+    const wrapper = mountDetail({ detail: appDetailFixture() });
+    expectGa4Links(wrapper, 0);
   });
 });
