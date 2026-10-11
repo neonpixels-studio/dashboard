@@ -127,9 +127,10 @@ describe("fetchZyvopSyndication", () => {
         syncedAt: new Date("2026-10-09T10:13:07.261Z"),
         views: 3,
         externalId: null,
-        url: "https://zyvop.com/p/map-getorinsert-stop-writing-the-has-get-set-dance-446os",
+        url: "https://zyvop.com/map-getorinsert-stop-writing-the-has-get-set-dance-446os",
         likes: 4,
-        comments: 1,
+        // ZyVOP reports no comment count.
+        comments: null,
       },
       {
         platform: "zyvop",
