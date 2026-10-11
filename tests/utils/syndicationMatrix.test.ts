@@ -26,7 +26,7 @@ const ROWS: SyndicationMatrixRow[] = [
         syncedAt: "2026-09-18T00:00:00.000Z",
         views: null,
         // A failed cell never links, even if a URL was stored.
-        url: "https://zyvop.com/p/shipping-a-nuxt-site-abcde",
+        url: "https://zyvop.com/shipping-a-nuxt-site-abcde",
         likes: null,
         comments: null,
       },
