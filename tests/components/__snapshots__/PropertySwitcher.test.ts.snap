@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PropertySwitcher > matches its snapshot closed 1`] = `
+"<div data-v-bda2066d="" class="switcher"><button data-v-bda2066d="" type="button" class="switcher-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="property-switcher-menu"><span data-v-bda2066d="" class="switcher-name">markpost.io</span><svg data-v-bda2066d="" class="switcher-icon" width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path data-v-bda2066d="" d="M2 5l3-3 3 3M2 9l3 3 3-3"></path>
+    </svg></button>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`PropertySwitcher > matches its snapshot open 1`] = `
+"<div data-v-bda2066d="" class="switcher"><button data-v-bda2066d="" type="button" class="switcher-trigger" aria-haspopup="menu" aria-expanded="true" aria-controls="property-switcher-menu"><span data-v-bda2066d="" class="switcher-name">markpost.io</span><svg data-v-bda2066d="" class="switcher-icon" width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path data-v-bda2066d="" d="M2 5l3-3 3 3M2 9l3 3 3-3"></path>
+    </svg></button>
+  <div data-v-bda2066d="" class="switcher-panel">
+    <ul data-v-bda2066d="" id="property-switcher-menu" class="switcher-menu" role="menu" aria-label="Switch property">
+      <li data-v-bda2066d="" role="none"><a data-v-bda2066d="" href="{&quot;path&quot;:&quot;/apps/basin&quot;,&quot;query&quot;:{&quot;range&quot;:&quot;7&quot;},&quot;hash&quot;:&quot;#traffic&quot;}" class="switcher-item" role="menuitem"><span data-v-bda2066d="" class="switcher-swatch" style="background: #FFB020;" aria-hidden="true"></span><span data-v-bda2066d="" class="switcher-item-name">basin.fm</span>
+          <!--v-if-->
+        </a></li>
+      <li data-v-bda2066d="" role="none"><a data-v-bda2066d="" href="{&quot;path&quot;:&quot;/apps/markpost&quot;,&quot;query&quot;:{&quot;range&quot;:&quot;7&quot;},&quot;hash&quot;:&quot;#traffic&quot;}" class="switcher-item" role="menuitem" aria-current="page"><span data-v-bda2066d="" class="switcher-swatch" style="background: #FF3EA5;" aria-hidden="true"></span><span data-v-bda2066d="" class="switcher-item-name">markpost.io</span><svg data-v-bda2066d="" class="switcher-check" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path data-v-bda2066d="" d="M2 6.5l2.7 2.7L10 3.5"></path>
+          </svg></a></li>
+      <li data-v-bda2066d="" role="none"><a data-v-bda2066d="" href="{&quot;path&quot;:&quot;/apps/farflung&quot;,&quot;query&quot;:{&quot;range&quot;:&quot;7&quot;},&quot;hash&quot;:&quot;#traffic&quot;}" class="switcher-item" role="menuitem"><span data-v-bda2066d="" class="switcher-swatch" style="background: #22D3EE;" aria-hidden="true"></span><span data-v-bda2066d="" class="switcher-item-name">farflung.io</span>
+          <!--v-if-->
+        </a></li>
+      <li data-v-bda2066d="" role="none"><a data-v-bda2066d="" href="{&quot;path&quot;:&quot;/apps/danholloran&quot;,&quot;query&quot;:{&quot;range&quot;:&quot;7&quot;},&quot;hash&quot;:&quot;#traffic&quot;}" class="switcher-item" role="menuitem"><span data-v-bda2066d="" class="switcher-swatch" style="background: #A78BFA;" aria-hidden="true"></span><span data-v-bda2066d="" class="switcher-item-name">danholloran.me</span>
+          <!--v-if-->
+        </a></li>
+      <li data-v-bda2066d="" role="none"><a data-v-bda2066d="" href="{&quot;path&quot;:&quot;/apps/grimicorn&quot;,&quot;query&quot;:{&quot;range&quot;:&quot;7&quot;},&quot;hash&quot;:&quot;#traffic&quot;}" class="switcher-item" role="menuitem"><span data-v-bda2066d="" class="switcher-swatch" style="background: #B4F03C;" aria-hidden="true"></span><span data-v-bda2066d="" class="switcher-item-name">grimicorn.dev</span>
+          <!--v-if-->
+        </a></li>
+      <li data-v-bda2066d="" role="none"><a data-v-bda2066d="" href="{&quot;path&quot;:&quot;/apps/neonpixels&quot;,&quot;query&quot;:{&quot;range&quot;:&quot;7&quot;},&quot;hash&quot;:&quot;#traffic&quot;}" class="switcher-item" role="menuitem"><span data-v-bda2066d="" class="switcher-swatch" style="background: #82828F;" aria-hidden="true"></span><span data-v-bda2066d="" class="switcher-item-name">neonpixels.dev</span>
+          <!--v-if-->
+        </a></li>
+      <li data-v-bda2066d="" class="switcher-footer" role="none"><a data-v-bda2066d="" href="&quot;/&quot;" class="switcher-item" role="menuitem"> All properties → </a></li>
+    </ul>
+  </div>
+</div>"
+`;

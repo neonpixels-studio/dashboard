@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import ControlTopBar from "../../app/components/ControlTopBar.vue";
 import BrandMark from "../../app/components/BrandMark.vue";
+import PropertySwitcher from "../../app/components/PropertySwitcher.vue";
 import OverviewRangeSelector from "../../app/components/OverviewRangeSelector.vue";
 
 // ControlTopBar relies on Nuxt's <NuxtLink>, its own auto-imported
@@ -13,7 +14,7 @@ function mountBar(props: Record<string, unknown> = {}) {
   return mount(ControlTopBar, {
     props,
     global: {
-      components: { BrandMark, OverviewRangeSelector },
+      components: { BrandMark, OverviewRangeSelector, PropertySwitcher },
       stubs: {
         NuxtLink: { props: ["to"], template: "<a :href='to'><slot /></a>" },
         UserButton: {
@@ -27,6 +28,13 @@ function mountBar(props: Record<string, unknown> = {}) {
 }
 
 describe("ControlTopBar", () => {
+  beforeEach(() => {
+    vi.stubGlobal("useRoute", () => ({ query: {}, hash: "" }));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("renders the studio nav and hides the breadcrumb when no crumb is given", () => {
     const wrapper = mountBar();
     expect(wrapper.find(".top-nav").exists()).toBe(true);
@@ -97,5 +105,22 @@ describe("ControlTopBar", () => {
 
   it("matches its snapshot with a crumb", () => {
     expect(mountBar({ crumb: "basin.fm" }).html()).toMatchSnapshot();
+  });
+
+  it("renders the property switcher instead of a plain crumb when a slug is given", () => {
+    const wrapper = mountBar({ crumb: "basin.fm", crumbSlug: "basin" });
+    expect(wrapper.find(".crumb-current").exists()).toBe(false);
+    expect(wrapper.find("button[aria-haspopup=menu]").text()).toBe("basin.fm");
+  });
+
+  it("matches its snapshot with the property menu closed", () => {
+    const wrapper = mountBar({ crumb: "basin.fm", crumbSlug: "basin" });
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it("matches its snapshot with the property menu open", async () => {
+    const wrapper = mountBar({ crumb: "basin.fm", crumbSlug: "basin" });
+    await wrapper.find("button[aria-haspopup=menu]").trigger("click");
+    expect(wrapper.html()).toMatchSnapshot();
   });
 });

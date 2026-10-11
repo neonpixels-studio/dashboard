@@ -1,6 +1,6 @@
 <template>
   <div class="page-shell">
-    <ControlTopBar :crumb="app.name" />
+    <ControlTopBar :crumb="app.name" :crumb-slug="app.slug" />
     <AppHeaderBand
       :app="app"
       :status="headerStatus"
