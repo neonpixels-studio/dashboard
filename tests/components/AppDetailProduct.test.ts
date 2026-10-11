@@ -20,6 +20,47 @@ import { expectGa4Links } from "../support/ga4Links";
 import { appDetailFixture } from "../support/appDetailFixture";
 import type { AppDetailResponse } from "../../shared/types/dashboard";
 
+const SENTRY_PANEL_FIXTURE = vi.hoisted(() => ({
+  issues: [
+    {
+      id: "1",
+      title: "TypeError: feed.items is undefined",
+      level: "error",
+      culprit: "parsers/rss.ts",
+      eventCount: 41,
+      userCount: 14,
+      lastSeen: "2026-09-19T00:00:00.000Z",
+      permalink: "https://sentry.io/organizations/studio/issues/1/",
+    },
+    {
+      id: "2",
+      title: "FetchError: ETIMEDOUT",
+      level: "warning",
+      culprit: "jobs/poll.ts",
+      eventCount: 1,
+      userCount: 1,
+      lastSeen: "2026-09-18T00:00:00.000Z",
+      permalink: "https://sentry.io/organizations/studio/issues/2/",
+    },
+  ],
+  trend: [],
+  trendTotalEvents: 42,
+  issuesUrl: "https://sentry.io/organizations/studio/issues/?project=7",
+}));
+// The composable wraps Nuxt's useFetch; the live endpoint is covered by its
+// own handler tests.
+vi.mock("../../app/composables/useSentryPanel", async () => {
+  const { ref } = await import("vue");
+  return {
+    useSentryPanel: () => ({
+      data: ref(SENTRY_PANEL_FIXTURE),
+      pending: ref(false),
+      error: ref(null),
+      refresh: vi.fn(),
+    }),
+  };
+});
+
 const app = findAppBySlug("basin")!;
 
 function mountDetail({
@@ -210,10 +251,10 @@ describe("AppDetailProduct", () => {
     ]);
   });
 
-  it("still renders the un-wired Stripe/Sentry panels (no dedicated endpoint yet — see PR follow-up)", () => {
+  it("renders the live Sentry panel and the still-static Stripe panel", () => {
     const wrapper = mountDetail({ detail: LOADED_DETAIL });
     expect(wrapper.findAll(".transaction")).toHaveLength(4);
-    expect(wrapper.findAll(".issue")).toHaveLength(3);
+    expect(wrapper.findAll(".issue")).toHaveLength(2);
     const labels = wrapper
       .findAllComponents(SectionLabel)
       .map((node) => node.props("label"));

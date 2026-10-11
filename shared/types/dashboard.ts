@@ -178,3 +178,28 @@ export interface AppDetailResponse {
   // isn't enabled for it.
   ga4PropertyId: string | null;
 }
+
+// One unresolved Sentry issue as the product detail page's Sentry panel shows
+// it. `permalink` is Sentry's own link to the issue.
+export interface SentryPanelIssue {
+  id: string;
+  title: string;
+  level: string;
+  culprit: string;
+  eventCount: number;
+  userCount: number;
+  lastSeen: string;
+  permalink: string;
+}
+
+// Response of GET /api/apps/[slug]/sentry. Fetched live from Sentry on each
+// request, separate from AppDetailResponse so a Sentry outage or rate limit
+// can't take the rest of the detail page down with it.
+export interface SentryPanelResponse {
+  issues: SentryPanelIssue[];
+  // Daily events summed across the fetched issues over the last 14 days.
+  trend: MetricPoint[];
+  trendTotalEvents: number;
+  // The project's issues list in Sentry.
+  issuesUrl: string;
+}

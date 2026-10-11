@@ -19,7 +19,7 @@ const SENTRY_VENDOR = "sentry";
 // Sentry's own search query syntax — see mapping.ts's sentryStatusChip for
 // why fatal is tracked as its own count rather than derived from a single
 // broader query.
-const UNRESOLVED_ISSUES_QUERY = "is:unresolved";
+export const UNRESOLVED_ISSUES_QUERY = "is:unresolved";
 const UNRESOLVED_FATAL_ISSUES_QUERY = "is:unresolved level:fatal";
 
 /**
@@ -33,7 +33,7 @@ const UNRESOLVED_FATAL_ISSUES_QUERY = "is:unresolved level:fatal";
  * server/integrations/stripe/provider.ts's resolveProductIdsSource and
  * server/integrations/ga4/provider.ts's resolvePropertyId.
  */
-function resolveProjectSlug(config: IntegrationConfig): string | null {
+export function resolveProjectSlug(config: IntegrationConfig): string | null {
   const externalId = config.externalId?.trim();
   if (externalId) {
     return externalId;

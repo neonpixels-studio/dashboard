@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createSentryIssueSearcher } from "../../../../server/integrations/sentry/sentryClient";
+import {
+  createSentryIssueSearcher,
+  createSentryTopIssuesFetcher,
+} from "../../../../server/integrations/sentry/sentryClient";
 import { createHangingFetch } from "../../../../server/integrations/testing/hangingFetch";
 
 // A real Sentry response always carries a Link header with a "next" entry
@@ -551,5 +554,125 @@ describe("createSentryIssueSearcher", () => {
       ).rejects.toThrow(/failed with status 500/);
       expect(fetchStub).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("createSentryTopIssuesFetcher", () => {
+  const RAW_ISSUE = {
+    id: "10",
+    title: "TypeError: feed.items is undefined",
+    level: "error",
+    culprit: "parsers/rss.ts",
+    count: "41",
+    userCount: 14,
+    lastSeen: "2026-09-19T00:00:00.000Z",
+    permalink: "https://sentry.io/organizations/acme/issues/10/",
+    project: { id: "7" },
+    stats: { "14d": [[1_758_240_000, 3]] },
+  };
+
+  it("asks for one page of the most frequent issues with 14-day stats", async () => {
+    const fetchStub = buildFetchStub({ ok: true, status: 200, body: [] });
+    const fetchTopIssues = createSentryTopIssuesFetcher(
+      "token_abc",
+      "acme",
+      fetchStub,
+    );
+
+    await fetchTopIssues({ projectSlug: "markpost", query: "is:unresolved" });
+
+    const [requestedUrl, init] = (
+      fetchStub as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls[0] as [URL, RequestInit];
+    expect(requestedUrl.pathname).toBe("/api/0/projects/acme/markpost/issues/");
+    expect(Object.fromEntries(requestedUrl.searchParams)).toEqual({
+      query: "is:unresolved",
+      sort: "freq",
+      limit: "25",
+      statsPeriod: "14d",
+    });
+    expect(init.headers).toEqual({ Authorization: "Bearer token_abc" });
+  });
+
+  it("maps the response into issue summaries and does not need a Link header", async () => {
+    const fetchStub = buildFetchStub({
+      ok: true,
+      status: 200,
+      body: [RAW_ISSUE],
+      linkHeader: null,
+    });
+
+    const page = await createSentryTopIssuesFetcher(
+      "token_abc",
+      "acme",
+      fetchStub,
+    )({ projectSlug: "markpost", query: "is:unresolved" });
+
+    expect(page.issues).toEqual([
+      expect.objectContaining({
+        id: "10",
+        eventCount: 41,
+        permalink: "https://sentry.io/organizations/acme/issues/10/",
+        projectId: "7",
+      }),
+    ]);
+  });
+
+  it("retries a 429 through the shared retry handling instead of failing", async () => {
+    vi.useFakeTimers();
+    const rateLimited = buildFetchStub({
+      ok: false,
+      status: 429,
+      body: {},
+    });
+    const success = buildFetchStub({ ok: true, status: 200, body: [] });
+    const fetchStub = vi
+      .fn()
+      .mockImplementationOnce(rateLimited)
+      .mockImplementationOnce(success) as unknown as typeof fetch;
+
+    const resultPromise = createSentryTopIssuesFetcher(
+      "token_abc",
+      "acme",
+      fetchStub,
+    )({ projectSlug: "markpost", query: "is:unresolved" });
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(resultPromise).resolves.toEqual({ issues: [] });
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws on a non-ok status", async () => {
+    const fetchStub = buildFetchStub({ ok: false, status: 500, body: {} });
+
+    await expect(
+      createSentryTopIssuesFetcher(
+        "token_abc",
+        "acme",
+        fetchStub,
+      )({
+        projectSlug: "markpost",
+        query: "is:unresolved",
+      }),
+    ).rejects.toThrow("failed with status 500");
+  });
+
+  it("throws when an issue is malformed", async () => {
+    const fetchStub = buildFetchStub({
+      ok: true,
+      status: 200,
+      body: [{ ...RAW_ISSUE, permalink: "javascript:alert(1)" }],
+    });
+
+    await expect(
+      createSentryTopIssuesFetcher(
+        "token_abc",
+        "acme",
+        fetchStub,
+      )({
+        projectSlug: "markpost",
+        query: "is:unresolved",
+      }),
+    ).rejects.toThrow("not an https URL");
   });
 });

@@ -2,6 +2,7 @@
   <div class="panel-head">
     <span class="panel-title">{{ title }}</span>
     <span v-if="meta" class="panel-meta">{{ meta }}</span>
+    <slot />
   </div>
 </template>
 

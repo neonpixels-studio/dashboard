@@ -23,6 +23,10 @@ import SourcesFooter from "../../../app/components/SourcesFooter.vue";
 import SyndicationPostMatrix from "../../../app/components/SyndicationPostMatrix.vue";
 import PropertySessionsChart from "../../../app/components/PropertySessionsChart.vue";
 import AppDetailProductMoneyHealthPanel from "../../../app/components/AppDetailProductMoneyHealthPanel.vue";
+import AppDetailProductSentryPanel from "../../../app/components/AppDetailProductSentryPanel.vue";
+import SentryEventsTrend from "../../../app/components/SentryEventsTrend.vue";
+import SentryIssueList from "../../../app/components/SentryIssueList.vue";
+import SentryIssuesPanel from "../../../app/components/SentryIssuesPanel.vue";
 import AppDetailProductAuthPanel from "../../../app/components/AppDetailProductAuthPanel.vue";
 import PanelHead from "../../../app/components/PanelHead.vue";
 import AuthSignupsCard from "../../../app/components/AuthSignupsCard.vue";
@@ -48,6 +52,10 @@ export const DETAIL_COMPONENTS = {
   SyndicationPostMatrix,
   PropertySessionsChart,
   AppDetailProductMoneyHealthPanel,
+  AppDetailProductSentryPanel,
+  SentryIssuesPanel,
+  SentryEventsTrend,
+  SentryIssueList,
   AppDetailProductAuthPanel,
   PanelHead,
   AuthSignupsCard,
