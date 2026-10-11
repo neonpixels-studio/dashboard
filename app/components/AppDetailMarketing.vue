@@ -14,6 +14,8 @@
 
     <MetricTileGrid :tiles="tiles" />
 
+    <GithubSection v-if="app.detail" :github="app.detail.github" />
+
     <SectionLabel
       label="TRAFFIC"
       meta="GOOGLE ANALYTICS · GA4"

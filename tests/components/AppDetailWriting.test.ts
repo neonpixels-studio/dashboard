@@ -136,7 +136,7 @@ describe("AppDetailWriting", () => {
       wrapper
         .findAllComponents(SectionLabel)
         .map((node) => node.props("label")),
-    ).toEqual(["REACH", "TRAFFIC"]);
+    ).toEqual(["REACH", "GITHUB", "TRAFFIC"]);
     expect(wrapper.text()).not.toContain("NO STRIPE OR CLERK");
   });
 

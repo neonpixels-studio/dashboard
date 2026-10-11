@@ -55,6 +55,29 @@ describe("OverviewAlertsPanel", () => {
     expect(rows[1]!.find("time").exists()).toBe(false);
   });
 
+  it("renders a failing-CI alert for the owning property, linked to the commit's checks", () => {
+    const checksHref =
+      "https://github.com/neonpixels-studio/markpost-cli/commit/abc123/checks";
+    const rows = mountPanel({
+      alerts: [
+        {
+          id: "ci-failing:markpost:markpost-cli",
+          slug: "markpost",
+          source: "github",
+          message: "CI failing on main (markpost-cli)",
+          occurredAt: "2026-10-09T08:00:00.000Z",
+          href: checksHref,
+        },
+      ],
+    }).findAll(".alert-row");
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.text()).toContain("markpost.io");
+    expect(rows[0]!.text()).toContain("github");
+    expect(rows[0]!.text()).toContain("CI failing on main (markpost-cli)");
+    expect(rows[0]!.find("a").attributes("href")).toBe(checksHref);
+  });
+
   it("shows the compact all-clear state when there are no alerts", () => {
     const wrapper = mountPanel({ alerts: [] });
 

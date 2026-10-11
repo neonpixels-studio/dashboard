@@ -1,0 +1,403 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GithubItemList > names the repo on each row when several repos share a page 1`] = `
+"<ul data-v-d3434eef="" class="item-list">
+  <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge info">PR</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/markpost-cli/issues/7" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">markpost-cli#7</span><span data-v-d3434eef="" class="item-title">Fix flags</span></a>
+    <!--v-if-->
+  </li>
+  <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge">Issue</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/markpost/issues/7" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">markpost#7</span><span data-v-d3434eef="" class="item-title">Webhook retries</span></a>
+    <!--v-if-->
+  </li>
+</ul>"
+`;
+
+exports[`GithubItemList > renders number, title, labels and a PR marker, each linked 1`] = `
+"<ul data-v-d3434eef="" class="item-list">
+  <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge">Issue</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/basin/issues/12" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">#12</span><span data-v-d3434eef="" class="item-title">Fix feed parser</span></a>
+    <ul data-v-d3434eef="" class="chip-row labels">
+      <li data-v-d3434eef="" class="chip">bug</li>
+      <li data-v-d3434eef="" class="chip">p1</li>
+    </ul>
+  </li>
+  <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge info">PR</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/basin/issues/9" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">#9</span><span data-v-d3434eef="" class="item-title">Add OPML import</span></a>
+    <!--v-if-->
+  </li>
+</ul>"
+`;
+
+exports[`GithubItemList > renders the empty state 1`] = `"<p data-v-d3434eef="" class="empty">No open issues or pull requests.</p>"`;
+
+exports[`GithubSection > renders a configured but never-synced property with dashes 1`] = `
+"<section data-v-bef52dcf="" class="github-section" aria-label="GitHub">
+  <div data-v-823d5be8="" data-v-bef52dcf="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">GITHUB</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">ISSUES · PRS · CI</span></div>
+  <div data-v-1bc0a7b8="" data-v-bef52dcf="" class="github-tiles">
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/issues" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">ISSUES</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">Not synced yet</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">ISSUES on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/pulls" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">PRS</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">Not synced yet</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">PRS on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/commit/abc/checks" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">CI (MAIN)</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">—</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">Not synced yet</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">CI (MAIN) on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+  </div>
+  <div data-v-bef52dcf="" class="card list-panel">
+    <div data-v-b2c101a0="" data-v-bef52dcf="" class="panel-head"><span data-v-b2c101a0="" class="panel-title">Open issues &amp; PRs</span><span data-v-b2c101a0="" class="panel-meta">0 OPEN</span></div>
+    <p data-v-d3434eef="" data-v-bef52dcf="" class="empty">No open issues or pull requests.</p>
+  </div>
+</section>"
+`;
+
+exports[`GithubSection > renders not-configured instead of empty counts when the token is unset 1`] = `
+"<section data-v-bef52dcf="" class="github-section" aria-label="GitHub">
+  <div data-v-823d5be8="" data-v-bef52dcf="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">GITHUB</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">ISSUES · PRS · CI</span></div>
+  <p data-v-bef52dcf="" class="card not-configured"> GitHub is not configured. Set <code data-v-bef52dcf="">NUXT_GITHUB_TOKEN</code> to show open issues, pull requests and CI for this property. </p>
+</section>"
+`;
+
+exports[`GithubSection > renders the empty state 1`] = `
+"<section data-v-bef52dcf="" class="github-section" aria-label="GitHub">
+  <div data-v-823d5be8="" data-v-bef52dcf="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">GITHUB</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">ISSUES · PRS · CI</span></div>
+  <div data-v-1bc0a7b8="" data-v-bef52dcf="" class="github-tiles">
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/issues" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">ISSUES</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">0</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">ISSUES on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/pulls" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">PRS</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">0</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">PRS on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/commit/abc/checks" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile ok">
+          <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.8 10A10 10 0 1 1 17 3.34"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg><span data-v-d6008d9b="" class="tile-label">CI (MAIN)</span></div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">PASSING</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">LATEST COMMIT ON MAIN</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">CI (MAIN) on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+  </div>
+  <div data-v-bef52dcf="" class="card list-panel">
+    <div data-v-b2c101a0="" data-v-bef52dcf="" class="panel-head"><span data-v-b2c101a0="" class="panel-title">Open issues &amp; PRs</span><span data-v-b2c101a0="" class="panel-meta">0 OPEN</span></div>
+    <p data-v-d3434eef="" data-v-bef52dcf="" class="empty">No open issues or pull requests.</p>
+  </div>
+</section>"
+`;
+
+exports[`GithubSection > renders the failing state 1`] = `
+"<section data-v-bef52dcf="" class="github-section" aria-label="GitHub">
+  <div data-v-823d5be8="" data-v-bef52dcf="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">GITHUB</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">ISSUES · PRS · CI</span></div>
+  <div data-v-1bc0a7b8="" data-v-bef52dcf="" class="github-tiles">
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/issues" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">ISSUES</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">ISSUES on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/pulls" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">PRS</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">PRS on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/commit/abc/checks" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile danger">
+          <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg><span data-v-d6008d9b="" class="tile-label">CI (MAIN)</span></div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">FAILING</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">LATEST COMMIT ON MAIN</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">CI (MAIN) on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+  </div>
+  <div data-v-bef52dcf="" class="card list-panel">
+    <div data-v-b2c101a0="" data-v-bef52dcf="" class="panel-head"><span data-v-b2c101a0="" class="panel-title">Open issues &amp; PRs</span><span data-v-b2c101a0="" class="panel-meta">2 OPEN</span></div>
+    <ul data-v-d3434eef="" data-v-bef52dcf="" class="item-list">
+      <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge">Issue</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/basin/issues/12" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">#12</span><span data-v-d3434eef="" class="item-title">Fix feed parser</span></a>
+        <ul data-v-d3434eef="" class="chip-row labels">
+          <li data-v-d3434eef="" class="chip">bug</li>
+          <li data-v-d3434eef="" class="chip">p1</li>
+        </ul>
+      </li>
+      <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge info">PR</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/basin/issues/9" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">#9</span><span data-v-d3434eef="" class="item-title">Add OPML import</span></a>
+        <!--v-if-->
+      </li>
+    </ul>
+  </div>
+</section>"
+`;
+
+exports[`GithubSection > renders tiles and the list when configured 1`] = `
+"<section data-v-bef52dcf="" class="github-section" aria-label="GitHub">
+  <div data-v-823d5be8="" data-v-bef52dcf="" class="section-label"><span data-v-823d5be8="" class="dash" aria-hidden="true"></span><span data-v-823d5be8="" class="label">GITHUB</span><span data-v-823d5be8="" class="grow"></span><span data-v-823d5be8="" class="meta">ISSUES · PRS · CI</span></div>
+  <div data-v-1bc0a7b8="" data-v-bef52dcf="" class="github-tiles">
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/issues" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">ISSUES</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">ISSUES on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/pulls" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+          <div data-v-d6008d9b="" class="tile-head">
+            <!--v-if--><span data-v-d6008d9b="" class="tile-label">PRS</span>
+          </div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">PRS on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+    <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/commit/abc/checks" target="_blank" rel="noopener noreferrer">
+        <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile ok">
+          <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.8 10A10 10 0 1 1 17 3.34"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg><span data-v-d6008d9b="" class="tile-label">CI (MAIN)</span></div>
+          <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">PASSING</span>
+            <!--v-if-->
+          </div>
+          <div data-v-d6008d9b="" class="sub">LATEST COMMIT ON MAIN</div>
+        </div><span data-v-1bc0a7b8="" class="visually-hidden">CI (MAIN) on GitHub (opens in a new tab)</span>
+      </a>
+      <!--v-if-->
+    </div>
+  </div>
+  <div data-v-bef52dcf="" class="card list-panel">
+    <div data-v-b2c101a0="" data-v-bef52dcf="" class="panel-head"><span data-v-b2c101a0="" class="panel-title">Open issues &amp; PRs</span><span data-v-b2c101a0="" class="panel-meta">2 OPEN</span></div>
+    <ul data-v-d3434eef="" data-v-bef52dcf="" class="item-list">
+      <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge">Issue</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/basin/issues/12" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">#12</span><span data-v-d3434eef="" class="item-title">Fix feed parser</span></a>
+        <ul data-v-d3434eef="" class="chip-row labels">
+          <li data-v-d3434eef="" class="chip">bug</li>
+          <li data-v-d3434eef="" class="chip">p1</li>
+        </ul>
+      </li>
+      <li data-v-d3434eef="" class="item"><span data-v-d3434eef="" class="badge info">PR</span><a data-v-d3434eef="" class="item-link" href="https://github.com/neonpixels-studio/basin/issues/9" target="_blank" rel="noopener noreferrer"><span data-v-d3434eef="" class="item-ref">#9</span><span data-v-d3434eef="" class="item-title">Add OPML import</span></a>
+        <!--v-if-->
+      </li>
+    </ul>
+  </div>
+</section>"
+`;
+
+exports[`GithubTiles > renders a failing CI tile 1`] = `
+"<div data-v-1bc0a7b8="" class="github-tiles">
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/issues" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+        <div data-v-d6008d9b="" class="tile-head">
+          <!--v-if--><span data-v-d6008d9b="" class="tile-label">ISSUES</span>
+        </div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">ISSUES on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/pulls" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+        <div data-v-d6008d9b="" class="tile-head">
+          <!--v-if--><span data-v-d6008d9b="" class="tile-label">PRS</span>
+        </div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">PRS on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/commit/abc/checks" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile danger">
+        <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg><span data-v-d6008d9b="" class="tile-label">CI (MAIN)</span></div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">FAILING</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">LATEST COMMIT ON MAIN</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">CI (MAIN) on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+</div>"
+`;
+
+exports[`GithubTiles > renders summed tiles with a per-repo CI breakdown for markpost 1`] = `
+"<div data-v-1bc0a7b8="" class="github-tiles">
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/issues?q=x" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+        <div data-v-d6008d9b="" class="tile-head">
+          <!--v-if--><span data-v-d6008d9b="" class="tile-label">ISSUES</span>
+        </div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">4</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">OPEN · 2 REPOS</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">ISSUES on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/pulls?q=x" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+        <div data-v-d6008d9b="" class="tile-head">
+          <!--v-if--><span data-v-d6008d9b="" class="tile-label">PRS</span>
+        </div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">OPEN · 2 REPOS</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">PRS on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/markpost-cli/commit/abc/checks" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile danger">
+        <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg><span data-v-d6008d9b="" class="tile-label">CI (MAIN)</span></div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">FAILING</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">LATEST COMMIT ON MAIN</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">CI (MAIN) on GitHub (opens in a new tab)</span>
+    </a>
+    <ul data-v-1bc0a7b8="" class="ci-repos">
+      <li data-v-1bc0a7b8=""><a data-v-1bc0a7b8="" class="ci-repo-link ok" href="https://github.com/neonpixels-studio/markpost/commit/abc/checks" target="_blank" rel="noopener noreferrer">markpost: passing</a></li>
+      <li data-v-1bc0a7b8=""><a data-v-1bc0a7b8="" class="ci-repo-link danger" href="https://github.com/neonpixels-studio/markpost-cli/commit/abc/checks" target="_blank" rel="noopener noreferrer">markpost-cli: failing</a></li>
+    </ul>
+  </div>
+</div>"
+`;
+
+exports[`GithubTiles > renders the passing single-repo tiles 1`] = `
+"<div data-v-1bc0a7b8="" class="github-tiles">
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/issues" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+        <div data-v-d6008d9b="" class="tile-head">
+          <!--v-if--><span data-v-d6008d9b="" class="tile-label">ISSUES</span>
+        </div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">2</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">ISSUES on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/pulls" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile">
+        <div data-v-d6008d9b="" class="tile-head">
+          <!--v-if--><span data-v-d6008d9b="" class="tile-label">PRS</span>
+        </div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">1</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">OPEN · basin</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">PRS on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+  <div data-v-1bc0a7b8="" class="github-tile"><a data-v-1bc0a7b8="" class="tile-link" href="https://github.com/neonpixels-studio/basin/commit/abc/checks" target="_blank" rel="noopener noreferrer">
+      <div data-v-d6008d9b="" data-v-1bc0a7b8="" class="card tile ok">
+        <div data-v-d6008d9b="" class="tile-head"><svg data-v-d6008d9b="" class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.8 10A10 10 0 1 1 17 3.34"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg><span data-v-d6008d9b="" class="tile-label">CI (MAIN)</span></div>
+        <div data-v-d6008d9b="" class="value-row"><span data-v-d6008d9b="" class="value display-num">PASSING</span>
+          <!--v-if-->
+        </div>
+        <div data-v-d6008d9b="" class="sub">LATEST COMMIT ON MAIN</div>
+      </div><span data-v-1bc0a7b8="" class="visually-hidden">CI (MAIN) on GitHub (opens in a new tab)</span>
+    </a>
+    <!--v-if-->
+  </div>
+</div>"
+`;

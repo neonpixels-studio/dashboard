@@ -9,6 +9,7 @@ type IntegrationVendor = (typeof integrationVendor.enumValues)[number];
 
 const GA4_VENDOR: IntegrationVendor = "ga4";
 const SENTRY_VENDOR: IntegrationVendor = "sentry";
+const GITHUB_VENDOR: IntegrationVendor = "github";
 
 // Exhaustive over `AppTemplate` so a new template value fails to compile here
 // instead of silently falling through to "no vendors".
@@ -29,7 +30,8 @@ export interface IntegrationConfigSeedRow {
  * rather than hand-listing apps here, so the seed never drifts from the
  * console's actual property list.
  *
- * Every app gets a GA4 row (every property shows a "GA" pill). Product apps
+ * Every app gets a GA4 row (every property shows a "GA" pill) and a GitHub
+ * row (issues, PRs and main CI on every page). Product apps
  * additionally get Stripe/Clerk/Sentry and the writing app gets its
  * cross-posting targets. Internal apps (app/config/apps.ts's INTERNAL_APPS)
  * only report their own Sentry issues, so they get a single Sentry row. This
@@ -41,7 +43,10 @@ export interface IntegrationConfigSeedRow {
  * Every row seeds `enabled: false` — no row has a `secretRef` or
  * `externalId` yet, so nothing here is actually wired up to poll. Enabling
  * an integration is a deliberate follow-up step once its credentials are
- * provisioned, not something this seed should fabricate.
+ * provisioned, not something this seed should fabricate. The one exception is
+ * GitHub: its single shared token (NUXT_GITHUB_TOKEN) needs no per-row
+ * secret or id, and an unset token makes the provider skip cleanly, so it
+ * seeds enabled and starts syncing as soon as the token exists.
  */
 export function buildIntegrationConfigSeed(
   apps: DashboardApp[],
@@ -49,10 +54,10 @@ export function buildIntegrationConfigSeed(
 ): IntegrationConfigSeedRow[] {
   const propertyRows = apps.flatMap((app) => {
     const vendors = [GA4_VENDOR, ...VENDORS_BY_TEMPLATE[app.template]];
-    return vendors.map((vendor) => ({
+    return [GITHUB_VENDOR, ...vendors].map((vendor) => ({
       slug: app.slug,
       vendor,
-      enabled: false,
+      enabled: vendor === GITHUB_VENDOR,
     }));
   });
   const internalRows = internalApps.map((app) => ({

@@ -15,6 +15,8 @@
 
     <MetricTileGrid :tiles="tiles" />
 
+    <GithubSection v-if="app.detail" :github="app.detail.github" />
+
     <div class="card sessions-panel">
       <div class="panel-head">
         <span class="panel-title">Sessions</span>

@@ -14,6 +14,8 @@ const mockFetchLatestTrafficBreakdowns = vi.fn();
 const mockFetchSyncStatuses = vi.fn();
 const mockFetchIntegrationConfigs = vi.fn();
 const mockFetchSyndicationPosts = vi.fn();
+const mockFetchGithubRepoStatuses = vi.fn();
+const mockFetchGithubItems = vi.fn();
 vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchLatestMetricSnapshots: mockFetchLatestMetricSnapshots,
   fetchMetricSnapshotSeries: mockFetchMetricSnapshotSeries,
@@ -21,6 +23,8 @@ vi.mock("../../../../server/utils/dashboardQueries", () => ({
   fetchSyncStatuses: mockFetchSyncStatuses,
   fetchIntegrationConfigs: mockFetchIntegrationConfigs,
   fetchSyndicationPosts: mockFetchSyndicationPosts,
+  fetchGithubRepoStatuses: mockFetchGithubRepoStatuses,
+  fetchGithubItems: mockFetchGithubItems,
 }));
 
 const { default: appDetailHandler } =
@@ -39,6 +43,9 @@ describe("GET /api/apps/[slug]", () => {
     mockFetchSyncStatuses.mockResolvedValue([]);
     mockFetchIntegrationConfigs.mockResolvedValue([]);
     mockFetchSyndicationPosts.mockResolvedValue([]);
+    mockFetchGithubRepoStatuses.mockResolvedValue([]);
+    mockFetchGithubItems.mockResolvedValue([]);
+    vi.stubEnv("NUXT_GITHUB_TOKEN", "");
   });
 
   it("requires auth before touching the database", async () => {
@@ -81,6 +88,89 @@ describe("GET /api/apps/[slug]", () => {
       lastSyncedAt: null,
       clerkUsersUrl: null,
       ga4PropertyId: null,
+      github: {
+        configured: false,
+        repos: [
+          {
+            repo: "basin",
+            synced: false,
+            openIssues: null,
+            openPrs: null,
+            ciState: null,
+            ciUrl: "https://github.com/neonpixels-studio/basin/actions",
+            repoUrl: "https://github.com/neonpixels-studio/basin",
+          },
+        ],
+        issuesUrl: "https://github.com/neonpixels-studio/basin/issues",
+        pullsUrl: "https://github.com/neonpixels-studio/basin/pulls",
+        items: [],
+      },
+    });
+  });
+
+  describe("github", () => {
+    it("marks the section configured once NUXT_GITHUB_TOKEN is set", async () => {
+      vi.stubEnv("NUXT_GITHUB_TOKEN", "github_pat_x");
+      const result = await appDetailHandler(makeEvent("basin"));
+      expect(result.github.configured).toBe(true);
+    });
+
+    it("covers markpost and markpost-cli on the markpost page, summarising each repo", async () => {
+      vi.stubEnv("NUXT_GITHUB_TOKEN", "github_pat_x");
+      mockFetchGithubRepoStatuses.mockResolvedValue([
+        {
+          slug: "markpost",
+          repo: "markpost-cli",
+          openIssues: 2,
+          openPrs: 1,
+          ciState: "failing",
+          ciSha: "abc123",
+          commitAt: new Date("2026-10-09T12:00:00Z"),
+          syncedAt: new Date("2026-10-10T00:00:00Z"),
+        },
+      ]);
+      mockFetchGithubItems.mockResolvedValue([
+        {
+          slug: "markpost",
+          repo: "markpost-cli",
+          number: 7,
+          kind: "pr",
+          title: "Fix flags",
+          url: "https://github.com/neonpixels-studio/markpost-cli/pull/7",
+          labels: ["bug"],
+          itemUpdatedAt: new Date("2026-10-09T12:00:00Z"),
+        },
+      ]);
+
+      const { github } = await appDetailHandler(makeEvent("markpost"));
+
+      expect(github.repos.map((repo) => repo.repo)).toEqual([
+        "markpost",
+        "markpost-cli",
+      ]);
+      expect(github.repos[0]).toMatchObject({
+        synced: false,
+        openIssues: null,
+      });
+      expect(github.repos[1]).toMatchObject({
+        synced: true,
+        openIssues: 2,
+        openPrs: 1,
+        ciState: "failing",
+        ciUrl:
+          "https://github.com/neonpixels-studio/markpost-cli/commit/abc123/checks",
+      });
+      expect(github.items).toEqual([
+        {
+          repo: "markpost-cli",
+          number: 7,
+          kind: "pr",
+          title: "Fix flags",
+          url: "https://github.com/neonpixels-studio/markpost-cli/pull/7",
+          labels: ["bug"],
+          updatedAt: "2026-10-09T12:00:00.000Z",
+        },
+      ]);
     });
   });
 

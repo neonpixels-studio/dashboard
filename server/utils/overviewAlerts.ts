@@ -67,6 +67,12 @@ function byNewestFirst(a: OverviewAlert, b: OverviewAlert): number {
   return Date.parse(b.occurredAt) - Date.parse(a.occurredAt);
 }
 
+export function sortAlertsNewestFirst(
+  alerts: OverviewAlert[],
+): OverviewAlert[] {
+  return [...alerts].sort(byNewestFirst);
+}
+
 // Failing rows plus stale vendors (via findStaleVendors, so the rule stays in
 // one place). A vendor that is both shows once, as the failing alert since it
 // carries the actual error.
