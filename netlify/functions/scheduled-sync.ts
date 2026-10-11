@@ -11,7 +11,7 @@ import {
   reportErrorCondition,
 } from "../../server/utils/errorReporting";
 import { withScheduledSyncMonitor } from "./cronMonitor";
-import { loadEnv } from "./env";
+import { loadEnv, PRODUCTION_DEPLOY_CONTEXT } from "./env";
 import { initSentry, flushSentry } from "./sentry";
 
 // A Netlify Scheduled Function (https://docs.netlify.com/functions/scheduled-functions/),
@@ -39,16 +39,36 @@ interface ScheduledFunctionConfig {
   schedule: string;
 }
 
+// The subset of the `context` argument Netlify passes every function
+// (https://docs.netlify.com/build/functions/api/) that this one reads.
+// Netlify's runtime env only carries URL/SITE_NAME/SITE_ID, not the build's
+// CONTEXT or DEPLOY_PRIME_URL, so this is the only runtime source for which
+// deploy is running.
+export interface NetlifyFunctionContext {
+  deploy: { context: string; id: string };
+  site: { name: string };
+}
+
 // Netlify injects the deployed site's own URL for every Function invocation
 // (https://docs.netlify.com/functions/environment-variables/) — no separate
-// env var to configure. Scheduled functions only run against the production
-// deploy, so this is always the production site.
+// env var to configure. It is always the production site, even when "Run
+// now" invokes this on a deploy preview.
 function requireSiteUrl(): string {
   const siteUrl = process.env.URL;
   if (!siteUrl) {
     throw new Error("scheduled-sync: process.env.URL is not set.");
   }
   return siteUrl;
+}
+
+// A deploy preview or branch deploy syncs itself through its permalink,
+// which serves exactly that deploy's code, so "Run now" tests the branch
+// rather than production.
+function syncTargetUrl(context: NetlifyFunctionContext): string {
+  if (context.deploy.context === PRODUCTION_DEPLOY_CONTEXT) {
+    return requireSiteUrl();
+  }
+  return `https://${context.deploy.id}--${context.site.name}.netlify.app`;
 }
 
 function requireTriggerSecret(): string {
@@ -180,8 +200,10 @@ function logSkippedRows(skipped: SyncSkippedRow[]): void {
 // HTTP instead of in-process).
 const MIN_ATTEMPTED_FOR_OUTAGE_ALERT = 5;
 
-async function runScheduledSync(): Promise<Response> {
-  const siteUrl = requireSiteUrl();
+async function runScheduledSync(
+  context: NetlifyFunctionContext,
+): Promise<Response> {
+  const siteUrl = syncTargetUrl(context);
   const triggerSecret = requireTriggerSecret();
 
   const response = await postSync(siteUrl, triggerSecret);
@@ -262,17 +284,20 @@ async function runScheduledSync(): Promise<Response> {
   return new Response("ok", { status: 200 });
 }
 
-export default async function scheduledSync(): Promise<Response> {
-  // Decrypts .env.production into process.env (NUXT_SYNC_TRIGGER_SECRET,
+export default async function scheduledSync(
+  _request: Request,
+  context: NetlifyFunctionContext,
+): Promise<Response> {
+  // Decrypts the deploy's env file into process.env (NUXT_SYNC_TRIGGER_SECRET,
   // SENTRY_DSN) — see ./env.ts. Throws on a missing key rather than running
   // with ciphertext values.
-  loadEnv();
+  loadEnv(context.deploy.context);
   // See netlify/functions/sentry.ts: this bundle never loads
   // sentry.server.config.ts, so reportError/reportErrorCondition need their
   // own client initialized in this runtime.
   initSentry();
   try {
-    return await withScheduledSyncMonitor(runScheduledSync);
+    return await withScheduledSyncMonitor(() => runScheduledSync(context));
   } catch (error) {
     // A safety net for anything runScheduledSync doesn't already report
     // itself (e.g. requireSiteUrl/requireTriggerSecret throwing on a missing

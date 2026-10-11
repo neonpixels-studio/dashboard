@@ -301,8 +301,14 @@ it's a separate bundle built by Netlify's own Functions build step (not the
 Nuxt app), so it decrypts that file itself at invoke time via
 `netlify/functions/env.ts` (bundled through `netlify.toml`'s
 `[functions] included_files`). No separate Netlify env var needed, but see
-"Netlify Functions env" below for the one key that must be scoped to
+"Netlify Functions env" below for the keys that must be scoped to
 Functions.
+
+"Run now" on `scheduled-sync` in the Netlify UI syncs the deploy it belongs
+to: on a deploy preview or branch deploy it decrypts `.env.dev` and posts to
+that deploy's own permalink, so it runs the branch's code against the
+`development` database. Netlify never runs the schedule itself outside
+production.
 
 ### Snapshot retention
 
@@ -374,10 +380,12 @@ from `.env.production` at runtime, so it lives only in the dotenvx file.
 
 ### Netlify Functions env
 
-Standalone functions in `netlify/functions/` decrypt `.env.production` at
-runtime (`netlify/functions/env.ts`, same pattern as basin), so
+Standalone functions in `netlify/functions/` decrypt `.env.production`
+(or `.env.dev` outside production) at runtime (`netlify/functions/env.ts`, same pattern as basin), so
 `DOTENV_PRIVATE_KEY_PRODUCTION` must be available to the **Functions** scope
 in Netlify (Site configuration → Environment variables), not just Builds.
+`DOTENV_PRIVATE_KEY_DEV` needs the Functions scope too, for "Run now" on
+deploy previews and branch deploys (they decrypt `.env.dev`).
 Without it the function throws on every run rather than running with
 still-encrypted values.
 
