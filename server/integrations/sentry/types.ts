@@ -39,3 +39,42 @@ export interface SentryIssueSearchRequest {
 export type SearchSentryIssues = (
   request: SentryIssueSearchRequest,
 ) => Promise<SentryIssuePage>;
+
+// One daily bucket of an issue's event stats. `timestamp` is epoch seconds,
+// as Sentry sends it.
+export interface SentryStatPoint {
+  timestamp: number;
+  count: number;
+}
+
+// The subset of a Sentry issue the dashboard panel shows. Separate from
+// SentryIssue (id only) so the count-only sync path keeps its narrow shape.
+export interface SentryIssueSummary {
+  id: string;
+  title: string;
+  level: string;
+  culprit: string;
+  eventCount: number;
+  userCount: number;
+  // ISO 8601, as Sentry sends it.
+  lastSeen: string;
+  // Link to the issue in Sentry's UI.
+  permalink: string;
+  // Null when Sentry omitted the project object.
+  projectId: string | null;
+  eventStats: SentryStatPoint[];
+}
+
+export interface SentryTopIssuesPage {
+  issues: SentryIssueSummary[];
+}
+
+export interface SentryTopIssuesRequest {
+  projectSlug: string;
+  query: string;
+}
+
+// Same seam idea as SearchSentryIssues, for the panel's single request.
+export type FetchSentryTopIssues = (
+  request: SentryTopIssuesRequest,
+) => Promise<SentryTopIssuesPage>;

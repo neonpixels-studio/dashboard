@@ -1,6 +1,12 @@
 import { NO_DEADLINE, type FetchDeadline } from "../types";
 import { parseSentryNextCursor, toSentryIssue } from "./mapping";
-import type { SearchSentryIssues, SentryIssuePage } from "./types";
+import { SENTRY_STATS_PERIOD, toSentryIssueSummary } from "./issueSummary";
+import type {
+  FetchSentryTopIssues,
+  SearchSentryIssues,
+  SentryIssuePage,
+  SentryTopIssuesPage,
+} from "./types";
 
 // A hung Sentry request would otherwise block a sync indefinitely (no
 // independent deadline on a Netlify function) — same reasoning as
@@ -37,8 +43,7 @@ type FetchIssuesPage = typeof fetch;
 function buildIssueSearchUrl(
   orgSlug: string,
   projectSlug: string,
-  query: string,
-  cursor: string | undefined,
+  params: Record<string, string | undefined>,
 ): URL {
   // Both slugs are encoded before joining into the path — orgSlug is a
   // shared env var, but projectSlug comes from integration_config.external_id
@@ -47,9 +52,11 @@ function buildIssueSearchUrl(
   const url = new URL(
     `${SENTRY_API_BASE_URL}/projects/${encodeURIComponent(orgSlug)}/${encodeURIComponent(projectSlug)}/issues/`,
   );
-  url.searchParams.set("query", query);
-  if (cursor) {
-    url.searchParams.set("cursor", cursor);
+  const definedParams = Object.entries(params).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined,
+  );
+  for (const [name, value] of definedParams) {
+    url.searchParams.set(name, value);
   }
   return url;
 }
@@ -253,6 +260,56 @@ async function parseIssuesResponseBody(
   return body;
 }
 
+interface IssuesResponse {
+  rawIssues: unknown[];
+  headers: Headers;
+}
+
+// One timed, rate-limit-retried request for a project's issue list. Both
+// public factories below go through here, so every Sentry call shares the
+// same timeout, shared-deadline and 429 handling (issue #107).
+async function requestIssues(
+  fetchImpl: FetchIssuesPage,
+  url: URL,
+  authToken: string,
+  deadline: FetchDeadline,
+  projectSlug: string,
+): Promise<IssuesResponse> {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(
+    () => abortController.abort(),
+    SENTRY_REQUEST_TIMEOUT_MS,
+  );
+
+  // The deadline must cover reading the response body, not just receiving
+  // headers — `response.json()` still streams over the same connection, so
+  // clearing the timeout right after `fetchImpl` resolves would leave a
+  // stalled body read with no deadline at all. Both the request and the
+  // body parse stay inside this one try, and the timer only clears once
+  // both are done.
+  try {
+    const response = await fetchIssuesPageWithRetry(
+      fetchImpl,
+      url,
+      authToken,
+      abortController,
+      deadline,
+      projectSlug,
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Sentry issue search for project "${projectSlug}" failed with status ${response.status}.`,
+      );
+    }
+
+    const rawIssues = await parseIssuesResponseBody(response, projectSlug);
+    return { rawIssues, headers: response.headers };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /**
  * Builds the real, network-touching `SearchSentryIssues`. `fetchImpl`
  * defaults to the global `fetch` but is injectable — this is the one
@@ -272,45 +329,55 @@ export function createSentryIssueSearcher(
   deadline: FetchDeadline = NO_DEADLINE,
 ): SearchSentryIssues {
   return async ({ projectSlug, query, cursor }): Promise<SentryIssuePage> => {
-    const url = buildIssueSearchUrl(orgSlug, projectSlug, query, cursor);
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(
-      () => abortController.abort(),
-      SENTRY_REQUEST_TIMEOUT_MS,
+    const url = buildIssueSearchUrl(orgSlug, projectSlug, { query, cursor });
+    const { rawIssues, headers } = await requestIssues(
+      fetchImpl,
+      url,
+      authToken,
+      deadline,
+      projectSlug,
     );
+    const nextCursor = parseSentryNextCursor(headers.get("link"));
 
-    // The deadline must cover reading the response body, not just receiving
-    // headers — `response.json()` still streams over the same connection, so
-    // clearing the timeout right after `fetchImpl` resolves would leave a
-    // stalled body read with no deadline at all. Both the request and the
-    // body parse stay inside this one try, and the timer only clears once
-    // both are done.
-    try {
-      const response = await fetchIssuesPageWithRetry(
-        fetchImpl,
-        url,
-        authToken,
-        abortController,
-        deadline,
-        projectSlug,
-      );
+    return {
+      issues: rawIssues.map(toSentryIssue),
+      hasMore: nextCursor !== null,
+      nextCursor,
+    };
+  };
+}
 
-      if (!response.ok) {
-        throw new Error(
-          `Sentry issue search for project "${projectSlug}" failed with status ${response.status}.`,
-        );
-      }
+// The panel shows the top few issues, but the trend is summed over the whole
+// page, so a larger page than the list needs gives it a fuller picture while
+// still costing one request.
+const TOP_ISSUES_PAGE_SIZE = "25";
+const TOP_ISSUES_SORT = "freq";
 
-      const rawIssues = await parseIssuesResponseBody(response, projectSlug);
-      const nextCursor = parseSentryNextCursor(response.headers.get("link"));
-
-      return {
-        issues: rawIssues.map(toSentryIssue),
-        hasMore: nextCursor !== null,
-        nextCursor,
-      };
-    } finally {
-      clearTimeout(timeoutId);
-    }
+/**
+ * Builds the single-request fetcher behind the Sentry panel: the project's
+ * most frequent unresolved issues with their 14-day event stats. One request
+ * (with the shared 429 retry), no pagination walk.
+ */
+export function createSentryTopIssuesFetcher(
+  authToken: string,
+  orgSlug: string,
+  fetchImpl: FetchIssuesPage = fetch,
+  deadline: FetchDeadline = NO_DEADLINE,
+): FetchSentryTopIssues {
+  return async ({ projectSlug, query }): Promise<SentryTopIssuesPage> => {
+    const url = buildIssueSearchUrl(orgSlug, projectSlug, {
+      query,
+      sort: TOP_ISSUES_SORT,
+      limit: TOP_ISSUES_PAGE_SIZE,
+      statsPeriod: SENTRY_STATS_PERIOD,
+    });
+    const { rawIssues } = await requestIssues(
+      fetchImpl,
+      url,
+      authToken,
+      deadline,
+      projectSlug,
+    );
+    return { issues: rawIssues.map(toSentryIssueSummary) };
   };
 }

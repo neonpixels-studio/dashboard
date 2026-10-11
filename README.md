@@ -221,6 +221,19 @@ replaces the generic LIVE label on the property card and app detail via
 sync is healthy and both Sentry counts exist; failing syncs still show
 "N ISSUES".
 
+The Sentry card on the product detail pages (MONEY & HEALTH) is live, not
+synced: `GET /api/apps/[slug]/sentry`
+(`server/api/apps/[slug]/sentry.get.ts`) makes one request per page view to
+Sentry's project issues endpoint (top unresolved issues by event count, with
+14-day stats) and returns the five top issues, a summed 14-day events trend,
+and the "view all issues" link. Each issue row links to its `permalink` in
+Sentry. It goes through the same client as the sync
+(`server/integrations/sentry/sentryClient.ts`), so it shares the 429 retry
+handling and request timeout, and it uses the same token, org and project
+config below, so there is nothing new to set up. The trend covers the fetched
+issues only, not the whole project. It loads separately from the rest of the
+detail page, so a Sentry outage shows an error with a retry in the card only.
+
 1. Auth token — <https://sentry.io/settings/account/api/auth-tokens/>, needs
    `project:read` and `org:read` scopes → `NUXT_SENTRY_AUTH_TOKEN`.
 2. Org slug (`NUXT_SENTRY_ORG`) — the slug in your Sentry settings URL.
